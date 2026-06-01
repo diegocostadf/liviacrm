@@ -47,7 +47,7 @@ export const getConversation = createServerFn({ method: "POST" })
     const { supabase } = context;
     const [{ data: conv }, { data: messages }, { data: notes }] = await Promise.all([
       supabase.from("conversations").select(`
-        id, status, is_favorite, unread_count, last_message_at, assigned_to, instance_id,
+        id, status, is_favorite, unread_count, last_message_at, assigned_to, instance_id, bot_active, intent_temperature,
         contact:contacts!inner(*),
         instance:whatsapp_instances!inner(id, name, evolution_instance_name, status)
       `).eq("id", data.id).maybeSingle(),

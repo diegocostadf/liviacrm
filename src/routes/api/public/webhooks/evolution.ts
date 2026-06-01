@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { loadEvolutionSettings } from "@/lib/evolution.server";
+import { handleBotReply } from "@/lib/ai-bot.server";
 
 export const Route = createFileRoute("/api/public/webhooks/evolution")({
   server: {
@@ -126,6 +127,7 @@ async function handleIncomingMessage(instanceName: string, data: Record<string, 
 
   // Upsert conversation
   let conversationId: string;
+  let isNewConversation = false;
   const { data: existingConv } = await supabaseAdmin
     .from("conversations")
     .select("id, unread_count")
@@ -135,13 +137,25 @@ async function handleIncomingMessage(instanceName: string, data: Record<string, 
   if (existingConv) {
     conversationId = existingConv.id;
   } else {
+    // If a bot is enabled for this instance, the new conversation starts with bot_active=true
+    const { data: botCfg } = await supabaseAdmin
+      .from("ai_bot_configs")
+      .select("enabled")
+      .eq("instance_id", inst.id)
+      .maybeSingle();
     const { data: newConv, error } = await supabaseAdmin
       .from("conversations")
-      .insert({ contact_id: contactId, instance_id: inst.id, status: "open" })
+      .insert({
+        contact_id: contactId,
+        instance_id: inst.id,
+        status: "open",
+        bot_active: Boolean(botCfg?.enabled),
+      })
       .select("id")
       .single();
     if (error || !newConv) return;
     conversationId = newConv.id;
+    isNewConversation = true;
   }
 
   // Insert message (idempotent on wa_message_id)
@@ -174,4 +188,11 @@ async function handleIncomingMessage(instanceName: string, data: Record<string, 
       unread_count: direction === "in" ? ((existingConv?.unread_count ?? 0) + 1) : 0,
     })
     .eq("id", conversationId);
+
+  // Fire bot reply for inbound text-ish messages. Never await — webhook must
+  // return quickly. Errors are swallowed inside handleBotReply.
+  if (direction === "in" && (type === "text" || type === "image" || type === "document")) {
+    void handleBotReply(conversationId);
+  }
+  void isNewConversation;
 }

@@ -15,6 +15,7 @@ import {
   transferConversation,
 } from "@/lib/inbox.functions";
 import { sendTextMessage, sendMediaMessage, listInstances } from "@/lib/evolution.functions";
+import { toggleConversationBot } from "@/lib/ai-bot.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -26,7 +27,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import {
   Search, Send, Star, Archive, ArchiveRestore, MoreVertical, MailOpen, Mail,
-  Paperclip, StickyNote, Check, CheckCheck, FileText, Download, MapPin,
+  Paperclip, StickyNote, Check, CheckCheck, FileText, Download, MapPin, Bot,
 } from "lucide-react";
 import { formatDistanceToNow, format, isToday, isYesterday, isSameDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -63,6 +64,7 @@ type MessageRow = {
   status: string;
   created_at: string;
   metadata: Record<string, unknown> | null;
+  sent_by?: "human" | "bot" | "system" | null;
 };
 
 function InboxPage() {
@@ -265,6 +267,7 @@ function StatusTicks({ status }: { status: string }) {
 
 function MessageBubble({ m }: { m: MessageRow }) {
   const out = m.direction === "out";
+  const isBot = out && m.sent_by === "bot";
   const time = new Date(m.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
   let body: React.ReactNode = null;
@@ -287,7 +290,12 @@ function MessageBubble({ m }: { m: MessageRow }) {
 
   return (
     <div className={`flex ${out ? "justify-end" : "justify-start"}`}>
-      <div className={`max-w-[70%] rounded-2xl px-3 py-2 text-sm ${out ? "bg-primary text-primary-foreground" : "bg-accent text-foreground"}`}>
+      <div className={`max-w-[70%] rounded-2xl px-3 py-2 text-sm ${out ? (isBot ? "bg-violet-600 text-white" : "bg-primary text-primary-foreground") : "bg-accent text-foreground"}`}>
+        {isBot && (
+          <div className="mb-0.5 flex items-center gap-1 text-[10px] uppercase tracking-wide opacity-80">
+            <Bot className="h-3 w-3" /> Bot Júlia
+          </div>
+        )}
         {body && <div className="mb-1">{body}</div>}
         {m.content && m.type !== "location" && m.type !== "document" && (
           <div className="whitespace-pre-wrap break-words">{m.content}</div>
@@ -322,6 +330,7 @@ function Thread({ id, getFn }: { id: string; getFn: ReturnType<typeof useServerF
   const noteFn = useServerFn(addNote);
   const favFn = useServerFn(toggleFavorite);
   const archFn = useServerFn(setArchived);
+  const botToggleFn = useServerFn(toggleConversationBot);
   const { data } = useQuery({ queryKey: ["conversation", id], queryFn: () => getFn({ data: { id } }) });
   const [text, setText] = useState("");
   const [noteMode, setNoteMode] = useState(false);
@@ -349,7 +358,15 @@ function Thread({ id, getFn }: { id: string; getFn: ReturnType<typeof useServerF
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [timeline.length]);
 
-  const conv = data?.conversation as { id: string; is_favorite: boolean; status: string; contact: { name: string | null; phone: string; profile_pic_url: string | null }; instance: { name: string; status: string } } | undefined;
+  const conv = data?.conversation as {
+    id: string;
+    is_favorite: boolean;
+    status: string;
+    bot_active: boolean;
+    intent_temperature: "frio" | "morno" | "quente" | null;
+    contact: { name: string | null; phone: string; profile_pic_url: string | null };
+    instance: { name: string; status: string };
+  } | undefined;
 
   async function handleSend() {
     if (!text.trim() || sending) return;
@@ -428,6 +445,23 @@ function Thread({ id, getFn }: { id: string; getFn: ReturnType<typeof useServerF
           </div>
         </div>
         <div className="flex items-center gap-1">
+          {conv && (
+            <Button
+              variant={conv.bot_active ? "default" : "outline"}
+              size="sm"
+              className={`h-8 gap-1.5 ${conv.bot_active ? "bg-violet-600 hover:bg-violet-700 text-white" : ""}`}
+              onClick={async () => {
+                await botToggleFn({ data: { conversationId: conv.id, active: !conv.bot_active } });
+                qc.invalidateQueries({ queryKey: ["conversation", id] });
+                qc.invalidateQueries({ queryKey: ["conversations"] });
+                toast.success(conv.bot_active ? "Bot pausado. Você assumiu a conversa." : "Bot reativado.");
+              }}
+              title={conv.bot_active ? "Assumir conversa (pausa o bot)" : "Reativar bot"}
+            >
+              <Bot className="h-4 w-4" />
+              {conv.bot_active ? "Assumir" : "Ativar bot"}
+            </Button>
+          )}
           <Button variant="ghost" size="icon" onClick={() => conv && favFn({ data: { id: conv.id, value: !conv.is_favorite } }).then(() => qc.invalidateQueries({ queryKey: ["conversation", id] }))}>
             <Star className={`h-4 w-4 ${conv?.is_favorite ? "fill-yellow-400 text-yellow-400" : ""}`} />
           </Button>
