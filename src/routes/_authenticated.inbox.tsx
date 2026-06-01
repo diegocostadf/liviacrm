@@ -515,7 +515,7 @@ function Thread({ id, getFn }: { id: string; getFn: ReturnType<typeof useServerF
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-            placeholder={noteMode ? "Escreva uma nota interna…" : "Digite uma mensagem…"}
+            placeholder={noteMode ? "Escreva uma nota interna…" : "Digite uma mensagem… (use /resetar para reiniciar o bot)"}
             className="min-h-[44px] resize-none"
             rows={1}
             disabled={sending}
