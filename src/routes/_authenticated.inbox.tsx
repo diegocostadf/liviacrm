@@ -15,7 +15,7 @@ import {
   transferConversation,
 } from "@/lib/inbox.functions";
 import { sendTextMessage, sendMediaMessage, listInstances } from "@/lib/evolution.functions";
-import { toggleConversationBot } from "@/lib/ai-bot.functions";
+import { toggleConversationBot, resetConversationBot } from "@/lib/ai-bot.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
