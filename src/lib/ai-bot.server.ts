@@ -475,6 +475,37 @@ export async function handleHandoffCommand(args: {
   return true;
 }
 
+/**
+ * Reset bot context for a conversation when the lead sends /resetar (or aliases).
+ * Marks bot_context_reset_at = now, reactivates the bot, and sends a confirmation
+ * via WhatsApp. Returns true if the message was a reset command.
+ */
+export async function handleResetCommand(args: {
+  conversationId: string;
+  instanceName: string;
+  phone: string;
+  text: string;
+}): Promise<boolean> {
+  const { conversationId, instanceName, phone, text } = args;
+  if (!/^\s*\/(resetar|reset|reiniciar)\s*$/i.test(text)) return false;
+
+  const now = new Date().toISOString();
+  await supabaseAdmin
+    .from("conversations")
+    .update({ bot_context_reset_at: now, bot_active: true })
+    .eq("id", conversationId);
+
+  try {
+    await evolutionFetch(`/message/sendText/${instanceName}`, {
+      method: "POST",
+      json: { number: phone, text: "🔄 Conversa reiniciada! Vamos começar de novo — em que posso ajudar?" },
+    });
+  } catch (e) {
+    console.warn("[bot] reset reply failed", e);
+  }
+  return true;
+}
+
 async function notifyHumanHandoff(
   bot: BotConfig,
   evolutionInstanceName: string,
