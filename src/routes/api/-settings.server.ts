@@ -11,6 +11,7 @@ const updateSchema = z.object({
   webhookUrl: z.string().trim().url().max(500).optional().or(z.literal("")),
   webhookToken: z.string().trim().max(500).optional().or(z.literal("")),
   webhookEvents: z.array(z.string().min(1).max(60)).max(30).optional(),
+  defaultInstance: z.string().trim().max(120).optional().or(z.literal("")),
 });
 const testSchema = z.object({ action: z.literal("test") });
 const postSchema = z.union([updateSchema, testSchema]);
@@ -61,6 +62,7 @@ async function getSettings() {
       webhookToken: typeof value.webhookToken === "string" && value.webhookToken ? "••••••••" : (process.env.EVOLUTION_WEBHOOK_TOKEN ? "••••••••" : ""),
       hasWebhookToken: Boolean(value.webhookToken) || Boolean(process.env.EVOLUTION_WEBHOOK_TOKEN),
       webhookEvents: Array.isArray(value.webhookEvents) ? (value.webhookEvents as string[]) : [],
+      defaultInstance: typeof value.defaultInstance === "string" ? value.defaultInstance : "",
       updatedAt: data?.updated_at ?? null,
     },
   };
@@ -102,6 +104,7 @@ export async function handlePost(request: Request) {
       webhookUrl: payload.webhookUrl || undefined,
       webhookToken: webhookToken || undefined,
       webhookEvents: payload.webhookEvents,
+      defaultInstance: payload.defaultInstance || undefined,
     };
 
     const { error } = await supabaseAdmin
