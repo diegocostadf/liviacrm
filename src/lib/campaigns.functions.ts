@@ -186,7 +186,7 @@ export const setCampaignStatus = createServerFn({ method: "POST" })
       completed_at?: string;
     } = { status: data.status };
     if (data.status === "running") patch.started_at = new Date().toISOString();
-    if (data.status === "completed" || data.status === "cancelled") {
+    if (data.status === "completed" || data.status === "failed") {
       patch.completed_at = new Date().toISOString();
     }
     const { error } = await supabaseAdmin.from("campaigns").update(patch).eq("id", data.id);
