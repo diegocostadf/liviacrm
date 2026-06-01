@@ -20,6 +20,8 @@ type BotConfig = {
   landing_link: string | null;
   out_of_hours_message: string | null;
   handoff_keywords: string[];
+  handoff_phone: string | null;
+  typing_indicator: boolean;
   business_hours: { start_hour?: number; end_hour?: number; enabled?: boolean } | null;
 };
 
@@ -43,6 +45,16 @@ const REPLY_TOOL = {
         score: { type: "integer", minimum: 0, maximum: 100 },
         next_step: { type: "string", description: "Próximo passo recomendado em 1 frase." },
         summary: { type: "string", description: "Resumo do lead em 1 frase." },
+        contact_name: { type: "string", description: "Nome completo do lead, se mencionado na conversa. Caso contrário, omita." },
+        contact_email: { type: "string", description: "E-mail do lead, se mencionado. Caso contrário, omita." },
+        contact_city: { type: "string", description: "Cidade do lead, se mencionada. Caso contrário, omita." },
+        contact_state: { type: "string", description: "Estado/UF do lead, se mencionado." },
+        contact_company: { type: "string", description: "Empresa/instituição do lead, se mencionada." },
+        tags: {
+          type: "array",
+          items: { type: "string" },
+          description: "Tags curtas (1-3 palavras, minúsculas) representando interesse, produto desejado, perfil ou objeções. Ex.: 'concurso-federal','duvida-preco','oab','interessado-grupo'.",
+        },
       },
       required: ["reply", "temperature", "intent", "score", "next_step", "summary"],
       additionalProperties: false,
@@ -100,7 +112,16 @@ export async function handleBotReply(conversationId: string): Promise<void> {
       whatsapp_instances: { evolution_instance_name: string };
     }).whatsapp_instances;
     const contact = (conv as unknown as {
-      contacts: { id: string; name: string | null; phone: string };
+      contacts: {
+        id: string;
+        name: string | null;
+        phone: string;
+        email?: string | null;
+        city?: string | null;
+        state?: string | null;
+        company?: string | null;
+        tags?: string[] | null;
+      };
     }).contacts;
     if (!instance?.evolution_instance_name || !contact?.phone) return;
 
@@ -130,7 +151,10 @@ export async function handleBotReply(conversationId: string): Promise<void> {
         instance.evolution_instance_name,
         contact.phone,
         "Entendido! Vou chamar um humano da equipe pra continuar com você por aqui. 👋",
+        undefined,
+        bot.typing_indicator,
       );
+      await notifyHumanHandoff(bot, instance.evolution_instance_name, contact, "Palavra-chave de handoff detectada.");
       return;
     }
 
@@ -141,6 +165,8 @@ export async function handleBotReply(conversationId: string): Promise<void> {
         instance.evolution_instance_name,
         contact.phone,
         bot.out_of_hours_message,
+        undefined,
+        bot.typing_indicator,
       );
       return;
     }
@@ -215,6 +241,12 @@ export async function handleBotReply(conversationId: string): Promise<void> {
       score: number;
       next_step: string;
       summary: string;
+      contact_name?: string;
+      contact_email?: string;
+      contact_city?: string;
+      contact_state?: string;
+      contact_company?: string;
+      tags?: string[];
     };
     try {
       parsed = JSON.parse(call.function.arguments);
@@ -238,6 +270,7 @@ export async function handleBotReply(conversationId: string): Promise<void> {
         contact.phone,
         reply,
         { intent: parsed.intent, temperature: parsed.temperature, score: parsed.score },
+        bot.typing_indicator,
       );
     }
 
@@ -259,19 +292,66 @@ export async function handleBotReply(conversationId: string): Promise<void> {
       .eq("id", conversationId);
 
     const status = leadStatusFor(parsed.temperature, parsed.intent);
-    await supabaseAdmin
-      .from("contacts")
-      .update({ lead_status: status, last_score_at: new Date().toISOString() })
-      .eq("id", contact.id);
+    // Enriquecer CRM com dados extraídos da conversa
+    const contactPatch: Record<string, unknown> = {
+      lead_status: status,
+      last_score_at: new Date().toISOString(),
+    };
+    if (!contact.name && parsed.contact_name) contactPatch.name = parsed.contact_name.slice(0, 255);
+    if (!contact.email && parsed.contact_email) contactPatch.email = parsed.contact_email.slice(0, 255);
+    if (!contact.city && parsed.contact_city) contactPatch.city = parsed.contact_city.slice(0, 120);
+    if (!contact.state && parsed.contact_state) contactPatch.state = parsed.contact_state.slice(0, 60);
+    if (!contact.company && parsed.contact_company) contactPatch.company = parsed.contact_company.slice(0, 255);
+    if (parsed.tags?.length) {
+      const existing = new Set((contact.tags ?? []).map((t) => t.toLowerCase()));
+      const merged = [...(contact.tags ?? [])];
+      for (const raw of parsed.tags) {
+        const t = String(raw).trim().toLowerCase().slice(0, 60);
+        if (t && !existing.has(t)) {
+          merged.push(t);
+          existing.add(t);
+        }
+      }
+      contactPatch.tags = merged.slice(0, 50);
+    }
+    await supabaseAdmin.from("contacts").update(contactPatch as never).eq("id", contact.id);
 
     if (parsed.handoff) {
       await supabaseAdmin
         .from("conversations")
         .update({ bot_active: false })
         .eq("id", conversationId);
+      await notifyHumanHandoff(bot, instance.evolution_instance_name, contact, parsed.summary ?? parsed.next_step ?? "Lead solicitou atendimento humano.");
     }
   } catch (e) {
     console.error("[handleBotReply] error", e);
+  }
+}
+
+function normalizePhone(raw: string): string {
+  return raw.replace(/\D/g, "");
+}
+
+async function notifyHumanHandoff(
+  bot: BotConfig,
+  evolutionInstanceName: string,
+  contact: { name: string | null; phone: string },
+  reason: string,
+) {
+  const target = normalizePhone(bot.handoff_phone ?? "");
+  if (!target) return;
+  const text = [
+    "🤝 *Handoff Lívia/Júlia*",
+    `Lead: ${contact.name ?? "Sem nome"} (${contact.phone})`,
+    `Motivo: ${reason}`,
+  ].join("\n");
+  try {
+    await evolutionFetch(`/message/sendText/${evolutionInstanceName}`, {
+      method: "POST",
+      json: { number: target, text },
+    });
+  } catch (e) {
+    console.warn("[bot] handoff notify failed", e);
   }
 }
 
@@ -281,7 +361,21 @@ async function sendBotMessage(
   phone: string,
   text: string,
   metadata?: Record<string, unknown>,
+  showTyping: boolean = true,
 ) {
+  if (showTyping) {
+    try {
+      // Typing indicator (composing) — Evolution v2 endpoint
+      const delay = Math.min(4000, 800 + Math.min(text.length, 400) * 25);
+      await evolutionFetch(`/chat/sendPresence/${evolutionInstanceName}`, {
+        method: "POST",
+        json: { number: phone, presence: "composing", delay },
+      });
+      await new Promise((r) => setTimeout(r, delay));
+    } catch (e) {
+      console.warn("[bot] typing presence failed", e);
+    }
+  }
   const res = (await evolutionFetch(`/message/sendText/${evolutionInstanceName}`, {
     method: "POST",
     json: { number: phone, text },

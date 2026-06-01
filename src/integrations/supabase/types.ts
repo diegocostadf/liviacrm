@@ -22,6 +22,7 @@ export type Database = {
           goal: string
           group_link: string | null
           handoff_keywords: string[]
+          handoff_phone: string | null
           id: string
           instance_id: string
           landing_link: string | null
@@ -35,6 +36,7 @@ export type Database = {
           system_extra: string | null
           temperature: number
           tone: string
+          typing_indicator: boolean
           updated_at: string
         }
         Insert: {
@@ -44,6 +46,7 @@ export type Database = {
           goal?: string
           group_link?: string | null
           handoff_keywords?: string[]
+          handoff_phone?: string | null
           id?: string
           instance_id: string
           landing_link?: string | null
@@ -57,6 +60,7 @@ export type Database = {
           system_extra?: string | null
           temperature?: number
           tone?: string
+          typing_indicator?: boolean
           updated_at?: string
         }
         Update: {
@@ -66,6 +70,7 @@ export type Database = {
           goal?: string
           group_link?: string | null
           handoff_keywords?: string[]
+          handoff_phone?: string | null
           id?: string
           instance_id?: string
           landing_link?: string | null
@@ -79,6 +84,7 @@ export type Database = {
           system_extra?: string | null
           temperature?: number
           tone?: string
+          typing_indicator?: boolean
           updated_at?: string
         }
         Relationships: [

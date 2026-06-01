@@ -36,6 +36,8 @@ const upsertSchema = z.object({
   landing_link: z.string().url().nullable().optional(),
   out_of_hours_message: z.string().max(500).nullable().optional(),
   handoff_keywords: z.array(z.string().min(1).max(40)).max(20).optional(),
+  handoff_phone: z.string().max(40).nullable().optional(),
+  typing_indicator: z.boolean().optional(),
   business_hours: z.object({
     start_hour: z.number().int().min(0).max(23).optional(),
     end_hour: z.number().int().min(0).max(23).optional(),
@@ -63,6 +65,8 @@ export const upsertBotConfig = createServerFn({ method: "POST" })
       landing_link: data.landing_link ?? null,
       out_of_hours_message: data.out_of_hours_message ?? null,
       handoff_keywords: data.handoff_keywords ?? [],
+      handoff_phone: data.handoff_phone ?? null,
+      typing_indicator: data.typing_indicator ?? true,
       business_hours: data.business_hours ?? {},
     };
     const { data: existing } = await supabaseAdmin
