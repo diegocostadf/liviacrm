@@ -331,6 +331,7 @@ export type Database = {
         Row: {
           assigned_to: string | null
           bot_active: boolean
+          bot_context_reset_at: string | null
           contact_id: string
           created_at: string
           id: string
@@ -348,6 +349,7 @@ export type Database = {
         Insert: {
           assigned_to?: string | null
           bot_active?: boolean
+          bot_context_reset_at?: string | null
           contact_id: string
           created_at?: string
           id?: string
@@ -365,6 +367,7 @@ export type Database = {
         Update: {
           assigned_to?: string | null
           bot_active?: boolean
+          bot_context_reset_at?: string | null
           contact_id?: string
           created_at?: string
           id?: string
