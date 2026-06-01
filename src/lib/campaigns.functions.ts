@@ -180,7 +180,11 @@ export const setCampaignStatus = createServerFn({ method: "POST" })
     }).parse(d),
   )
   .handler(async ({ data }) => {
-    const patch: Record<string, unknown> = { status: data.status };
+    const patch: {
+      status: typeof data.status;
+      started_at?: string;
+      completed_at?: string;
+    } = { status: data.status };
     if (data.status === "running") patch.started_at = new Date().toISOString();
     if (data.status === "completed" || data.status === "cancelled") {
       patch.completed_at = new Date().toISOString();
