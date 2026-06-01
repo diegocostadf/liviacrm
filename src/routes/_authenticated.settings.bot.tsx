@@ -35,6 +35,7 @@ type Form = {
   temperature: number;
   max_tokens: number;
   system_extra: string;
+  system_prompt_md: string;
   group_link: string;
   landing_link: string;
   out_of_hours_message: string;
@@ -57,6 +58,7 @@ const DEFAULT_FORM: Form = {
   temperature: 0.4,
   max_tokens: 1024,
   system_extra: "",
+  system_prompt_md: "",
   group_link: "",
   landing_link: "",
   out_of_hours_message: "",
@@ -106,6 +108,7 @@ function BotSettingsPage() {
       temperature: Number(c.temperature ?? 0.4),
       max_tokens: c.max_tokens ?? 1024,
       system_extra: c.system_extra ?? "",
+      system_prompt_md: (c as { system_prompt_md?: string | null }).system_prompt_md ?? "",
       group_link: c.group_link ?? "",
       landing_link: c.landing_link ?? "",
       out_of_hours_message: c.out_of_hours_message ?? "",
@@ -133,6 +136,7 @@ function BotSettingsPage() {
           temperature: form.temperature,
           max_tokens: form.max_tokens,
           system_extra: form.system_extra || null,
+          system_prompt_md: form.system_prompt_md || null,
           group_link: form.group_link || null,
           landing_link: form.landing_link || null,
           out_of_hours_message: form.out_of_hours_message || null,
@@ -238,8 +242,33 @@ function BotSettingsPage() {
                   </div>
                 </Card>
 
+                <Card className="space-y-3 p-5">
+                  <div>
+                    <h2 className="text-base font-semibold">System Prompt (Markdown)</h2>
+                    <p className="text-xs text-muted-foreground">
+                      Escreva aqui todo o direcional do bot em Markdown (persona, objetivo, regras, exemplos, FAQs).
+                      Quando preenchido, este texto <strong>substitui</strong> os campos Persona/Objetivo/Tom/Idioma abaixo
+                      como instrução principal. Os links, base de conhecimento e regras de segurança continuam sendo anexados automaticamente.
+                    </p>
+                  </div>
+                  <Textarea
+                    rows={16}
+                    className="font-mono text-xs"
+                    value={form.system_prompt_md}
+                    onChange={(e) => setForm({ ...form, system_prompt_md: e.target.value })}
+                    placeholder={`# Persona\nVocê é a Júlia, consultora de vendas da Russomano Educação...\n\n# Objetivo\n- Qualificar o lead\n- Apresentar o curso ideal\n- Enviar o link de inscrição\n\n# Tom de voz\n- Amigável, breve, sem jargão\n- Usa "você", nunca "senhor(a)"\n\n# Regras\n1. Nunca prometa desconto sem confirmar\n2. Se o lead perguntar sobre OAB, ofereça o link do grupo\n3. ...\n\n# FAQs\n**Quanto custa?** R$ ...\n**Tem material?** Sim, ...`}
+                  />
+                  <div className="text-[11px] text-muted-foreground">
+                    {form.system_prompt_md.length.toLocaleString("pt-BR")} caracteres
+                    {form.system_prompt_md.trim() ? " · usando este prompt como direcional principal" : " · usando Persona/Objetivo/Tom abaixo"}
+                  </div>
+                </Card>
+
                 <Card className="space-y-4 p-5">
-                  <h2 className="text-base font-semibold">Personalidade</h2>
+                  <h2 className="text-base font-semibold">Personalidade (fallback)</h2>
+                  <p className="text-xs text-muted-foreground">
+                    Usado apenas quando o System Prompt acima estiver vazio.
+                  </p>
                   <div className="space-y-1.5">
                     <Label>Persona (quem é o bot?)</Label>
                     <Textarea rows={3} value={form.persona} onChange={(e) => setForm({ ...form, persona: e.target.value })} />

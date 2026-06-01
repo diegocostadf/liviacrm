@@ -16,6 +16,7 @@ type BotConfig = {
   temperature: number;
   max_tokens: number;
   system_extra: string | null;
+  system_prompt_md: string | null;
   group_link: string | null;
   landing_link: string | null;
   out_of_hours_message: string | null;
@@ -191,15 +192,22 @@ export async function handleBotReply(conversationId: string): Promise<void> {
       .filter(Boolean)
       .join("\n");
 
+    const customMd = (bot.system_prompt_md ?? "").trim();
+    const baseDirective = customMd
+      ? customMd
+      : [
+          `Você é ${bot.persona}`,
+          `Objetivo: ${bot.goal}`,
+          `Tom: ${bot.tone}`,
+          `Idioma: ${bot.language}`,
+        ].join("\n");
+
     const system = [
-      `Você é ${bot.persona}`,
-      `Objetivo: ${bot.goal}`,
-      `Tom: ${bot.tone}`,
-      `Idioma: ${bot.language}`,
+      baseDirective,
       `Nome do lead: ${contact.name ?? "desconhecido"}.`,
       linkBlock ? `Links disponíveis:\n${linkBlock}` : "",
       bot.system_extra ?? "",
-      "Regras: respostas curtas e humanas (máx 3 frases). Nunca invente preço, prazo ou bônus. Se não souber, peça contexto. Use os links somente quando o lead demonstrar interesse claro. Marque handoff=true se o lead pedir falar com humano, reclamar, ou demonstrar irritação.",
+      "Regras gerais (não negociáveis): respostas curtas e humanas (máx 3 frases). Nunca invente preço, prazo ou bônus. Se não souber, peça contexto. Use os links somente quando o lead demonstrar interesse claro. Marque handoff=true se o lead pedir falar com humano, reclamar, ou demonstrar irritação.",
       kbContext,
     ]
       .filter((s) => s && s.trim())

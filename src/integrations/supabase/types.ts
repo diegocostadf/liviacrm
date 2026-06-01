@@ -34,6 +34,7 @@ export type Database = {
           persona: string
           rules: Json
           system_extra: string | null
+          system_prompt_md: string | null
           temperature: number
           tone: string
           typing_indicator: boolean
@@ -58,6 +59,7 @@ export type Database = {
           persona?: string
           rules?: Json
           system_extra?: string | null
+          system_prompt_md?: string | null
           temperature?: number
           tone?: string
           typing_indicator?: boolean
@@ -82,6 +84,7 @@ export type Database = {
           persona?: string
           rules?: Json
           system_extra?: string | null
+          system_prompt_md?: string | null
           temperature?: number
           tone?: string
           typing_indicator?: boolean
