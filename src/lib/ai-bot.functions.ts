@@ -98,6 +98,28 @@ export const toggleConversationBot = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const resetConversationBot = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ conversationId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const now = new Date().toISOString();
+    const { error } = await supabaseAdmin
+      .from("conversations")
+      .update({
+        bot_context_reset_at: now,
+        bot_active: true,
+        intent_temperature: null,
+      })
+      .eq("id", data.conversationId);
+    if (error) throw new Error(error.message);
+    await supabaseAdmin.from("internal_notes").insert({
+      conversation_id: data.conversationId,
+      content: "🔄 Bot reiniciado via /resetar — histórico anterior será ignorado.",
+      author_id: context.userId,
+    });
+    return { ok: true };
+  });
+
 export const listIntentEvents = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ conversationId: z.string().uuid(), limit: z.number().int().min(1).max(50).default(10) }).parse(d))
