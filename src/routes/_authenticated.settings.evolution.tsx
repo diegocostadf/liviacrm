@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { PlugZap, Save, AlertTriangle, CheckCircle2, QrCode, Power, RefreshCw } from "lucide-react";
+import { PlugZap, Save, AlertTriangle, CheckCircle2, QrCode, Power, RefreshCw, Webhook } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Settings = {
@@ -291,6 +291,11 @@ function DefaultInstanceCard({ value, onChange }: { value: string; onChange: (v:
     mutationFn: (name: string) => callConnections<{ status: string }>({ action: "status", name }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["instances"] }),
   });
+  const setWebhook = useMutation({
+    mutationFn: (name: string) => callConnections<{ ok: boolean; url: string }>({ action: "setWebhook", name }),
+    onSuccess: (r) => toast.success(`Webhook aplicado: ${r.url}`),
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
+  });
 
   // Poll status while QR open
   useEffect(() => {
@@ -358,6 +363,9 @@ function DefaultInstanceCard({ value, onChange }: { value: string; onChange: (v:
           )}
           <Button size="sm" variant="ghost" onClick={() => refresh.mutate(selected.evolution_instance_name)}>
             <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Atualizar status
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setWebhook.mutate(selected.evolution_instance_name)} disabled={setWebhook.isPending}>
+            <Webhook className="mr-1.5 h-3.5 w-3.5" /> {setWebhook.isPending ? "Aplicando…" : "Aplicar webhook"}
           </Button>
           {selected.profile_name && (
             <span className="text-xs text-muted-foreground">{selected.profile_name}</span>
