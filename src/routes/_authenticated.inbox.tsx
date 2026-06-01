@@ -552,7 +552,26 @@ function ContactPanel({ id, getFn }: { id: string; getFn: ReturnType<typeof useS
   const { data } = useQuery({ queryKey: ["conversation", id], queryFn: () => getFn({ data: { id } }) });
   const { data: team } = useQuery({ queryKey: ["team"], queryFn: () => teamFn() });
 
-  const conv = data?.conversation as { id: string; assigned_to: string | null; contact: { id: string; name: string | null; phone: string; email: string | null; city: string | null; state: string | null; company: string | null; tags: string[] | null; profile_pic_url: string | null } } | undefined;
+  const conv = data?.conversation as {
+    id: string;
+    assigned_to: string | null;
+    contact: {
+      id: string;
+      name: string | null;
+      phone: string;
+      email: string | null;
+      city: string | null;
+      state: string | null;
+      company: string | null;
+      tags: string[] | null;
+      profile_pic_url: string | null;
+      history: string | null;
+      journey_completed: boolean | null;
+      journey_completed_at: string | null;
+      landing_link_sent_at: string | null;
+      landing_link_sent_count: number | null;
+    };
+  } | undefined;
   const notes = (data?.notes ?? []) as unknown as Array<{ id: string; content: string; created_at: string }>;
 
   const [tab, setTab] = useState<"detalhes" | "notas">("detalhes");
@@ -609,17 +628,35 @@ function ContactPanel({ id, getFn }: { id: string; getFn: ReturnType<typeof useS
         </Avatar>
         <div className="mt-2 text-sm font-semibold">{c.name || c.phone}</div>
         <div className="text-xs text-muted-foreground">{c.phone}</div>
+        {c.journey_completed && (
+          <Badge className="mt-2 bg-emerald-600 text-white hover:bg-emerald-600">
+            ✓ Inscrição concluída
+          </Badge>
+        )}
       </div>
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as "detalhes" | "notas")} className="flex-1 min-h-0 flex flex-col">
-        <TabsList className="mx-3 grid grid-cols-2">
+      <Tabs value={tab} onValueChange={(v) => setTab(v as "detalhes" | "historico" | "notas")} className="flex-1 min-h-0 flex flex-col">
+        <TabsList className="mx-3 grid grid-cols-3">
           <TabsTrigger value="detalhes">Detalhes</TabsTrigger>
+          <TabsTrigger value="historico">Histórico</TabsTrigger>
           <TabsTrigger value="notas">Notas {notes.length > 0 && <Badge variant="secondary" className="ml-1 px-1 text-[10px]">{notes.length}</Badge>}</TabsTrigger>
         </TabsList>
 
         <div className="flex-1 min-h-0 overflow-y-auto p-4">
           {tab === "detalhes" && (
             <div className="space-y-3 text-sm">
+              <div className="rounded-md border border-border bg-muted/30 p-2 text-[11px] text-muted-foreground">
+                <div className="flex items-center justify-between">
+                  <span>Link de inscrição enviado</span>
+                  <span className="font-medium text-foreground">{c.landing_link_sent_count ?? 0}x</span>
+                </div>
+                {c.landing_link_sent_at && (
+                  <div className="mt-0.5">Último envio: {format(new Date(c.landing_link_sent_at), "dd/MM HH:mm")}</div>
+                )}
+                {c.journey_completed_at && (
+                  <div className="mt-0.5 text-emerald-600">Concluiu em {format(new Date(c.journey_completed_at), "dd/MM HH:mm")}</div>
+                )}
+              </div>
               <div>
                 <label className="text-xs text-muted-foreground">Responsável</label>
                 <Select value={assignedTo ?? "none"} onValueChange={transfer}>
@@ -656,6 +693,18 @@ function ContactPanel({ id, getFn }: { id: string; getFn: ReturnType<typeof useS
                 )}
               </div>
               <Button size="sm" className="w-full" onClick={save}>Salvar</Button>
+            </div>
+          )}
+
+          {tab === "historico" && (
+            <div className="space-y-2">
+              {c.history ? (
+                <pre className="whitespace-pre-wrap rounded-md border border-border bg-background p-2 text-[11px] leading-relaxed text-foreground/90">{c.history}</pre>
+              ) : (
+                <div className="py-6 text-center text-xs text-muted-foreground">
+                  O bot ainda não registrou histórico para este lead.
+                </div>
+              )}
             </div>
           )}
 
