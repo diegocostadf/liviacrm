@@ -39,6 +39,8 @@ type Form = {
   landing_link: string;
   out_of_hours_message: string;
   handoff_keywords: string;
+  handoff_phone: string;
+  typing_indicator: boolean;
   bh_enabled: boolean;
   bh_start: number;
   bh_end: number;
@@ -59,6 +61,8 @@ const DEFAULT_FORM: Form = {
   landing_link: "",
   out_of_hours_message: "",
   handoff_keywords: "humano, atendente, pessoa, falar com alguém",
+  handoff_phone: "",
+  typing_indicator: true,
   bh_enabled: false,
   bh_start: 8,
   bh_end: 21,
@@ -106,6 +110,8 @@ function BotSettingsPage() {
       landing_link: c.landing_link ?? "",
       out_of_hours_message: c.out_of_hours_message ?? "",
       handoff_keywords: (c.handoff_keywords ?? []).join(", "),
+      handoff_phone: (c as { handoff_phone?: string | null }).handoff_phone ?? "",
+      typing_indicator: (c as { typing_indicator?: boolean }).typing_indicator ?? true,
       bh_enabled: Boolean(bh.enabled),
       bh_start: bh.start_hour ?? 8,
       bh_end: bh.end_hour ?? 21,
@@ -131,6 +137,8 @@ function BotSettingsPage() {
           landing_link: form.landing_link || null,
           out_of_hours_message: form.out_of_hours_message || null,
           handoff_keywords: form.handoff_keywords.split(",").map((s) => s.trim()).filter(Boolean),
+          handoff_phone: form.handoff_phone || null,
+          typing_indicator: form.typing_indicator,
           business_hours: { enabled: form.bh_enabled, start_hour: form.bh_start, end_hour: form.bh_end },
         },
       }),
