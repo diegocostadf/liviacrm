@@ -92,7 +92,7 @@ export async function handleBotReply(conversationId: string): Promise<void> {
     const { data: conv, error: cErr } = await supabaseAdmin
       .from("conversations")
       .select(
-        `id, bot_active, instance_id, contact_id,
+        `id, bot_active, instance_id, contact_id, bot_context_reset_at,
          contacts(id, name, phone, lead_status),
          whatsapp_instances(id, evolution_instance_name)`,
       )
@@ -126,13 +126,16 @@ export async function handleBotReply(conversationId: string): Promise<void> {
     }).contacts;
     if (!instance?.evolution_instance_name || !contact?.phone) return;
 
-    // Load recent message history (last 20)
-    const { data: history } = await supabaseAdmin
+    // Load recent message history (last 20), respeitando ponto de reset (/resetar)
+    const resetAt = (conv as unknown as { bot_context_reset_at: string | null }).bot_context_reset_at;
+    let historyQuery = supabaseAdmin
       .from("messages")
       .select("direction, content, sent_by, created_at")
       .eq("conversation_id", conversationId)
       .order("created_at", { ascending: false })
       .limit(20);
+    if (resetAt) historyQuery = historyQuery.gt("created_at", resetAt);
+    const { data: history } = await historyQuery;
     const messages = (history ?? []).reverse();
     const lastInbound = [...messages].reverse().find((m) => m.direction === "in");
     const lastText = (lastInbound?.content ?? "").trim();
