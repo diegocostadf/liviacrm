@@ -26,6 +26,7 @@ import { Route as AuthenticatedSettingsKnowledgeRouteImport } from './routes/_au
 import { Route as AuthenticatedSettingsEvolutionRouteImport } from './routes/_authenticated.settings.evolution'
 import { Route as AuthenticatedSettingsBotRouteImport } from './routes/_authenticated.settings.bot'
 import { Route as AuthenticatedSettingsAiProvidersRouteImport } from './routes/_authenticated.settings.ai-providers'
+import { Route as AuthenticatedCampaignsIdRouteImport } from './routes/_authenticated.campaigns.$id'
 import { Route as ApiPublicWebhooksEvolutionRouteImport } from './routes/api/public/webhooks/evolution'
 import { Route as ApiPublicCampaignsTickRouteImport } from './routes/api/public/campaigns/tick'
 
@@ -120,6 +121,12 @@ const AuthenticatedSettingsAiProvidersRoute =
     path: '/ai-providers',
     getParentRoute: () => AuthenticatedSettingsRoute,
   } as any)
+const AuthenticatedCampaignsIdRoute =
+  AuthenticatedCampaignsIdRouteImport.update({
+    id: '/$id',
+    path: '/$id',
+    getParentRoute: () => AuthenticatedCampaignsRoute,
+  } as any)
 const ApiPublicWebhooksEvolutionRoute =
   ApiPublicWebhooksEvolutionRouteImport.update({
     id: '/api/public/webhooks/evolution',
@@ -143,6 +150,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AuthenticatedSettingsRouteWithChildren
   '/api/connections': typeof ApiConnectionsRoute
   '/api/settings': typeof ApiSettingsRoute
+  '/campaigns/$id': typeof AuthenticatedCampaignsIdRoute
   '/settings/ai-providers': typeof AuthenticatedSettingsAiProvidersRoute
   '/settings/bot': typeof AuthenticatedSettingsBotRoute
   '/settings/evolution': typeof AuthenticatedSettingsEvolutionRoute
@@ -162,6 +170,7 @@ export interface FileRoutesByTo {
   '/api/connections': typeof ApiConnectionsRoute
   '/api/settings': typeof ApiSettingsRoute
   '/': typeof AuthenticatedIndexRoute
+  '/campaigns/$id': typeof AuthenticatedCampaignsIdRoute
   '/settings/ai-providers': typeof AuthenticatedSettingsAiProvidersRoute
   '/settings/bot': typeof AuthenticatedSettingsBotRoute
   '/settings/evolution': typeof AuthenticatedSettingsEvolutionRoute
@@ -184,6 +193,7 @@ export interface FileRoutesById {
   '/api/connections': typeof ApiConnectionsRoute
   '/api/settings': typeof ApiSettingsRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/_authenticated/campaigns/$id': typeof AuthenticatedCampaignsIdRoute
   '/_authenticated/settings/ai-providers': typeof AuthenticatedSettingsAiProvidersRoute
   '/_authenticated/settings/bot': typeof AuthenticatedSettingsBotRoute
   '/_authenticated/settings/evolution': typeof AuthenticatedSettingsEvolutionRoute
@@ -206,6 +216,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/api/connections'
     | '/api/settings'
+    | '/campaigns/$id'
     | '/settings/ai-providers'
     | '/settings/bot'
     | '/settings/evolution'
@@ -225,6 +236,7 @@ export interface FileRouteTypes {
     | '/api/connections'
     | '/api/settings'
     | '/'
+    | '/campaigns/$id'
     | '/settings/ai-providers'
     | '/settings/bot'
     | '/settings/evolution'
@@ -246,6 +258,7 @@ export interface FileRouteTypes {
     | '/api/connections'
     | '/api/settings'
     | '/_authenticated/'
+    | '/_authenticated/campaigns/$id'
     | '/_authenticated/settings/ai-providers'
     | '/_authenticated/settings/bot'
     | '/_authenticated/settings/evolution'
@@ -386,6 +399,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsAiProvidersRouteImport
       parentRoute: typeof AuthenticatedSettingsRoute
     }
+    '/_authenticated/campaigns/$id': {
+      id: '/_authenticated/campaigns/$id'
+      path: '/$id'
+      fullPath: '/campaigns/$id'
+      preLoaderRoute: typeof AuthenticatedCampaignsIdRouteImport
+      parentRoute: typeof AuthenticatedCampaignsRoute
+    }
     '/api/public/webhooks/evolution': {
       id: '/api/public/webhooks/evolution'
       path: '/api/public/webhooks/evolution'
@@ -404,11 +424,13 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedCampaignsRouteChildren {
+  AuthenticatedCampaignsIdRoute: typeof AuthenticatedCampaignsIdRoute
   AuthenticatedCampaignsIndexRoute: typeof AuthenticatedCampaignsIndexRoute
 }
 
 const AuthenticatedCampaignsRouteChildren: AuthenticatedCampaignsRouteChildren =
   {
+    AuthenticatedCampaignsIdRoute: AuthenticatedCampaignsIdRoute,
     AuthenticatedCampaignsIndexRoute: AuthenticatedCampaignsIndexRoute,
   }
 
