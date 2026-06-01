@@ -95,8 +95,16 @@ function leadStatusFor(
   t: string,
   intent: string,
 ): "novo" | "engajado" | "inscrito" | "perdido" {
-  if (intent === "desinteressado" || t === "frio") return "perdido";
-  if (intent === "pronto_pra_comprar" || intent === "interessado" || t === "quente" || t === "morno") return "engajado";
+  if (intent === "inscrito") return "inscrito";
+  if (intent === "sem_interesse") return "perdido";
+  if (
+    intent === "lead_quente" ||
+    intent === "interessado" ||
+    intent === "objecao" ||
+    t === "quente" ||
+    t === "morno"
+  )
+    return "engajado";
   return "novo";
 }
 
