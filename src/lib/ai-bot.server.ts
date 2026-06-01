@@ -41,7 +41,16 @@ const REPLY_TOOL = {
         temperature: { type: "string", enum: ["frio", "morno", "quente"] },
         intent: {
           type: "string",
-          enum: ["curioso", "interessado", "pronto_pra_comprar", "objecao", "desinteressado"],
+          enum: [
+            "interessado",
+            "inscrito",
+            "objecao",
+            "sem_interesse",
+            "fora_escopo",
+            "lead_quente",
+          ],
+          description:
+            "Classificação de intenção do lead: INTERESSADO (quer saber mais), INSCRITO (confirmou que entrou no grupo/inscreveu), OBJECAO (dúvida ou resistência específica), SEM_INTERESSE (pediu para sair / não quer participar), FORA_ESCOPO (perguntou algo não relacionado ao evento), LEAD_QUENTE (interesse alto, dor específica ou perguntou sobre o produto pago). NÃO use 'silencio' — é reservado ao sistema.",
         },
         score: { type: "integer", minimum: 0, maximum: 100 },
         next_step: { type: "string", description: "Próximo passo recomendado em 1 frase." },
@@ -86,8 +95,16 @@ function leadStatusFor(
   t: string,
   intent: string,
 ): "novo" | "engajado" | "inscrito" | "perdido" {
-  if (intent === "desinteressado" || t === "frio") return "perdido";
-  if (intent === "pronto_pra_comprar" || intent === "interessado" || t === "quente" || t === "morno") return "engajado";
+  if (intent === "inscrito") return "inscrito";
+  if (intent === "sem_interesse") return "perdido";
+  if (
+    intent === "lead_quente" ||
+    intent === "interessado" ||
+    intent === "objecao" ||
+    t === "quente" ||
+    t === "morno"
+  )
+    return "engajado";
   return "novo";
 }
 
@@ -231,9 +248,20 @@ export async function handleBotReply(conversationId: string): Promise<void> {
         "",
         "CRM (obrigatório a cada turno):",
         "- Sempre extraia e devolva nos campos da ferramenta qualquer dado novo: contact_name, contact_email, contact_city, contact_state, contact_company.",
+        "- Se ainda não souber o e-mail do lead, pergunte de forma natural ('qual seu melhor e-mail pra eu te enviar a confirmação?'). Idem para a cidade ('de qual cidade você fala com a gente?'). Faça uma pergunta por vez, sem soar formulário.",
+        "- Não pergunte de novo um dado que já está preenchido no CRM (veja contexto acima).",
         "- Sempre adicione tags relevantes (interesse, produto, objeções).",
         "- Sempre escreva um history_note curto descrevendo o que houve de novo neste turno (não repita o histórico anterior).",
         "- O sucesso da jornada é o lead se inscrever via link de inscrição. Mande o link assim que houver intenção clara. Quando o lead CONFIRMAR que fez a inscrição (ex.: 'já me inscrevi', 'fiz o cadastro', 'concluí'), marque journey_completed=true.",
+        "",
+        "Classificação de intenção (campo 'intent', escolha SEMPRE uma):",
+        "- interessado: demonstrou interesse, quer saber mais.",
+        "- inscrito: confirmou que entrou no grupo / fez a inscrição.",
+        "- objecao: levantou dúvida ou resistência específica (preço, tempo, formato).",
+        "- sem_interesse: pediu para sair ou disse que não quer participar.",
+        "- fora_escopo: perguntou algo não relacionado ao evento.",
+        "- lead_quente: interesse alto, mencionou dor específica ou perguntou sobre o produto pago.",
+        "- NUNCA use 'silencio' — esse rótulo é controlado pelo sistema quando o lead não responde.",
       ].join("\n"),
       kbContext,
     ]
@@ -272,7 +300,13 @@ export async function handleBotReply(conversationId: string): Promise<void> {
       send_landing_link?: boolean;
       handoff?: boolean;
       temperature: "frio" | "morno" | "quente";
-      intent: "curioso" | "interessado" | "pronto_pra_comprar" | "objecao" | "desinteressado";
+      intent:
+        | "interessado"
+        | "inscrito"
+        | "objecao"
+        | "sem_interesse"
+        | "fora_escopo"
+        | "lead_quente";
       score: number;
       next_step: string;
       summary: string;
