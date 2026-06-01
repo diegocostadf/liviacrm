@@ -14,6 +14,68 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_bot_configs: {
+        Row: {
+          business_hours: Json
+          created_at: string
+          enabled: boolean
+          goal: string
+          group_link: string | null
+          handoff_keywords: string[]
+          id: string
+          instance_id: string
+          landing_link: string | null
+          language: string
+          out_of_hours_message: string | null
+          persona: string
+          rules: Json
+          tone: string
+          updated_at: string
+        }
+        Insert: {
+          business_hours?: Json
+          created_at?: string
+          enabled?: boolean
+          goal?: string
+          group_link?: string | null
+          handoff_keywords?: string[]
+          id?: string
+          instance_id: string
+          landing_link?: string | null
+          language?: string
+          out_of_hours_message?: string | null
+          persona?: string
+          rules?: Json
+          tone?: string
+          updated_at?: string
+        }
+        Update: {
+          business_hours?: Json
+          created_at?: string
+          enabled?: boolean
+          goal?: string
+          group_link?: string | null
+          handoff_keywords?: string[]
+          id?: string
+          instance_id?: string
+          landing_link?: string | null
+          language?: string
+          out_of_hours_message?: string | null
+          persona?: string
+          rules?: Json
+          tone?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_bot_configs_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: true
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       app_settings: {
         Row: {
           key: string
@@ -35,6 +97,152 @@ export type Database = {
         }
         Relationships: []
       }
+      campaign_targets: {
+        Row: {
+          attempts: number
+          campaign_id: string
+          contact_id: string | null
+          created_at: string
+          custom_fields: Json
+          error: string | null
+          id: string
+          locked_until: string | null
+          name: string | null
+          phone: string
+          rendered_message: string | null
+          sent_at: string | null
+          status: Database["public"]["Enums"]["campaign_target_status"]
+          updated_at: string
+          wa_message_id: string | null
+        }
+        Insert: {
+          attempts?: number
+          campaign_id: string
+          contact_id?: string | null
+          created_at?: string
+          custom_fields?: Json
+          error?: string | null
+          id?: string
+          locked_until?: string | null
+          name?: string | null
+          phone: string
+          rendered_message?: string | null
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["campaign_target_status"]
+          updated_at?: string
+          wa_message_id?: string | null
+        }
+        Update: {
+          attempts?: number
+          campaign_id?: string
+          contact_id?: string | null
+          created_at?: string
+          custom_fields?: Json
+          error?: string | null
+          id?: string
+          locked_until?: string | null
+          name?: string | null
+          phone?: string
+          rendered_message?: string | null
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["campaign_target_status"]
+          updated_at?: string
+          wa_message_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_targets_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_targets_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campaigns: {
+        Row: {
+          ai_personalize: boolean
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          failed_count: number
+          id: string
+          instance_id: string
+          name: string
+          replied_count: number
+          scheduled_at: string | null
+          sent_count: number
+          started_at: string | null
+          status: Database["public"]["Enums"]["campaign_status"]
+          template: string
+          throttle_max_seconds: number
+          throttle_min_seconds: number
+          total_count: number
+          updated_at: string
+          window_end_hour: number
+          window_start_hour: number
+        }
+        Insert: {
+          ai_personalize?: boolean
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          failed_count?: number
+          id?: string
+          instance_id: string
+          name: string
+          replied_count?: number
+          scheduled_at?: string | null
+          sent_count?: number
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["campaign_status"]
+          template: string
+          throttle_max_seconds?: number
+          throttle_min_seconds?: number
+          total_count?: number
+          updated_at?: string
+          window_end_hour?: number
+          window_start_hour?: number
+        }
+        Update: {
+          ai_personalize?: boolean
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          failed_count?: number
+          id?: string
+          instance_id?: string
+          name?: string
+          replied_count?: number
+          scheduled_at?: string | null
+          sent_count?: number
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["campaign_status"]
+          template?: string
+          throttle_max_seconds?: number
+          throttle_min_seconds?: number
+          total_count?: number
+          updated_at?: string
+          window_end_hour?: number
+          window_start_hour?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaigns_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contacts: {
         Row: {
           assigned_to: string | null
@@ -44,6 +252,8 @@ export type Database = {
           email: string | null
           id: string
           job_title: string | null
+          last_score_at: string | null
+          lead_status: Database["public"]["Enums"]["lead_status"]
           name: string | null
           phone: string
           profile_pic_url: string | null
@@ -51,6 +261,7 @@ export type Database = {
           state: string | null
           tags: string[]
           updated_at: string
+          utm_content: string | null
         }
         Insert: {
           assigned_to?: string | null
@@ -60,6 +271,8 @@ export type Database = {
           email?: string | null
           id?: string
           job_title?: string | null
+          last_score_at?: string | null
+          lead_status?: Database["public"]["Enums"]["lead_status"]
           name?: string | null
           phone: string
           profile_pic_url?: string | null
@@ -67,6 +280,7 @@ export type Database = {
           state?: string | null
           tags?: string[]
           updated_at?: string
+          utm_content?: string | null
         }
         Update: {
           assigned_to?: string | null
@@ -76,6 +290,8 @@ export type Database = {
           email?: string | null
           id?: string
           job_title?: string | null
+          last_score_at?: string | null
+          lead_status?: Database["public"]["Enums"]["lead_status"]
           name?: string | null
           phone?: string
           profile_pic_url?: string | null
@@ -83,16 +299,21 @@ export type Database = {
           state?: string | null
           tags?: string[]
           updated_at?: string
+          utm_content?: string | null
         }
         Relationships: []
       }
       conversations: {
         Row: {
           assigned_to: string | null
+          bot_active: boolean
           contact_id: string
           created_at: string
           id: string
           instance_id: string
+          intent_temperature:
+            | Database["public"]["Enums"]["intent_temperature"]
+            | null
           is_favorite: boolean
           last_message_at: string | null
           last_message_preview: string | null
@@ -102,10 +323,14 @@ export type Database = {
         }
         Insert: {
           assigned_to?: string | null
+          bot_active?: boolean
           contact_id: string
           created_at?: string
           id?: string
           instance_id: string
+          intent_temperature?:
+            | Database["public"]["Enums"]["intent_temperature"]
+            | null
           is_favorite?: boolean
           last_message_at?: string | null
           last_message_preview?: string | null
@@ -115,10 +340,14 @@ export type Database = {
         }
         Update: {
           assigned_to?: string | null
+          bot_active?: boolean
           contact_id?: string
           created_at?: string
           id?: string
           instance_id?: string
+          intent_temperature?:
+            | Database["public"]["Enums"]["intent_temperature"]
+            | null
           is_favorite?: boolean
           last_message_at?: string | null
           last_message_preview?: string | null
@@ -175,6 +404,137 @@ export type Database = {
           },
         ]
       }
+      knowledge_chunks: {
+        Row: {
+          content: string
+          created_at: string
+          document_id: string
+          embedding: string | null
+          id: string
+          ord: number
+          token_count: number | null
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          document_id: string
+          embedding?: string | null
+          id?: string
+          ord: number
+          token_count?: number | null
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          document_id?: string
+          embedding?: string | null
+          id?: string
+          ord?: number
+          token_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_chunks_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      knowledge_documents: {
+        Row: {
+          created_at: string
+          error: string | null
+          id: string
+          mime: string | null
+          name: string
+          size_bytes: number | null
+          source_text: string | null
+          status: Database["public"]["Enums"]["kb_doc_status"]
+          updated_at: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          error?: string | null
+          id?: string
+          mime?: string | null
+          name: string
+          size_bytes?: number | null
+          source_text?: string | null
+          status?: Database["public"]["Enums"]["kb_doc_status"]
+          updated_at?: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          error?: string | null
+          id?: string
+          mime?: string | null
+          name?: string
+          size_bytes?: number | null
+          source_text?: string | null
+          status?: Database["public"]["Enums"]["kb_doc_status"]
+          updated_at?: string
+          uploaded_by?: string | null
+        }
+        Relationships: []
+      }
+      lead_intent_events: {
+        Row: {
+          contact_id: string
+          conversation_id: string
+          created_at: string
+          id: string
+          intent: Database["public"]["Enums"]["intent_label"]
+          model: string | null
+          score: number
+          suggested_next: string | null
+          summary: string | null
+          temperature: Database["public"]["Enums"]["intent_temperature"]
+        }
+        Insert: {
+          contact_id: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          intent: Database["public"]["Enums"]["intent_label"]
+          model?: string | null
+          score?: number
+          suggested_next?: string | null
+          summary?: string | null
+          temperature: Database["public"]["Enums"]["intent_temperature"]
+        }
+        Update: {
+          contact_id?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          intent?: Database["public"]["Enums"]["intent_label"]
+          model?: string | null
+          score?: number
+          suggested_next?: string | null
+          summary?: string | null
+          temperature?: Database["public"]["Enums"]["intent_temperature"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_intent_events_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_intent_events_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       messages: {
         Row: {
           content: string | null
@@ -186,6 +546,7 @@ export type Database = {
           media_url: string | null
           metadata: Json | null
           sender_id: string | null
+          sent_by: Database["public"]["Enums"]["message_sender"] | null
           status: Database["public"]["Enums"]["message_status"]
           type: Database["public"]["Enums"]["message_type"]
           wa_message_id: string | null
@@ -200,6 +561,7 @@ export type Database = {
           media_url?: string | null
           metadata?: Json | null
           sender_id?: string | null
+          sent_by?: Database["public"]["Enums"]["message_sender"] | null
           status?: Database["public"]["Enums"]["message_status"]
           type?: Database["public"]["Enums"]["message_type"]
           wa_message_id?: string | null
@@ -214,6 +576,7 @@ export type Database = {
           media_url?: string | null
           metadata?: Json | null
           sender_id?: string | null
+          sent_by?: Database["public"]["Enums"]["message_sender"] | null
           status?: Database["public"]["Enums"]["message_status"]
           type?: Database["public"]["Enums"]["message_type"]
           wa_message_id?: string | null
@@ -306,6 +669,92 @@ export type Database = {
         }
         Relationships: []
       }
+      webhook_deliveries: {
+        Row: {
+          attempt: number
+          created_at: string
+          endpoint_id: string
+          event: string
+          id: string
+          payload: Json
+          response_body: string | null
+          response_status: number | null
+          succeeded: boolean
+        }
+        Insert: {
+          attempt?: number
+          created_at?: string
+          endpoint_id: string
+          event: string
+          id?: string
+          payload: Json
+          response_body?: string | null
+          response_status?: number | null
+          succeeded?: boolean
+        }
+        Update: {
+          attempt?: number
+          created_at?: string
+          endpoint_id?: string
+          event?: string
+          id?: string
+          payload?: Json
+          response_body?: string | null
+          response_status?: number | null
+          succeeded?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "webhook_deliveries_endpoint_id_fkey"
+            columns: ["endpoint_id"]
+            isOneToOne: false
+            referencedRelation: "webhook_endpoints"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      webhook_endpoints: {
+        Row: {
+          active: boolean
+          created_at: string
+          created_by: string | null
+          events: string[]
+          id: string
+          last_called_at: string | null
+          last_status: number | null
+          name: string
+          secret: string | null
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          events?: string[]
+          id?: string
+          last_called_at?: string | null
+          last_status?: number | null
+          name: string
+          secret?: string | null
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          events?: string[]
+          id?: string
+          last_called_at?: string | null
+          last_status?: number | null
+          name?: string
+          secret?: string | null
+          updated_at?: string
+          url?: string
+        }
+        Relationships: []
+      }
       whatsapp_instances: {
         Row: {
           created_at: string
@@ -360,12 +809,44 @@ export type Database = {
         }
         Returns: boolean
       }
+      match_knowledge_chunks: {
+        Args: { match_count?: number; query_embedding: string }
+        Returns: {
+          content: string
+          document_id: string
+          id: string
+          similarity: number
+        }[]
+      }
     }
     Enums: {
       app_role: "admin" | "gestor" | "vendedor" | "atendimento"
+      campaign_status:
+        | "draft"
+        | "scheduled"
+        | "running"
+        | "paused"
+        | "completed"
+        | "failed"
+      campaign_target_status:
+        | "pending"
+        | "sent"
+        | "failed"
+        | "replied"
+        | "opt_out"
       conversation_status: "open" | "archived"
       instance_status: "disconnected" | "connecting" | "connected" | "error"
+      intent_label:
+        | "curioso"
+        | "interessado"
+        | "pronto_pra_comprar"
+        | "objecao"
+        | "desinteressado"
+      intent_temperature: "frio" | "morno" | "quente"
+      kb_doc_status: "processing" | "ready" | "error"
+      lead_status: "novo" | "engajado" | "inscrito" | "perdido"
       message_direction: "in" | "out"
+      message_sender: "human" | "bot" | "system"
       message_status: "pending" | "sent" | "delivered" | "read" | "failed"
       message_type:
         | "text"
@@ -504,9 +985,35 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "gestor", "vendedor", "atendimento"],
+      campaign_status: [
+        "draft",
+        "scheduled",
+        "running",
+        "paused",
+        "completed",
+        "failed",
+      ],
+      campaign_target_status: [
+        "pending",
+        "sent",
+        "failed",
+        "replied",
+        "opt_out",
+      ],
       conversation_status: ["open", "archived"],
       instance_status: ["disconnected", "connecting", "connected", "error"],
+      intent_label: [
+        "curioso",
+        "interessado",
+        "pronto_pra_comprar",
+        "objecao",
+        "desinteressado",
+      ],
+      intent_temperature: ["frio", "morno", "quente"],
+      kb_doc_status: ["processing", "ready", "error"],
+      lead_status: ["novo", "engajado", "inscrito", "perdido"],
       message_direction: ["in", "out"],
+      message_sender: ["human", "bot", "system"],
       message_status: ["pending", "sent", "delivered", "read", "failed"],
       message_type: [
         "text",

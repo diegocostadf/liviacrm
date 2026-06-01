@@ -1,139 +1,126 @@
-## Lívia CRM — Fase 1: Dashboard + Inbox WhatsApp
+## Fase 4 — Sistema Vendedor com IA Generativa
 
-Construir o núcleo funcional: autenticação, dashboard com indicadores em tempo real e inbox omnichannel conectado à Evolution API. Estilo SaaS escuro inspirado em Linear/Pipefy.
+Implementar o fluxo do diagrama dentro do Lívia CRM, com 3 pontos de IA integrados, mantendo CRM e landing externos via webhook.
 
-### Stack e infraestrutura
-
-- TanStack Start (já configurado)
-- Lovable Cloud (Supabase) para banco + auth + realtime
-- Evolution API via server functions (URL + API key como secrets)
-- Tailwind + shadcn com tema dark customizado
-
-### Design system
-
-Tema escuro: fundo `oklch(0.18 0.01 260)`, superfícies elevadas, primário roxo/violeta vivo, tipografia Inter, cantos `0.5rem`, densidade alta (estilo Linear). Sidebar fixa à esquerda com ícones + labels.
-
-### Estrutura de rotas
+### Mapeamento do fluxo para o sistema
 
 ```text
-/login                        público
-/_authenticated/              layout com sidebar + header
-  ├─ dashboard                indicadores e gráficos
-  ├─ inbox                    lista conversas + thread + painel contato
-  ├─ inbox/$conversationId    deep link
-  └─ connections              instâncias WhatsApp (CRUD + QR)
+Camada 1 disparo          → módulo Campanhas (CSV + template + IA personaliza)
+Camada 2 bot Júlia        → IA conversacional (RAG) responde no Inbox automaticamente
+Camada 3 dois caminhos    → Bot envia link A (grupo WA) ou B (landing) conforme intenção
+Camada 4 rastreio UTM     → utm_source/medium/content gerados por lead no link
+Camada 5 CRM externo      → webhook outbound pra ActiveCampaign/RD/Sheets via Zapier
+Camada 6 confirmação      → webhook inbound (landing/grupo) marca INSCRITO
+Saída LEAD_QUENTE         → IA pontua conversa, fila prioritária no Inbox
 ```
 
-### Banco de dados (Fase 1)
+### Módulos a construir
 
-Tabelas mínimas necessárias agora; o resto entra nas próximas fases.
+**1. Base de conhecimento (RAG)** — `/knowledge`
+- Upload de PDFs/docs do produto (curso Russomano, FAQ, objeções).
+- Chunking automático (500–1000 chars com overlap), embeddings via Lovable AI (`google/gemini-embedding-001`).
+- Armazenamento em pgvector pra busca semântica.
+- Lista de docs indexados, status de processamento, reindexar/excluir.
 
-- `profiles` — id (FK auth.users), nome, role (admin/gestor/vendedor/atendimento), avatar
-- `user_roles` — tabela separada com enum `app_role` + função `has_role()` security definer
-- `whatsapp_instances` — id, nome, evolution_instance_name, status, phone_number, profile_name, profile_pic_url, last_sync_at, owner_id
-- `contacts` — id, phone (único), name, profile_pic_url, city, state, tags[], assigned_to, created_at
-- `conversations` — id, contact_id, instance_id, last_message_at, last_message_preview, unread_count, status (open/archived), is_favorite, assigned_to
-- `messages` — id, conversation_id, direction (in/out), type (text/image/audio/video/document/location), content, media_url, status (sent/delivered/read), wa_message_id, created_at
-- `quick_replies` — id, shortcut, content, owner_id
-- `internal_notes` — id, conversation_id, author_id, content, created_at
+**2. Configuração do Bot Júlia** — `/settings/ai-bot`
+- Persona, objetivo, tom de voz, idioma.
+- Instância WhatsApp que o bot atende (escolhe da lista existente).
+- Modo: só responde / responde + classifica / desligado.
+- Regras de roteamento: "se intenção = inscrever → envia link A (grupo)" ou "link B (landing)".
+- Templates dos dois links com placeholders UTM.
+- Horário de atendimento e mensagem fora do horário.
+- Handoff: gatilhos pra transferir pra humano (palavras-chave, score alto, pedido explícito).
 
-RLS habilitado em todas. Single-tenant: políticas baseadas em `authenticated` + `has_role()` para ações administrativas. Realtime ativado em `messages` e `conversations`.
+**3. Campanhas de disparo** — `/campaigns`
+- Lista de campanhas com status (rascunho/agendada/em execução/concluída).
+- Nova campanha: nome, instância, upload CSV (telefone + nome + campos custom), template base de mensagem.
+- IA gera variação personalizada por contato usando nome + campos custom + tom da persona.
+- Preview lado a lado (template → mensagem final renderizada).
+- Throttling configurável (ex: 1 msg a cada 8–15s aleatório) e janela de envio (evita madrugada).
+- Execução em fila com job worker: cada disparo cria/atualiza `contacts` + `conversations` e dispara via Evolution.
+- Dashboard da campanha: enviadas, entregues, respondidas, taxa de resposta, opt-out.
 
-### Módulo 01 — Dashboard
+**4. Bot conversacional automático no Inbox**
+- Quando chega mensagem nova (webhook Evolution), se a conversa estiver em modo bot e a instância tiver bot ativo:
+  - Server fn busca histórico da conversa + contexto via RAG (top-k chunks da base de conhecimento).
+  - Chama Lovable AI (`google/gemini-3-flash-preview`) com persona + histórico + contexto + tools.
+  - Tools disponíveis ao modelo: `enviar_link_grupo`, `enviar_link_landing`, `marcar_intencao`, `transferir_humano`, `agendar_followup`.
+  - Resposta enviada pela Evolution; mensagem marcada `sent_by=bot` no DB.
+- Inbox mostra badge "🤖 Bot" nas conversas automáticas; botão "Assumir conversa" pausa o bot.
 
-Grid de cards com indicadores:
-- Total de Leads, Leads do Dia, Conversas Ativas, Não Respondidas, Conversões, Receita, Taxa de Resposta, Tempo Médio de Resposta, Campanhas Ativas, Números Conectados
+**5. Scoring de lead quente**
+- A cada N mensagens (ou ao detectar intenção forte), server fn roda classificação com Gemini retornando JSON estruturado (tool calling):
+  - `temperatura`: frio/morno/quente
+  - `intencao`: curioso/interessado/pronto_pra_comprar/objeção
+  - `proximo_passo` sugerido
+  - `resumo` curto da conversa
+- Salva em `lead_intent_events`. Quando vira `quente`, conversa pula pra topo do Inbox com tag visual.
+- Filtro no Inbox: "Fila prioritária (quente)".
 
-Indicadores que dependem de módulos futuros (Conversões, Receita, Campanhas) entram com valores zerados + badge "em breve" para não mentir dados.
+**6. Webhooks externos (Camada 5 e 6)**
+- **Outbound** (sistema → CRM): a cada mudança relevante (lead novo, intenção atualizada, virou quente, INSCRITO) dispara POST configurável pro Zapier/ActiveCampaign/RD com payload padrão `{telefone, nome, email, utm_*, origem, intencao, score, timestamp}`.
+- **Inbound** (landing/grupo → sistema): rotas públicas:
+  - `/api/public/webhooks/landing-submit` recebe form da landing (telefone + email + UTM) → marca contato como `INSCRITO`.
+  - `/api/public/webhooks/wa-group-join` recebe evento "membro entrou no grupo" do Evolution → marca contato como `INSCRITO`.
+- Tela `/settings/integrations`: URLs do webhook de saída, secret de assinatura, log das últimas chamadas (sucesso/erro).
 
-Gráficos com Recharts:
-- Conversões por período (linha) — placeholder por enquanto
-- Leads por origem (pizza) — quando houver campo `source`
-- Vendas por vendedor (barra) — placeholder
-- Mensagens enviadas vs recebidas (área empilhada) — dados reais de `messages`
+**7. Links UTM por lead**
+- Função interna `buildTrackedLink(contact_id, destino)` gera URL com `utm_source=whatsapp&utm_medium=bot&utm_content={telefone}`.
+- Bot e templates de campanha usam essa função; armazenamos o link gerado em `messages.metadata` pra correlação posterior com inbound.
 
-Filtros de período (hoje, 7d, 30d, custom).
+### Banco de dados — novas tabelas
 
-### Módulo 02 — Conexão WhatsApp (Evolution API)
+- `campaigns` — id, name, instance_id, template, ai_personalize (bool), throttle_min/max, window_start/end, status, created_by, created_at
+- `campaign_targets` — id, campaign_id, contact_id, rendered_message, sent_at, status (pending/sent/failed/replied), error
+- `knowledge_documents` — id, name, mime, size, status (processing/ready/error), uploaded_by, created_at
+- `knowledge_chunks` — id, document_id, content, embedding vector(3072), token_count, ord
+- `ai_bot_configs` — id, instance_id (unique), persona, goal, tone, language, enabled, rules (jsonb com roteamento + handoff), business_hours (jsonb), updated_at
+- `lead_intent_events` — id, conversation_id, contact_id, temperatura, intencao, score, summary, suggested_next, created_at
+- `webhook_endpoints` — id, name, url, secret, events (text[]), active, last_status, last_called_at
+- `webhook_deliveries` — id, endpoint_id, event, payload, response_status, response_body, attempt, created_at
 
-Tela `/connections` lista instâncias. Server functions encapsulam todas as chamadas à Evolution API:
+Colunas adicionadas:
+- `messages.sent_by` (`human|bot|system`), `messages.metadata` (jsonb com link UTM, tool calls).
+- `conversations.bot_active` (bool default true quando vem de campanha), `conversations.intent_temperature` (cached do último evento).
+- `contacts.utm_content`, `contacts.lead_status` (`novo|engajado|inscrito|perdido`), `contacts.last_score_at`.
 
-- `createInstance(name)` → POST `/instance/create`
-- `connectInstance(name)` → GET `/instance/connect/:name` (retorna QR base64)
-- `disconnectInstance(name)` → DELETE `/instance/logout/:name`
-- `restartInstance(name)` → POST `/instance/restart/:name`
-- `deleteInstance(name)` → DELETE `/instance/delete/:name`
-- `fetchInstanceInfo(name)` → status, número, foto, nome, conexão
+RLS em todas, mesmo padrão atual (authenticated lê, service_role full).
 
-Modal de QR com polling a cada 2s até conectar. Reconexão automática via webhook (próxima sub-fase) ou polling de status a cada 30s na lista.
+### Stack técnica
 
-Webhook receiver: server route `/api/public/webhooks/evolution` que valida assinatura (ou API key compartilhada via header), recebe eventos `messages.upsert`, `connection.update`, `qrcode.updated` e persiste em `messages`/`conversations`/`whatsapp_instances`.
+- **IA**: Lovable AI Gateway. Chat = `google/gemini-3-flash-preview` (rápido + baratos pra resposta de bot). Classificação/scoring = mesmo modelo via tool calling pra JSON estruturado. Embeddings = `google/gemini-embedding-001` (3072 dims).
+- **RAG**: pgvector + HNSW index. Top-k=5 chunks por query, incluídos como contexto no system prompt.
+- **Server functions** (`createServerFn`) pra: ingestão de doc, embed+chunk, query RAG, gerar resposta do bot, scoring, render personalizado de campanha.
+- **Worker de disparo**: server fn agendada via setInterval no servidor + lock em campaign_targets pra evitar duplicação; throttle por instância respeitando janela.
+- **Webhooks inbound/outbound**: rotas em `src/routes/api/public/*` com verificação de assinatura HMAC.
+- **Realtime**: já existente para `messages`/`conversations`; adicionar canal pra `lead_intent_events` atualizar o Inbox quando score muda.
 
-### Módulo 03 — Caixa de Entrada (Inbox)
+### Telas novas (sidebar)
 
-Layout 3 colunas:
+- 📢 **Campanhas** — listar, criar, monitorar disparos.
+- 📚 **Base de conhecimento** — upload e gestão de documentos.
+- 🤖 **Bot Júlia** (em Configurações) — persona, regras, instância, links.
+- 🔗 **Integrações** (em Configurações) — webhooks in/out, secrets, logs.
 
-```text
-┌──────────┬──────────────────────┬──────────────┐
-│ Lista    │ Thread de mensagens  │ Painel       │
-│ convs    │                      │ contato      │
-│ + busca  │ ┌────────────────┐   │ + notas      │
-│ + filtro │ │ msgs           │   │ + tags       │
-│          │ └────────────────┘   │ + resp.      │
-│          │ [input + anexos]     │              │
-└──────────┴──────────────────────┴──────────────┘
-```
+Inbox ganha: badge "🤖 Bot", filtro "Fila quente", botão "Assumir/Devolver pro bot", painel lateral mostra último score + intenção + resumo da IA.
 
-Lista (esquerda):
-- Busca por nome/telefone
-- Filtros: não lidas, favoritas, atribuídas a mim, por tag, por instância
-- Ações: arquivar, favoritar, marcar como lida
-- Realtime: nova mensagem traz conversa pro topo + badge unread
+### Ordem de entrega sugerida
 
-Thread (centro):
-- Renderiza text/imagem/áudio (player)/vídeo/PDF/documento/localização (mapa estático)/contato
-- Agrupamento por dia, indicador de status (✓ enviado, ✓✓ entregue, ✓✓ azul lido)
-- Scroll virtualizado se >100 mensagens
-- Input com: emoji picker, anexar arquivo, gravar áudio, respostas rápidas (`/atalho`), botão de nota interna (alterna modo)
-- Envio via server function → Evolution API `/message/sendText|sendMedia|sendWhatsAppAudio`
+1. Migrations das tabelas novas + colunas extras.
+2. Base de conhecimento (upload + chunk + embed + busca) — fundação do RAG.
+3. Bot Júlia conversacional no Inbox (responde automaticamente com RAG, tools básicas).
+4. Scoring de lead quente + fila prioritária.
+5. Campanhas de disparo com personalização IA.
+6. Webhooks inbound/outbound + tela de integrações.
+7. Polimento: dashboard de campanha, métricas no painel principal, logs de IA.
 
-Painel contato (direita):
-- Foto, nome, número, cidade/estado, tags editáveis, responsável (select), funil atual (placeholder), histórico de campanhas (placeholder)
-- Tab "Notas internas" + tab "Histórico de movimentações"
-- Botão "Transferir atendimento" (select de usuário)
+### Secrets
 
-### Autenticação
+Tudo já configurado: `LOVABLE_API_KEY`, `EVOLUTION_*`, Supabase. Nada novo a pedir agora.
 
-- Email/senha + Google OAuth (via broker Lovable, configurado com `configure_social_auth`)
-- `/login` público; tudo dentro de `/_authenticated` redireciona pra `/login` se não houver sessão
-- Trigger no signup cria `profiles` automaticamente; primeiro usuário cadastrado vira `admin`
+### Fora do escopo desta fase
 
-### Secrets necessários
-
-- `EVOLUTION_API_URL` — base URL da sua instância
-- `EVOLUTION_API_KEY` — global API key
-- `EVOLUTION_WEBHOOK_SECRET` — pra validar webhooks de entrada
-
-Vou pedir via `add_secret` no início da implementação.
-
-### Detalhes técnicos
-
-- Todas as chamadas Evolution API em `src/lib/evolution.functions.ts` (server fns) + helpers em `src/lib/evolution.server.ts`
-- Cliente browser Supabase só pra realtime subscriptions de `messages`/`conversations`; reads/writes via server fns com `requireSupabaseAuth`
-- Upload de mídia: server fn que recebe base64, encaminha pra Evolution, opcionalmente salva no Supabase Storage pra histórico
-- Polling de status de instância: TanStack Query com `refetchInterval: 30000`
-- Indicadores do dashboard: server fn agregadora com SQL count/avg, cacheada por 30s
-
-### Fora do escopo desta fase (módulos 04–11)
-
-CRM de Leads, Funil, Automações, Campanhas, Chatbot/IA, Tarefas, Relatórios avançados, Configurações de permissões granulares. Tudo isso será adicionado em fases seguintes sobre essa fundação.
-
-### Entregáveis
-
-1. Migrations das 8 tabelas + RLS + trigger profile
-2. Auth (login/logout/signup com Google)
-3. Layout autenticado com sidebar
-4. `/connections` funcional com Evolution API real
-5. Webhook `/api/public/webhooks/evolution` recebendo mensagens
-6. `/inbox` com lista, thread, envio de texto/mídia, realtime
-7. `/dashboard` com indicadores reais + gráficos de mensagens
+- Landing page hospedada no sistema (continua externa).
+- CRM completo com pipeline kanban (continua externo via webhook).
+- Voz/áudio gerado por IA, chamadas, agendamento de reuniões.
+- Multi-tenant / múltiplos produtos por workspace.
