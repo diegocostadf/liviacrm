@@ -2,9 +2,20 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { evolutionFetch } from "./evolution.server";
+import { evolutionFetch, pingEvolution } from "./evolution.server";
 
 const nameSchema = z.object({ name: z.string().min(1).max(60).regex(/^[a-zA-Z0-9_-]+$/) });
+
+export const testConnection = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async () => {
+    try {
+      const r = await pingEvolution();
+      return r;
+    } catch (e) {
+      return { ok: false as const, error: e instanceof Error ? e.message : String(e) };
+    }
+  });
 
 function buildWebhookUrl() {
   const base = process.env.PUBLIC_APP_URL
