@@ -224,8 +224,9 @@ function ContactPanel({ id, getFn, updateContactFn }: { id: string; getFn: Retur
 
   if (!c) return null;
 
+  const contactId = c.id;
   async function save() {
-    await updateContactFn({ data: { id: c.id, name, tags: tags.split(",").map((t) => t.trim()).filter(Boolean) } });
+    await updateContactFn({ data: { id: contactId, name, tags: tags.split(",").map((t) => t.trim()).filter(Boolean) } });
     qc.invalidateQueries({ queryKey: ["conversation", id] });
     qc.invalidateQueries({ queryKey: ["conversations"] });
   }
