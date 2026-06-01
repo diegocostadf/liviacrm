@@ -101,7 +101,7 @@ export async function handleBotReply(conversationId: string): Promise<void> {
       .from("conversations")
       .select(
         `id, bot_active, instance_id, contact_id, bot_context_reset_at,
-         contacts(id, name, phone, lead_status),
+         contacts(id, name, phone, lead_status, email, city, state, company, tags, history, journey_completed, landing_link_sent_count),
          whatsapp_instances(id, evolution_instance_name)`,
       )
       .eq("id", conversationId)
