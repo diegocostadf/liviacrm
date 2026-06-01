@@ -274,8 +274,13 @@ export type Database = {
           company: string | null
           created_at: string
           email: string | null
+          history: string | null
           id: string
           job_title: string | null
+          journey_completed: boolean
+          journey_completed_at: string | null
+          landing_link_sent_at: string | null
+          landing_link_sent_count: number
           last_score_at: string | null
           lead_status: Database["public"]["Enums"]["lead_status"]
           name: string | null
@@ -293,8 +298,13 @@ export type Database = {
           company?: string | null
           created_at?: string
           email?: string | null
+          history?: string | null
           id?: string
           job_title?: string | null
+          journey_completed?: boolean
+          journey_completed_at?: string | null
+          landing_link_sent_at?: string | null
+          landing_link_sent_count?: number
           last_score_at?: string | null
           lead_status?: Database["public"]["Enums"]["lead_status"]
           name?: string | null
@@ -312,8 +322,13 @@ export type Database = {
           company?: string | null
           created_at?: string
           email?: string | null
+          history?: string | null
           id?: string
           job_title?: string | null
+          journey_completed?: boolean
+          journey_completed_at?: string | null
+          landing_link_sent_at?: string | null
+          landing_link_sent_count?: number
           last_score_at?: string | null
           lead_status?: Database["public"]["Enums"]["lead_status"]
           name?: string | null

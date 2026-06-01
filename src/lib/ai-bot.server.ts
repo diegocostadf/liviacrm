@@ -56,6 +56,14 @@ const REPLY_TOOL = {
           items: { type: "string" },
           description: "Tags curtas (1-3 palavras, minúsculas) representando interesse, produto desejado, perfil ou objeções. Ex.: 'concurso-federal','duvida-preco','oab','interessado-grupo'.",
         },
+        history_note: {
+          type: "string",
+          description: "Atualização curta (1-2 frases) para o histórico do lead no CRM. Registre fato novo desta troca: dúvida levantada, objeção, intenção declarada, etapa da jornada. NÃO repita o que já estava no histórico.",
+        },
+        journey_completed: {
+          type: "boolean",
+          description: "Marque true APENAS quando o lead confirmar explicitamente que fez a inscrição/clicou no link de inscrição e concluiu o cadastro. Caso contrário, false ou omita.",
+        },
       },
       required: ["reply", "temperature", "intent", "score", "next_step", "summary"],
       additionalProperties: false,
@@ -93,7 +101,7 @@ export async function handleBotReply(conversationId: string): Promise<void> {
       .from("conversations")
       .select(
         `id, bot_active, instance_id, contact_id, bot_context_reset_at,
-         contacts(id, name, phone, lead_status),
+         contacts(id, name, phone, lead_status, email, city, state, company, tags, history, journey_completed, landing_link_sent_count),
          whatsapp_instances(id, evolution_instance_name)`,
       )
       .eq("id", conversationId)
@@ -122,6 +130,9 @@ export async function handleBotReply(conversationId: string): Promise<void> {
         state?: string | null;
         company?: string | null;
         tags?: string[] | null;
+        history?: string | null;
+        journey_completed?: boolean | null;
+        landing_link_sent_count?: number | null;
       };
     }).contacts;
     if (!instance?.evolution_instance_name || !contact?.phone) return;
@@ -209,8 +220,21 @@ export async function handleBotReply(conversationId: string): Promise<void> {
       baseDirective,
       `Nome do lead: ${contact.name ?? "desconhecido"}.`,
       linkBlock ? `Links disponíveis:\n${linkBlock}` : "",
+      contact.history ? `Histórico recente do lead no CRM (não repita literalmente, use como contexto):\n${contact.history.slice(-2000)}` : "",
       bot.system_extra ?? "",
-      "Regras gerais (não negociáveis): respostas curtas e humanas (máx 3 frases). Nunca invente preço, prazo ou bônus. Se não souber, peça contexto. Use os links somente quando o lead demonstrar interesse claro. Marque handoff=true se o lead pedir falar com humano, reclamar, ou demonstrar irritação.",
+      [
+        "Regras gerais (não negociáveis):",
+        "- Respostas curtas e humanas (máx 3 frases).",
+        "- Nunca invente preço, prazo ou bônus. Se não souber, peça contexto.",
+        "- Use os links somente quando o lead demonstrar interesse claro.",
+        "- Marque handoff=true se o lead pedir falar com humano, reclamar, ou demonstrar irritação.",
+        "",
+        "CRM (obrigatório a cada turno):",
+        "- Sempre extraia e devolva nos campos da ferramenta qualquer dado novo: contact_name, contact_email, contact_city, contact_state, contact_company.",
+        "- Sempre adicione tags relevantes (interesse, produto, objeções).",
+        "- Sempre escreva um history_note curto descrevendo o que houve de novo neste turno (não repita o histórico anterior).",
+        "- O sucesso da jornada é o lead se inscrever via link de inscrição. Mande o link assim que houver intenção clara. Quando o lead CONFIRMAR que fez a inscrição (ex.: 'já me inscrevi', 'fiz o cadastro', 'concluí'), marque journey_completed=true.",
+      ].join("\n"),
       kbContext,
     ]
       .filter((s) => s && s.trim())
@@ -258,6 +282,8 @@ export async function handleBotReply(conversationId: string): Promise<void> {
       contact_state?: string;
       contact_company?: string;
       tags?: string[];
+      history_note?: string;
+      journey_completed?: boolean;
     };
     try {
       parsed = JSON.parse(call.function.arguments);
@@ -325,6 +351,30 @@ export async function handleBotReply(conversationId: string): Promise<void> {
       }
       contactPatch.tags = merged.slice(0, 50);
     }
+
+    // Histórico textual do lead (append, com timestamp)
+    if (parsed.history_note && parsed.history_note.trim()) {
+      const stamp = new Date().toISOString().slice(0, 16).replace("T", " ");
+      const line = `[${stamp}] ${parsed.history_note.trim().slice(0, 400)}`;
+      const prev = (contact.history ?? "").trim();
+      const next = prev ? `${prev}\n${line}` : line;
+      // Mantém no máximo ~16KB para não explodir
+      contactPatch.history = next.length > 16000 ? next.slice(-16000) : next;
+    }
+
+    // Envio do link de inscrição → marca quando/quantas vezes foi enviado
+    if (parsed.send_landing_link && bot.landing_link) {
+      contactPatch.landing_link_sent_at = new Date().toISOString();
+      contactPatch.landing_link_sent_count = (contact.landing_link_sent_count ?? 0) + 1;
+    }
+
+    // Conclusão da jornada (sucesso): lead confirmou a inscrição
+    if (parsed.journey_completed && !contact.journey_completed) {
+      contactPatch.journey_completed = true;
+      contactPatch.journey_completed_at = new Date().toISOString();
+      contactPatch.lead_status = "inscrito";
+    }
+
     await supabaseAdmin.from("contacts").update(contactPatch as never).eq("id", contact.id);
 
     if (parsed.handoff) {
