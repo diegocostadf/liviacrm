@@ -15,6 +15,7 @@ import {
   transferConversation,
 } from "@/lib/inbox.functions";
 import { sendTextMessage, sendMediaMessage, listInstances } from "@/lib/evolution.functions";
+import { toggleConversationBot } from "@/lib/ai-bot.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -26,7 +27,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import {
   Search, Send, Star, Archive, ArchiveRestore, MoreVertical, MailOpen, Mail,
-  Paperclip, StickyNote, Check, CheckCheck, FileText, Download, MapPin,
+  Paperclip, StickyNote, Check, CheckCheck, FileText, Download, MapPin, Bot,
 } from "lucide-react";
 import { formatDistanceToNow, format, isToday, isYesterday, isSameDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -63,6 +64,7 @@ type MessageRow = {
   status: string;
   created_at: string;
   metadata: Record<string, unknown> | null;
+  sent_by?: "human" | "bot" | "system" | null;
 };
 
 function InboxPage() {
@@ -265,6 +267,7 @@ function StatusTicks({ status }: { status: string }) {
 
 function MessageBubble({ m }: { m: MessageRow }) {
   const out = m.direction === "out";
+  const isBot = out && m.sent_by === "bot";
   const time = new Date(m.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
   let body: React.ReactNode = null;
@@ -287,7 +290,12 @@ function MessageBubble({ m }: { m: MessageRow }) {
 
   return (
     <div className={`flex ${out ? "justify-end" : "justify-start"}`}>
-      <div className={`max-w-[70%] rounded-2xl px-3 py-2 text-sm ${out ? "bg-primary text-primary-foreground" : "bg-accent text-foreground"}`}>
+      <div className={`max-w-[70%] rounded-2xl px-3 py-2 text-sm ${out ? (isBot ? "bg-violet-600 text-white" : "bg-primary text-primary-foreground") : "bg-accent text-foreground"}`}>
+        {isBot && (
+          <div className="mb-0.5 flex items-center gap-1 text-[10px] uppercase tracking-wide opacity-80">
+            <Bot className="h-3 w-3" /> Bot Júlia
+          </div>
+        )}
         {body && <div className="mb-1">{body}</div>}
         {m.content && m.type !== "location" && m.type !== "document" && (
           <div className="whitespace-pre-wrap break-words">{m.content}</div>
