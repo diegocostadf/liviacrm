@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated.index'
 import { Route as ApiSettingsRouteImport } from './routes/api/settings'
 import { Route as ApiConnectionsRouteImport } from './routes/api/connections'
+import { Route as AuthenticatedKnowledgeRouteImport } from './routes/_authenticated.knowledge'
 import { Route as AuthenticatedInboxRouteImport } from './routes/_authenticated.inbox'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated.dashboard'
 import { Route as AuthenticatedConnectionsRouteImport } from './routes/_authenticated.connections'
@@ -43,6 +44,11 @@ const ApiConnectionsRoute = ApiConnectionsRouteImport.update({
   id: '/api/connections',
   path: '/api/connections',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedKnowledgeRoute = AuthenticatedKnowledgeRouteImport.update({
+  id: '/knowledge',
+  path: '/knowledge',
+  getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedInboxRoute = AuthenticatedInboxRouteImport.update({
   id: '/inbox',
@@ -79,6 +85,7 @@ export interface FileRoutesByFullPath {
   '/connections': typeof AuthenticatedConnectionsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/inbox': typeof AuthenticatedInboxRoute
+  '/knowledge': typeof AuthenticatedKnowledgeRoute
   '/api/connections': typeof ApiConnectionsRoute
   '/api/settings': typeof ApiSettingsRoute
   '/settings/evolution': typeof AuthenticatedSettingsEvolutionRoute
@@ -89,6 +96,7 @@ export interface FileRoutesByTo {
   '/connections': typeof AuthenticatedConnectionsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/inbox': typeof AuthenticatedInboxRoute
+  '/knowledge': typeof AuthenticatedKnowledgeRoute
   '/api/connections': typeof ApiConnectionsRoute
   '/api/settings': typeof ApiSettingsRoute
   '/': typeof AuthenticatedIndexRoute
@@ -102,6 +110,7 @@ export interface FileRoutesById {
   '/_authenticated/connections': typeof AuthenticatedConnectionsRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/inbox': typeof AuthenticatedInboxRoute
+  '/_authenticated/knowledge': typeof AuthenticatedKnowledgeRoute
   '/api/connections': typeof ApiConnectionsRoute
   '/api/settings': typeof ApiSettingsRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
@@ -116,6 +125,7 @@ export interface FileRouteTypes {
     | '/connections'
     | '/dashboard'
     | '/inbox'
+    | '/knowledge'
     | '/api/connections'
     | '/api/settings'
     | '/settings/evolution'
@@ -126,6 +136,7 @@ export interface FileRouteTypes {
     | '/connections'
     | '/dashboard'
     | '/inbox'
+    | '/knowledge'
     | '/api/connections'
     | '/api/settings'
     | '/'
@@ -138,6 +149,7 @@ export interface FileRouteTypes {
     | '/_authenticated/connections'
     | '/_authenticated/dashboard'
     | '/_authenticated/inbox'
+    | '/_authenticated/knowledge'
     | '/api/connections'
     | '/api/settings'
     | '/_authenticated/'
@@ -190,6 +202,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiConnectionsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/knowledge': {
+      id: '/_authenticated/knowledge'
+      path: '/knowledge'
+      fullPath: '/knowledge'
+      preLoaderRoute: typeof AuthenticatedKnowledgeRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/inbox': {
       id: '/_authenticated/inbox'
       path: '/inbox'
@@ -232,6 +251,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedConnectionsRoute: typeof AuthenticatedConnectionsRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedInboxRoute: typeof AuthenticatedInboxRoute
+  AuthenticatedKnowledgeRoute: typeof AuthenticatedKnowledgeRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedSettingsEvolutionRoute: typeof AuthenticatedSettingsEvolutionRoute
 }
@@ -240,6 +260,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedConnectionsRoute: AuthenticatedConnectionsRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedInboxRoute: AuthenticatedInboxRoute,
+  AuthenticatedKnowledgeRoute: AuthenticatedKnowledgeRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedSettingsEvolutionRoute: AuthenticatedSettingsEvolutionRoute,
 }
@@ -258,3 +279,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
