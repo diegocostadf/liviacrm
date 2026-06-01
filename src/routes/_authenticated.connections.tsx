@@ -9,6 +9,7 @@ import {
   fetchInstanceStatus,
   disconnectInstance,
   deleteInstance,
+  testConnection,
 } from "@/lib/evolution.functions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -17,7 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Trash2, QrCode, Power, RefreshCw } from "lucide-react";
+import { Plus, Trash2, QrCode, Power, RefreshCw, PlugZap, CheckCircle2, AlertTriangle } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/connections")({
   head: () => ({ meta: [{ title: "Conexões — Lívia CRM" }] }),
@@ -32,6 +33,7 @@ function ConnectionsPage() {
   const statusFn = useServerFn(fetchInstanceStatus);
   const disconnectFn = useServerFn(disconnectInstance);
   const deleteFn = useServerFn(deleteInstance);
+  const testFn = useServerFn(testConnection);
 
   const { data: instances } = useQuery({
     queryKey: ["instances"],
@@ -42,6 +44,25 @@ function ConnectionsPage() {
   const [showNew, setShowNew] = useState(false);
   const [newName, setNewName] = useState("");
   const [qr, setQr] = useState<{ name: string; base64: string | null; code: string | null } | null>(null);
+  const [testResult, setTestResult] = useState<
+    | { ok: true; baseUrl: string; latencyMs: number; version: string | null; message: string | null }
+    | { ok: false; error: string }
+    | null
+  >(null);
+
+  const test = useMutation({
+    mutationFn: () => testFn(),
+    onSuccess: (r) => {
+      setTestResult(r);
+      if (r.ok) toast.success(`Evolution OK em ${r.latencyMs}ms`);
+      else toast.error(r.error);
+    },
+    onError: (e) => {
+      const msg = e instanceof Error ? e.message : "Erro desconhecido";
+      setTestResult({ ok: false, error: msg });
+      toast.error(msg);
+    },
+  });
 
   const create = useMutation({
     mutationFn: (name: string) => createFn({ data: { name } }),
@@ -86,8 +107,43 @@ function ConnectionsPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Conexões WhatsApp</h1>
           <p className="text-sm text-muted-foreground">Gerencie as instâncias da Evolution API.</p>
         </div>
-        <Button onClick={() => setShowNew(true)}><Plus className="mr-2 h-4 w-4" /> Nova instância</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => test.mutate()} disabled={test.isPending}>
+            <PlugZap className="mr-2 h-4 w-4" /> {test.isPending ? "Testando…" : "Testar conexão"}
+          </Button>
+          <Button onClick={() => setShowNew(true)}><Plus className="mr-2 h-4 w-4" /> Nova instância</Button>
+        </div>
       </div>
+
+      {testResult && (
+        <Card className={`mb-4 p-4 ${testResult.ok ? "border-success/40" : "border-destructive/40"}`}>
+          <div className="flex items-start gap-3">
+            {testResult.ok ? (
+              <CheckCircle2 className="mt-0.5 h-5 w-5 text-success" />
+            ) : (
+              <AlertTriangle className="mt-0.5 h-5 w-5 text-destructive" />
+            )}
+            <div className="flex-1 text-sm">
+              {testResult.ok ? (
+                <>
+                  <div className="font-medium">Evolution acessível</div>
+                  <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+                    <div>URL: <span className="font-mono">{testResult.baseUrl}</span></div>
+                    <div>Latência: {testResult.latencyMs}ms</div>
+                    {testResult.version && <div>Versão: {testResult.version}</div>}
+                    {testResult.message && <div>{testResult.message}</div>}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="font-medium text-destructive">Falha na conexão</div>
+                  <div className="mt-1 break-words font-mono text-xs text-muted-foreground">{testResult.error}</div>
+                </>
+              )}
+            </div>
+          </div>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
         {(instances ?? []).map((inst) => (
