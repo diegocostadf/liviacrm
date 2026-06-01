@@ -3,12 +3,13 @@ import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type { Database } from "@/integrations/supabase/types";
 import { evolutionFetch, pingEvolution } from "@/lib/evolution.server";
+import { loadEvolutionSettings } from "@/lib/evolution.server";
 
 type InstanceStatus = Database["public"]["Enums"]["instance_status"];
 
 const createSchema = z.object({ action: z.literal("create"), name: z.string().min(1).max(60).regex(/^[a-zA-Z0-9_-]+$/) });
 const nameActionSchema = z.object({
-  action: z.enum(["connect", "status", "disconnect", "delete"]),
+  action: z.enum(["connect", "status", "disconnect", "delete", "setWebhook"]),
   name: z.string().min(1).max(120),
 });
 const testSchema = z.object({ action: z.literal("test") });
@@ -157,6 +158,33 @@ function buildWebhookUrl(request: Request) {
   return url.toString();
 }
 
+async function applyWebhookToInstance(name: string, request: Request) {
+  const settings = await loadEvolutionSettings();
+  const events = (settings.webhookEvents && settings.webhookEvents.length)
+    ? settings.webhookEvents
+    : ["MESSAGES_UPSERT", "MESSAGES_UPDATE", "CONNECTION_UPDATE", "QRCODE_UPDATED", "CONTACTS_UPSERT"];
+  let url = settings.webhookUrl?.trim();
+  if (!url) {
+    const u = new URL("/api/public/webhooks/evolution", new URL(request.url).origin);
+    if (settings.webhookToken) u.searchParams.set("token", settings.webhookToken);
+    url = u.toString();
+  } else if (settings.webhookToken && !/[?&]token=/.test(url)) {
+    url += (url.includes("?") ? "&" : "?") + `token=${encodeURIComponent(settings.webhookToken)}`;
+  }
+  const body = { webhook: { enabled: true, url, byEvents: false, base64: true, events } };
+  // Evolution v2 uses /webhook/set; some installs accept payload at top level too.
+  try {
+    await evolutionFetch(`/webhook/set/${encodeURIComponent(name)}`, { method: "POST", json: body });
+  } catch (e) {
+    // Fallback to flattened payload accepted by older versions.
+    await evolutionFetch(`/webhook/set/${encodeURIComponent(name)}`, {
+      method: "POST",
+      json: { enabled: true, url, webhookByEvents: false, webhookBase64: true, events },
+    });
+  }
+  return { ok: true, url, events };
+}
+
 async function connectInstanceByName(name: string) {
   const res = (await evolutionFetch(`/instance/connect/${encodeURIComponent(name)}`)) as Record<string, unknown>;
   await supabaseAdmin.from("whatsapp_instances").update({ status: "connecting", last_sync_at: new Date().toISOString() }).eq("evolution_instance_name", name);
@@ -206,6 +234,7 @@ export async function handlePost(request: Request) {
     if (payload.action === "status") return json(await refreshInstanceStatus(payload.name));
     if (payload.action === "disconnect") return json(await disconnectInstanceByName(payload.name));
     if (payload.action === "delete") return json(await deleteInstanceByName(payload.name));
+    if (payload.action === "setWebhook") return json(await applyWebhookToInstance(payload.name, request));
 
     return json({ error: "Ação inválida." }, 400);
   } catch (error) {
