@@ -90,9 +90,14 @@ export const setStepStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid(), status: statusEnum }).parse(d))
   .handler(async ({ data }) => {
-    const patch: Record<string, unknown> = { status: data.status };
-    if (data.status === "completed") patch.completed_at = new Date().toISOString();
-    const { error } = await supabaseAdmin.from("campaign_steps").update(patch).eq("id", data.id);
+    const patch = {
+      status: data.status,
+      ...(data.status === "completed" ? { completed_at: new Date().toISOString() } : {}),
+    };
+    const { error } = await supabaseAdmin
+      .from("campaign_steps")
+      .update(patch as never)
+      .eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
