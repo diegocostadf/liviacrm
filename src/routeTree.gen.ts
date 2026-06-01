@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated.index'
+import { Route as ApiConnectionsRouteImport } from './routes/api/connections'
 import { Route as AuthenticatedInboxRouteImport } from './routes/_authenticated.inbox'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated.dashboard'
 import { Route as AuthenticatedConnectionsRouteImport } from './routes/_authenticated.connections'
@@ -30,6 +31,11 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AuthenticatedRoute,
+} as any)
+const ApiConnectionsRoute = ApiConnectionsRouteImport.update({
+  id: '/api/connections',
+  path: '/api/connections',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedInboxRoute = AuthenticatedInboxRouteImport.update({
   id: '/inbox',
@@ -60,6 +66,7 @@ export interface FileRoutesByFullPath {
   '/connections': typeof AuthenticatedConnectionsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/inbox': typeof AuthenticatedInboxRoute
+  '/api/connections': typeof ApiConnectionsRoute
   '/api/public/webhooks/evolution': typeof ApiPublicWebhooksEvolutionRoute
 }
 export interface FileRoutesByTo {
@@ -67,6 +74,7 @@ export interface FileRoutesByTo {
   '/connections': typeof AuthenticatedConnectionsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/inbox': typeof AuthenticatedInboxRoute
+  '/api/connections': typeof ApiConnectionsRoute
   '/': typeof AuthenticatedIndexRoute
   '/api/public/webhooks/evolution': typeof ApiPublicWebhooksEvolutionRoute
 }
@@ -77,6 +85,7 @@ export interface FileRoutesById {
   '/_authenticated/connections': typeof AuthenticatedConnectionsRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/inbox': typeof AuthenticatedInboxRoute
+  '/api/connections': typeof ApiConnectionsRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/api/public/webhooks/evolution': typeof ApiPublicWebhooksEvolutionRoute
 }
@@ -88,6 +97,7 @@ export interface FileRouteTypes {
     | '/connections'
     | '/dashboard'
     | '/inbox'
+    | '/api/connections'
     | '/api/public/webhooks/evolution'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -95,6 +105,7 @@ export interface FileRouteTypes {
     | '/connections'
     | '/dashboard'
     | '/inbox'
+    | '/api/connections'
     | '/'
     | '/api/public/webhooks/evolution'
   id:
@@ -104,6 +115,7 @@ export interface FileRouteTypes {
     | '/_authenticated/connections'
     | '/_authenticated/dashboard'
     | '/_authenticated/inbox'
+    | '/api/connections'
     | '/_authenticated/'
     | '/api/public/webhooks/evolution'
   fileRoutesById: FileRoutesById
@@ -111,6 +123,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   LoginRoute: typeof LoginRoute
+  ApiConnectionsRoute: typeof ApiConnectionsRoute
   ApiPublicWebhooksEvolutionRoute: typeof ApiPublicWebhooksEvolutionRoute
 }
 
@@ -136,6 +149,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
+    }
+    '/api/connections': {
+      id: '/api/connections'
+      path: '/api/connections'
+      fullPath: '/api/connections'
+      preLoaderRoute: typeof ApiConnectionsRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/inbox': {
       id: '/_authenticated/inbox'
@@ -189,8 +209,19 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   LoginRoute: LoginRoute,
+  ApiConnectionsRoute: ApiConnectionsRoute,
   ApiPublicWebhooksEvolutionRoute: ApiPublicWebhooksEvolutionRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
