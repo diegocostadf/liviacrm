@@ -242,8 +242,33 @@ function BotSettingsPage() {
                   </div>
                 </Card>
 
+                <Card className="space-y-3 p-5">
+                  <div>
+                    <h2 className="text-base font-semibold">System Prompt (Markdown)</h2>
+                    <p className="text-xs text-muted-foreground">
+                      Escreva aqui todo o direcional do bot em Markdown (persona, objetivo, regras, exemplos, FAQs).
+                      Quando preenchido, este texto <strong>substitui</strong> os campos Persona/Objetivo/Tom/Idioma abaixo
+                      como instrução principal. Os links, base de conhecimento e regras de segurança continuam sendo anexados automaticamente.
+                    </p>
+                  </div>
+                  <Textarea
+                    rows={16}
+                    className="font-mono text-xs"
+                    value={form.system_prompt_md}
+                    onChange={(e) => setForm({ ...form, system_prompt_md: e.target.value })}
+                    placeholder={`# Persona\nVocê é a Júlia, consultora de vendas da Russomano Educação...\n\n# Objetivo\n- Qualificar o lead\n- Apresentar o curso ideal\n- Enviar o link de inscrição\n\n# Tom de voz\n- Amigável, breve, sem jargão\n- Usa "você", nunca "senhor(a)"\n\n# Regras\n1. Nunca prometa desconto sem confirmar\n2. Se o lead perguntar sobre OAB, ofereça o link do grupo\n3. ...\n\n# FAQs\n**Quanto custa?** R$ ...\n**Tem material?** Sim, ...`}
+                  />
+                  <div className="text-[11px] text-muted-foreground">
+                    {form.system_prompt_md.length.toLocaleString("pt-BR")} caracteres
+                    {form.system_prompt_md.trim() ? " · usando este prompt como direcional principal" : " · usando Persona/Objetivo/Tom abaixo"}
+                  </div>
+                </Card>
+
                 <Card className="space-y-4 p-5">
-                  <h2 className="text-base font-semibold">Personalidade</h2>
+                  <h2 className="text-base font-semibold">Personalidade (fallback)</h2>
+                  <p className="text-xs text-muted-foreground">
+                    Usado apenas quando o System Prompt acima estiver vazio.
+                  </p>
                   <div className="space-y-1.5">
                     <Label>Persona (quem é o bot?)</Label>
                     <Textarea rows={3} value={form.persona} onChange={(e) => setForm({ ...form, persona: e.target.value })} />
