@@ -11,7 +11,7 @@ export const testConnection = createServerFn({ method: "POST" })
   .handler(async () => {
     try {
       const r = await pingEvolution();
-      return { ok: true as const, ...r };
+      return r;
     } catch (e) {
       return { ok: false as const, error: e instanceof Error ? e.message : String(e) };
     }
