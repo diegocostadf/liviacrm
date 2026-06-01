@@ -76,11 +76,11 @@ function InboxPage() {
   const [filter, setFilter] = useState<Filter>("all");
   const [instanceFilter, setInstanceFilter] = useState<string>("all");
 
+  const listInstancesFn = useServerFn(listInstances);
   const { data: instances } = useQuery({
     queryKey: ["instances-all"],
     queryFn: () => listInstancesFn(),
   });
-  const listInstancesFn = useServerFn(listInstances);
 
   const filters = useMemo(() => ({
     status: filter === "archived" ? ("archived" as const) : ("open" as const),
