@@ -1,22 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
-import { Loader2, Trash2, RefreshCw, Search, FileText, Upload, Check, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { toast } from "sonner";
-import { listDocuments, createTextDocument, reprocessDocument, deleteDocument, testSearch } from "@/lib/knowledge.functions";
+import { KnowledgePage } from "@/components/knowledge-page";
 
 export const Route = createFileRoute("/_authenticated/knowledge")({
   component: KnowledgePage,
 });
 
-function KnowledgePage() {
+function _Unused() {
   const list = useServerFn(listDocuments);
   const create = useServerFn(createTextDocument);
   const reproc = useServerFn(reprocessDocument);
