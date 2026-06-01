@@ -343,6 +343,88 @@ function normalizePhone(raw: string): string {
   return raw.replace(/\D/g, "");
 }
 
+/**
+ * Handle "/assumir <numero>" sent from the configured handoff WhatsApp number.
+ * Disables the bot on the matching conversation so the human can take over.
+ * Returns true if the message was a valid handoff command (handled), false otherwise.
+ */
+export async function handleHandoffCommand(args: {
+  instanceId: string;
+  instanceName: string;
+  fromPhone: string;
+  text: string;
+}): Promise<boolean> {
+  const { instanceId, instanceName, fromPhone, text } = args;
+  const match = text.match(/^\s*\/assumir\s+([+\d\s().-]+)\s*$/i);
+  if (!match) return false;
+
+  const { data: botCfg } = await supabaseAdmin
+    .from("ai_bot_configs")
+    .select("handoff_phone")
+    .eq("instance_id", instanceId)
+    .maybeSingle();
+  const handoffNorm = normalizePhone(botCfg?.handoff_phone ?? "");
+  const fromNorm = normalizePhone(fromPhone);
+  if (!handoffNorm || handoffNorm !== fromNorm) return false;
+
+  const targetNorm = normalizePhone(match[1]);
+  if (!targetNorm) return false;
+
+  // Find contact by phone (try exact, then suffix to tolerate country code variations).
+  let contactId: string | null = null;
+  const { data: exact } = await supabaseAdmin
+    .from("contacts")
+    .select("id, phone")
+    .eq("phone", targetNorm)
+    .maybeSingle();
+  if (exact) {
+    contactId = exact.id;
+  } else {
+    const { data: like } = await supabaseAdmin
+      .from("contacts")
+      .select("id, phone")
+      .like("phone", `%${targetNorm.slice(-10)}`)
+      .limit(2);
+    if (like && like.length === 1) contactId = like[0].id;
+  }
+
+  const replyTo = async (msg: string) => {
+    try {
+      await evolutionFetch(`/message/sendText/${instanceName}`, {
+        method: "POST",
+        json: { number: handoffNorm, text: msg },
+      });
+    } catch (e) {
+      console.warn("[bot] handoff reply failed", e);
+    }
+  };
+
+  if (!contactId) {
+    await replyTo(`❌ Não encontrei nenhum contato com o número ${match[1].trim()}.`);
+    return true;
+  }
+
+  const { data: conv } = await supabaseAdmin
+    .from("conversations")
+    .select("id")
+    .eq("contact_id", contactId)
+    .eq("instance_id", instanceId)
+    .maybeSingle();
+
+  if (!conv) {
+    await replyTo(`❌ Não há conversa aberta com ${match[1].trim()} nesta instância.`);
+    return true;
+  }
+
+  await supabaseAdmin
+    .from("conversations")
+    .update({ bot_active: false })
+    .eq("id", conv.id);
+
+  await replyTo(`✅ Bot pausado para ${match[1].trim()}. Você assumiu a conversa.`);
+  return true;
+}
+
 async function notifyHumanHandoff(
   bot: BotConfig,
   evolutionInstanceName: string,
