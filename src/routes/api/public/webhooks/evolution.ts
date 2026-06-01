@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { loadEvolutionSettings } from "@/lib/evolution.server";
 import { handleBotReply, handleHandoffCommand, handleResetCommand } from "@/lib/ai-bot.server";
+import { handleOptOut, markRepliesForPhone } from "@/lib/campaign-steps.server";
 
 export const Route = createFileRoute("/api/public/webhooks/evolution")({
   server: {
@@ -114,6 +115,17 @@ async function handleIncomingMessage(instanceName: string, data: Record<string, 
       text,
     });
     if (handled) return;
+  }
+
+  // Opt-out LGPD: SAIR / PARAR / NÃO etc. Marca contato e cancela steps pendentes.
+  if (direction === "in" && typeof text === "string") {
+    const optedOut = await handleOptOut({ instanceName, phone, text });
+    if (optedOut) return;
+  }
+
+  // Toda mensagem inbound marca como 'replied' os step_sends pendentes desse telefone.
+  if (direction === "in") {
+    await markRepliesForPhone(phone).catch((e) => console.warn("[markReplies]", e));
   }
 
   // Upsert contact
