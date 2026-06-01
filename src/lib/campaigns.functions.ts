@@ -176,7 +176,7 @@ export const setCampaignStatus = createServerFn({ method: "POST" })
   .inputValidator((d) =>
     z.object({
       id: z.string().uuid(),
-      status: z.enum(["draft", "running", "paused", "completed", "cancelled"]),
+      status: z.enum(["draft", "running", "paused", "completed", "scheduled", "failed"]),
     }).parse(d),
   )
   .handler(async ({ data }) => {
