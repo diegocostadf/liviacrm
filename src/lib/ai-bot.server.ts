@@ -264,6 +264,7 @@ export async function handleBotReply(conversationId: string): Promise<void> {
         contact.phone,
         reply,
         { intent: parsed.intent, temperature: parsed.temperature, score: parsed.score },
+        bot.typing_indicator,
       );
     }
 
@@ -285,19 +286,66 @@ export async function handleBotReply(conversationId: string): Promise<void> {
       .eq("id", conversationId);
 
     const status = leadStatusFor(parsed.temperature, parsed.intent);
-    await supabaseAdmin
-      .from("contacts")
-      .update({ lead_status: status, last_score_at: new Date().toISOString() })
-      .eq("id", contact.id);
+    // Enriquecer CRM com dados extraídos da conversa
+    const contactPatch: Record<string, unknown> = {
+      lead_status: status,
+      last_score_at: new Date().toISOString(),
+    };
+    if (!contact.name && parsed.contact_name) contactPatch.name = parsed.contact_name.slice(0, 255);
+    if (!contact.email && parsed.contact_email) contactPatch.email = parsed.contact_email.slice(0, 255);
+    if (!contact.city && parsed.contact_city) contactPatch.city = parsed.contact_city.slice(0, 120);
+    if (!contact.state && parsed.contact_state) contactPatch.state = parsed.contact_state.slice(0, 60);
+    if (!contact.company && parsed.contact_company) contactPatch.company = parsed.contact_company.slice(0, 255);
+    if (parsed.tags?.length) {
+      const existing = new Set((contact.tags ?? []).map((t) => t.toLowerCase()));
+      const merged = [...(contact.tags ?? [])];
+      for (const raw of parsed.tags) {
+        const t = String(raw).trim().toLowerCase().slice(0, 60);
+        if (t && !existing.has(t)) {
+          merged.push(t);
+          existing.add(t);
+        }
+      }
+      contactPatch.tags = merged.slice(0, 50);
+    }
+    await supabaseAdmin.from("contacts").update(contactPatch).eq("id", contact.id);
 
     if (parsed.handoff) {
       await supabaseAdmin
         .from("conversations")
         .update({ bot_active: false })
         .eq("id", conversationId);
+      await notifyHumanHandoff(bot, instance.evolution_instance_name, contact, parsed.summary ?? parsed.next_step ?? "Lead solicitou atendimento humano.");
     }
   } catch (e) {
     console.error("[handleBotReply] error", e);
+  }
+}
+
+function normalizePhone(raw: string): string {
+  return raw.replace(/\D/g, "");
+}
+
+async function notifyHumanHandoff(
+  bot: BotConfig,
+  evolutionInstanceName: string,
+  contact: { name: string | null; phone: string },
+  reason: string,
+) {
+  const target = normalizePhone(bot.handoff_phone ?? "");
+  if (!target) return;
+  const text = [
+    "🤝 *Handoff Lívia/Júlia*",
+    `Lead: ${contact.name ?? "Sem nome"} (${contact.phone})`,
+    `Motivo: ${reason}`,
+  ].join("\n");
+  try {
+    await evolutionFetch(`/message/sendText/${evolutionInstanceName}`, {
+      method: "POST",
+      json: { number: target, text },
+    });
+  } catch (e) {
+    console.warn("[bot] handoff notify failed", e);
   }
 }
 
@@ -307,7 +355,21 @@ async function sendBotMessage(
   phone: string,
   text: string,
   metadata?: Record<string, unknown>,
+  showTyping: boolean = true,
 ) {
+  if (showTyping) {
+    try {
+      // Typing indicator (composing) — Evolution v2 endpoint
+      const delay = Math.min(4000, 800 + Math.min(text.length, 400) * 25);
+      await evolutionFetch(`/chat/sendPresence/${evolutionInstanceName}`, {
+        method: "POST",
+        json: { number: phone, presence: "composing", delay },
+      });
+      await new Promise((r) => setTimeout(r, delay));
+    } catch (e) {
+      console.warn("[bot] typing presence failed", e);
+    }
+  }
   const res = (await evolutionFetch(`/message/sendText/${evolutionInstanceName}`, {
     method: "POST",
     json: { number: phone, text },
