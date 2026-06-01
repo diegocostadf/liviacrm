@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { loadEvolutionSettings } from "@/lib/evolution.server";
-import { handleBotReply } from "@/lib/ai-bot.server";
+import { handleBotReply, handleHandoffCommand } from "@/lib/ai-bot.server";
 
 export const Route = createFileRoute("/api/public/webhooks/evolution")({
   server: {
@@ -102,6 +102,19 @@ async function handleIncomingMessage(instanceName: string, data: Record<string, 
     .eq("evolution_instance_name", instanceName)
     .maybeSingle();
   if (!inst) return;
+
+  // Handoff command: if the inbound sender matches the bot's handoff_phone
+  // and message starts with /assumir, disable the bot on the target conversation
+  // and short-circuit (no contact upsert, no bot reply).
+  if (direction === "in" && typeof text === "string" && /^\s*\/assumir\b/i.test(text)) {
+    const handled = await handleHandoffCommand({
+      instanceId: inst.id,
+      instanceName,
+      fromPhone: phone,
+      text,
+    });
+    if (handled) return;
+  }
 
   // Upsert contact
   let contactId: string;
