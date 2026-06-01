@@ -289,7 +289,13 @@ export async function handleBotReply(conversationId: string): Promise<void> {
       send_landing_link?: boolean;
       handoff?: boolean;
       temperature: "frio" | "morno" | "quente";
-      intent: "curioso" | "interessado" | "pronto_pra_comprar" | "objecao" | "desinteressado";
+      intent:
+        | "interessado"
+        | "inscrito"
+        | "objecao"
+        | "sem_interesse"
+        | "fora_escopo"
+        | "lead_quente";
       score: number;
       next_step: string;
       summary: string;
