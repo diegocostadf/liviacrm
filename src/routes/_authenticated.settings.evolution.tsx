@@ -263,3 +263,145 @@ function EvolutionSettingsPage() {
     </div>
   );
 }
+
+function DefaultInstanceCard({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery({
+    queryKey: ["instances"],
+    queryFn: () => callConnections<{ instances: WhatsappInstance[]; syncError: string | null }>({ action: "sync" }),
+    refetchInterval: 8000,
+  });
+  const instances = data?.instances ?? [];
+  const selected = instances.find((i) => i.evolution_instance_name === value) ?? null;
+
+  const [qr, setQr] = useState<{ base64: string | null; code: string | null } | null>(null);
+
+  const connect = useMutation({
+    mutationFn: (name: string) =>
+      callConnections<{ qrBase64: string | null; pairingCode: string | null }>({ action: "connect", name }),
+    onSuccess: (r) => setQr({ base64: r.qrBase64, code: r.pairingCode }),
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
+  });
+  const disconnect = useMutation({
+    mutationFn: (name: string) => callConnections<{ ok: boolean }>({ action: "disconnect", name }),
+    onSuccess: () => { toast.success("Desconectado"); qc.invalidateQueries({ queryKey: ["instances"] }); },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
+  });
+  const refresh = useMutation({
+    mutationFn: (name: string) => callConnections<{ status: string }>({ action: "status", name }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["instances"] }),
+  });
+
+  // Poll status while QR open
+  useEffect(() => {
+    if (!qr || !value) return;
+    const id = setInterval(async () => {
+      try {
+        const r = await callConnections<{ status: string }>({ action: "status", name: value });
+        if (r.status === "connected") {
+          toast.success("Conectado!");
+          setQr(null);
+          qc.invalidateQueries({ queryKey: ["instances"] });
+        }
+      } catch { /* noop */ }
+    }, 3000);
+    return () => clearInterval(id);
+  }, [qr, value, qc]);
+
+  return (
+    <Card className="space-y-4 p-5">
+      <div>
+        <h2 className="text-base font-semibold">Instância padrão do sistema</h2>
+        <p className="text-xs text-muted-foreground">
+          Escolha qual instância da Evolution o sistema usará por padrão (ex.: <span className="font-mono">livia</span>).
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Instância</Label>
+        <div className="flex items-center gap-2">
+          <Select value={value || undefined} onValueChange={onChange} disabled={isLoading}>
+            <SelectTrigger className="flex-1">
+              <SelectValue placeholder={isLoading ? "Carregando…" : "Selecione uma instância"} />
+            </SelectTrigger>
+            <SelectContent>
+              {instances.map((i) => (
+                <SelectItem key={i.id} value={i.evolution_instance_name}>
+                  {i.evolution_instance_name} {i.phone_number ? `· ${i.phone_number}` : ""}
+                </SelectItem>
+              ))}
+              {instances.length === 0 && (
+                <div className="px-3 py-2 text-xs text-muted-foreground">
+                  Nenhuma instância encontrada. Crie uma em <span className="font-medium">Conexões</span>.
+                </div>
+              )}
+            </SelectContent>
+          </Select>
+          {selected && <StatusBadge status={selected.status} />}
+        </div>
+        {data?.syncError && (
+          <p className="text-xs text-destructive">Falha ao sincronizar: {data.syncError}</p>
+        )}
+      </div>
+
+      {selected && (
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          {selected.status !== "connected" ? (
+            <Button size="sm" onClick={() => connect.mutate(selected.evolution_instance_name)} disabled={connect.isPending}>
+              <QrCode className="mr-1.5 h-3.5 w-3.5" />
+              {connect.isPending ? "Gerando QR…" : "Conectar (mostrar QR)"}
+            </Button>
+          ) : (
+            <Button size="sm" variant="outline" onClick={() => disconnect.mutate(selected.evolution_instance_name)} disabled={disconnect.isPending}>
+              <Power className="mr-1.5 h-3.5 w-3.5" /> Desconectar
+            </Button>
+          )}
+          <Button size="sm" variant="ghost" onClick={() => refresh.mutate(selected.evolution_instance_name)}>
+            <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Atualizar status
+          </Button>
+          {selected.profile_name && (
+            <span className="text-xs text-muted-foreground">{selected.profile_name}</span>
+          )}
+        </div>
+      )}
+
+      <p className="text-xs text-muted-foreground">
+        Não esqueça de clicar em <span className="font-medium">Salvar</span> ao alterar a instância padrão.
+      </p>
+
+      <Dialog open={!!qr} onOpenChange={(o) => !o && setQr(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Conecte seu WhatsApp</DialogTitle></DialogHeader>
+          <div className="flex flex-col items-center gap-3">
+            {qr?.base64 ? (
+              <img
+                src={qr.base64.startsWith("data:") ? qr.base64 : `data:image/png;base64,${qr.base64}`}
+                alt="QR Code"
+                className="h-64 w-64 rounded-lg border border-border"
+              />
+            ) : (
+              <div className="flex h-64 w-64 items-center justify-center rounded-lg border border-dashed border-border text-sm text-muted-foreground">
+                Gerando QR…
+              </div>
+            )}
+            {qr?.code && <div className="text-xs text-muted-foreground">Código: <span className="font-mono">{qr.code}</span></div>}
+            <p className="text-center text-xs text-muted-foreground">
+              Abra WhatsApp → Aparelhos conectados → Conectar aparelho
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </Card>
+  );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const map: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+    connected: { label: "Conectado", variant: "default" },
+    connecting: { label: "Conectando", variant: "secondary" },
+    disconnected: { label: "Desconectado", variant: "outline" },
+    error: { label: "Erro", variant: "destructive" },
+  };
+  const cfg = map[status] ?? map.disconnected;
+  return <Badge variant={cfg.variant}>{cfg.label}</Badge>;
+}
