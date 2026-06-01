@@ -884,6 +884,11 @@ export type Database = {
         | "pronto_pra_comprar"
         | "objecao"
         | "desinteressado"
+        | "inscrito"
+        | "sem_interesse"
+        | "silencio"
+        | "fora_escopo"
+        | "lead_quente"
       intent_temperature: "frio" | "morno" | "quente"
       kb_doc_status: "processing" | "ready" | "error"
       lead_status: "novo" | "engajado" | "inscrito" | "perdido"
@@ -1050,6 +1055,11 @@ export const Constants = {
         "pronto_pra_comprar",
         "objecao",
         "desinteressado",
+        "inscrito",
+        "sem_interesse",
+        "silencio",
+        "fora_escopo",
+        "lead_quente",
       ],
       intent_temperature: ["frio", "morno", "quente"],
       kb_doc_status: ["processing", "ready", "error"],
