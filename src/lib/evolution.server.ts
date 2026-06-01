@@ -1,18 +1,59 @@
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
+
 export type EvolutionInit = RequestInit & { json?: unknown };
 
-function getConfig() {
-  const base = (process.env.EVOLUTION_API_URL ?? "").replace(/\/$/, "");
-  const key = process.env.EVOLUTION_API_KEY ?? "";
-  if (!base) throw new Error("EVOLUTION_API_URL não configurada nos secrets do projeto.");
-  if (!key) throw new Error("EVOLUTION_API_KEY não configurada nos secrets do projeto.");
-  if (!/^https?:\/\//.test(base)) {
-    throw new Error(`EVOLUTION_API_URL inválida (deve começar com http:// ou https://). Valor atual: "${base}"`);
+export type EvolutionSettings = {
+  apiUrl: string;
+  apiKey: string;
+  webhookUrl?: string;
+  webhookToken?: string;
+  webhookEvents?: string[];
+};
+
+let cached: { value: EvolutionSettings; at: number } | null = null;
+const TTL_MS = 10_000;
+
+export function invalidateEvolutionSettingsCache() {
+  cached = null;
+}
+
+export async function loadEvolutionSettings(): Promise<EvolutionSettings> {
+  if (cached && Date.now() - cached.at < TTL_MS) return cached.value;
+  let dbVal: Partial<EvolutionSettings> = {};
+  try {
+    const { data } = await supabaseAdmin
+      .from("app_settings")
+      .select("value")
+      .eq("key", "evolution")
+      .maybeSingle();
+    if (data?.value && typeof data.value === "object") {
+      dbVal = data.value as Partial<EvolutionSettings>;
+    }
+  } catch { /* fallback to env */ }
+
+  const value: EvolutionSettings = {
+    apiUrl: (dbVal.apiUrl ?? process.env.EVOLUTION_API_URL ?? "").replace(/\/$/, ""),
+    apiKey: dbVal.apiKey ?? process.env.EVOLUTION_API_KEY ?? "",
+    webhookUrl: dbVal.webhookUrl ?? undefined,
+    webhookToken: dbVal.webhookToken ?? process.env.EVOLUTION_WEBHOOK_TOKEN ?? undefined,
+    webhookEvents: dbVal.webhookEvents,
+  };
+  cached = { value, at: Date.now() };
+  return value;
+}
+
+async function getConfig() {
+  const { apiUrl, apiKey } = await loadEvolutionSettings();
+  if (!apiUrl) throw new Error("URL do Evolution não configurada. Configure em Configurações → Evolution API.");
+  if (!apiKey) throw new Error("API Key do Evolution não configurada. Configure em Configurações → Evolution API.");
+  if (!/^https?:\/\//.test(apiUrl)) {
+    throw new Error(`URL inválida (deve começar com http:// ou https://). Valor atual: "${apiUrl}"`);
   }
-  return { base, key };
+  return { base: apiUrl, key: apiKey };
 }
 
 export async function evolutionFetch(path: string, init: EvolutionInit = {}) {
-  const { base, key } = getConfig();
+  const { base, key } = await getConfig();
   const url = `${base}${path.startsWith("/") ? path : `/${path}`}`;
   const headers = new Headers(init.headers);
   headers.set("apikey", key);
@@ -36,12 +77,13 @@ export async function evolutionFetch(path: string, init: EvolutionInit = {}) {
   return parsed;
 }
 
-export function getWebhookToken() {
-  return process.env.EVOLUTION_WEBHOOK_TOKEN ?? "";
+export async function getWebhookToken() {
+  const { webhookToken } = await loadEvolutionSettings();
+  return webhookToken ?? "";
 }
 
 export async function pingEvolution() {
-  const { base } = getConfig();
+  const { base } = await getConfig();
   const started = Date.now();
   // GET /  on Evolution returns version info; falls back to /instance/fetchInstances
   try {
