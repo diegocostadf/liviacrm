@@ -38,7 +38,7 @@ const REPLY_TOOL = {
         temperature: { type: "string", enum: ["frio", "morno", "quente"] },
         intent: {
           type: "string",
-          enum: ["curioso", "interessado", "pronto_pra_comprar", "objecao", "fora_de_escopo"],
+          enum: ["curioso", "interessado", "pronto_pra_comprar", "objecao", "desinteressado"],
         },
         score: { type: "integer", minimum: 0, maximum: 100 },
         next_step: { type: "string", description: "Próximo passo recomendado em 1 frase." },
@@ -61,10 +61,12 @@ function isWithinBusinessHours(cfg: BotConfig): boolean {
   return hour >= start || hour < end; // overnight window
 }
 
-function leadStatusFor(t: string, intent: string): "novo" | "morno" | "quente" | "frio" | "inscrito" | "comprou" {
-  if (intent === "pronto_pra_comprar" || t === "quente") return "quente";
-  if (t === "morno" || intent === "interessado") return "morno";
-  if (t === "frio") return "frio";
+function leadStatusFor(
+  t: string,
+  intent: string,
+): "novo" | "engajado" | "inscrito" | "perdido" {
+  if (intent === "desinteressado" || t === "frio") return "perdido";
+  if (intent === "pronto_pra_comprar" || intent === "interessado" || t === "quente" || t === "morno") return "engajado";
   return "novo";
 }
 
@@ -209,7 +211,7 @@ export async function handleBotReply(conversationId: string): Promise<void> {
       send_landing_link?: boolean;
       handoff?: boolean;
       temperature: "frio" | "morno" | "quente";
-      intent: string;
+      intent: "curioso" | "interessado" | "pronto_pra_comprar" | "objecao" | "desinteressado";
       score: number;
       next_step: string;
       summary: string;
@@ -285,7 +287,7 @@ async function sendBotMessage(
     json: { number: phone, text },
   })) as { key?: { id?: string } };
 
-  await supabaseAdmin.from("messages").insert({
+    await supabaseAdmin.from("messages").insert({
     conversation_id: conversationId,
     direction: "out",
     type: "text",
@@ -293,7 +295,7 @@ async function sendBotMessage(
     status: "sent",
     sent_by: "bot",
     wa_message_id: res?.key?.id ?? null,
-    metadata: metadata ?? null,
+    metadata: (metadata as unknown as never) ?? null,
   });
 
   await supabaseAdmin
