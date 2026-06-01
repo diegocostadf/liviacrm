@@ -35,6 +35,7 @@ type Form = {
   temperature: number;
   max_tokens: number;
   system_extra: string;
+  system_prompt_md: string;
   group_link: string;
   landing_link: string;
   out_of_hours_message: string;
@@ -57,6 +58,7 @@ const DEFAULT_FORM: Form = {
   temperature: 0.4,
   max_tokens: 1024,
   system_extra: "",
+  system_prompt_md: "",
   group_link: "",
   landing_link: "",
   out_of_hours_message: "",
@@ -106,6 +108,7 @@ function BotSettingsPage() {
       temperature: Number(c.temperature ?? 0.4),
       max_tokens: c.max_tokens ?? 1024,
       system_extra: c.system_extra ?? "",
+      system_prompt_md: (c as { system_prompt_md?: string | null }).system_prompt_md ?? "",
       group_link: c.group_link ?? "",
       landing_link: c.landing_link ?? "",
       out_of_hours_message: c.out_of_hours_message ?? "",
@@ -133,6 +136,7 @@ function BotSettingsPage() {
           temperature: form.temperature,
           max_tokens: form.max_tokens,
           system_extra: form.system_extra || null,
+          system_prompt_md: form.system_prompt_md || null,
           group_link: form.group_link || null,
           landing_link: form.landing_link || null,
           out_of_hours_message: form.out_of_hours_message || null,
