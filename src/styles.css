@@ -62,7 +62,6 @@
 }
 
 :root {
-:root {
   --radius: 0.5rem;
   /* Dark-first SaaS palette inspired by Linear/Pipefy */
   --background: oklch(0.18 0.012 270);
