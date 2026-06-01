@@ -52,7 +52,7 @@ export const getConversation = createServerFn({ method: "POST" })
         instance:whatsapp_instances!inner(id, name, evolution_instance_name, status)
       `).eq("id", data.id).maybeSingle(),
       supabase.from("messages").select("*").eq("conversation_id", data.id).order("created_at", { ascending: true }).limit(500),
-      supabase.from("internal_notes").select("*, author:profiles(display_name, avatar_url)").eq("conversation_id", data.id).order("created_at", { ascending: false }),
+      supabase.from("internal_notes").select("*").eq("conversation_id", data.id).order("created_at", { ascending: false }),
     ]);
     if (!conv) throw new Error("Conversation not found");
     return { conversation: conv, messages: messages ?? [], notes: notes ?? [] };

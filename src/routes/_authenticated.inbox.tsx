@@ -78,8 +78,9 @@ function InboxPage() {
 
   const { data: instances } = useQuery({
     queryKey: ["instances-all"],
-    queryFn: () => useServerFnDirect(listInstances)(),
+    queryFn: () => listInstancesFn(),
   });
+  const listInstancesFn = useServerFn(listInstances);
 
   const filters = useMemo(() => ({
     status: filter === "archived" ? ("archived" as const) : ("open" as const),
@@ -175,11 +176,6 @@ function InboxPage() {
       </div>
     </div>
   );
-}
-
-// Helper: useServerFn for queryFn without re-creating each render
-function useServerFnDirect<T extends (...a: never[]) => unknown>(fn: T): T {
-  return useServerFn(fn) as T;
 }
 
 function ConversationRowItem({
@@ -334,7 +330,7 @@ function Thread({ id, getFn }: { id: string; getFn: ReturnType<typeof useServerF
   const fileRef = useRef<HTMLInputElement>(null);
 
   const messages = (data?.messages ?? []) as MessageRow[];
-  const notes = (data?.notes ?? []) as Array<{ id: string; content: string; created_at: string }>;
+  const notes = (data?.notes ?? []) as unknown as Array<{ id: string; content: string; created_at: string }>;
 
   // Merge messages + notes timeline
   const timeline = useMemo(() => {
@@ -515,7 +511,7 @@ function ContactPanel({ id, getFn }: { id: string; getFn: ReturnType<typeof useS
   const { data: team } = useQuery({ queryKey: ["team"], queryFn: () => teamFn() });
 
   const conv = data?.conversation as { id: string; assigned_to: string | null; contact: { id: string; name: string | null; phone: string; email: string | null; city: string | null; state: string | null; company: string | null; tags: string[] | null; profile_pic_url: string | null } } | undefined;
-  const notes = (data?.notes ?? []) as Array<{ id: string; content: string; created_at: string; author?: { display_name: string | null } | null }>;
+  const notes = (data?.notes ?? []) as unknown as Array<{ id: string; content: string; created_at: string }>;
 
   const [tab, setTab] = useState<"detalhes" | "notas">("detalhes");
   const [tags, setTags] = useState("");
@@ -535,6 +531,8 @@ function ContactPanel({ id, getFn }: { id: string; getFn: ReturnType<typeof useS
 
   if (!conv) return null;
   const c = conv.contact;
+  const convId = conv.id;
+  const assignedTo = conv.assigned_to;
 
   async function save() {
     await updateContactFn({ data: {
@@ -548,14 +546,14 @@ function ContactPanel({ id, getFn }: { id: string; getFn: ReturnType<typeof useS
   }
 
   async function transfer(value: string) {
-    await transferFn({ data: { id: conv.id, assignedTo: value === "none" ? null : value } });
+    await transferFn({ data: { id: convId, assignedTo: value === "none" ? null : value } });
     toast.success("Atendimento transferido");
     qc.invalidateQueries({ queryKey: ["conversation", id] });
   }
 
   async function addNewNote() {
     if (!newNote.trim()) return;
-    await noteFn({ data: { conversationId: conv.id, content: newNote.trim() } });
+    await noteFn({ data: { conversationId: convId, content: newNote.trim() } });
     setNewNote("");
     qc.invalidateQueries({ queryKey: ["conversation", id] });
   }
@@ -582,7 +580,7 @@ function ContactPanel({ id, getFn }: { id: string; getFn: ReturnType<typeof useS
             <div className="space-y-3 text-sm">
               <div>
                 <label className="text-xs text-muted-foreground">Responsável</label>
-                <Select value={conv.assigned_to ?? "none"} onValueChange={transfer}>
+                <Select value={assignedTo ?? "none"} onValueChange={transfer}>
                   <SelectTrigger className="mt-1 h-8 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Sem responsável</SelectItem>
@@ -628,11 +626,10 @@ function ContactPanel({ id, getFn }: { id: string; getFn: ReturnType<typeof useS
                 </Button>
               </div>
               <div className="space-y-2">
-                {notes.map((n) => (
+                {notes.map((n: { id: string; content: string; created_at: string }) => (
                   <div key={n.id} className="rounded-md border border-border bg-background p-2 text-xs">
                     <div className="text-foreground/90">{n.content}</div>
                     <div className="mt-1 flex items-center justify-between text-[10px] text-muted-foreground">
-                      <span>{n.author?.display_name ?? "—"}</span>
                       <span>{format(new Date(n.created_at), "dd/MM HH:mm")}</span>
                     </div>
                   </div>
