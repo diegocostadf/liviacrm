@@ -7,8 +7,12 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { PlugZap, Save, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { PlugZap, Save, AlertTriangle, CheckCircle2, QrCode, Power, RefreshCw } from "lucide-react";
+import type { Tables } from "@/integrations/supabase/types";
 
 type Settings = {
   apiUrl: string;
@@ -18,8 +22,10 @@ type Settings = {
   webhookToken: string;
   hasWebhookToken: boolean;
   webhookEvents: string[];
+  defaultInstance: string;
   updatedAt: string | null;
 };
+type WhatsappInstance = Tables<"whatsapp_instances">;
 
 type TestResult =
   | { ok: true; baseUrl: string; latencyMs: number; version: string | null; message: string | null }
@@ -40,6 +46,19 @@ async function callApi<T>(method: "GET" | "POST", body?: Record<string, unknown>
     method,
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
     body: body ? JSON.stringify(body) : undefined,
+  });
+  const payload = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(typeof payload.error === "string" ? payload.error : "Erro");
+  return payload as T;
+}
+
+async function callConnections<T>(body: Record<string, unknown>): Promise<T> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) throw new Error("Sessão expirada. Faça login novamente.");
+  const res = await fetch("/api/connections", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+    body: JSON.stringify(body),
   });
   const payload = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(typeof payload.error === "string" ? payload.error : "Erro");
@@ -74,6 +93,7 @@ function EvolutionSettingsPage() {
         webhookUrl: form?.webhookUrl || undefined,
         webhookToken: form?.webhookToken ?? "",
         webhookEvents: form?.webhookEvents?.length ? form.webhookEvents : DEFAULT_EVENTS,
+        defaultInstance: form?.defaultInstance || "",
       }),
     onSuccess: () => {
       toast.success("Configurações salvas");
@@ -152,6 +172,11 @@ function EvolutionSettingsPage() {
             {form.hasApiKey && <p className="text-xs text-muted-foreground">Uma chave já está configurada. Preencha para substituir.</p>}
           </div>
         </Card>
+
+        <DefaultInstanceCard
+          value={form.defaultInstance}
+          onChange={(v) => setForm({ ...form, defaultInstance: v })}
+        />
 
         <Card className="space-y-4 p-5">
           <div>
