@@ -53,7 +53,7 @@ async function handleIncomingMessage(instanceName: string, data: Record<string, 
   const messageTimestamp = data.messageTimestamp ? new Date(Number(data.messageTimestamp) * 1000).toISOString() : new Date().toISOString();
 
   let text = "";
-  let type: "text" | "image" | "audio" | "video" | "document" | "location" | "other" = "text";
+  let type: "text" | "image" | "audio" | "video" | "document" | "location" | "sticker" | "contact" = "text";
   if (typeof message.conversation === "string") {
     text = message.conversation;
   } else if (message.extendedTextMessage) {
@@ -65,7 +65,7 @@ async function handleIncomingMessage(instanceName: string, data: Record<string, 
   else if (message.videoMessage) { type = "video"; text = (message.videoMessage as { caption?: string }).caption ?? "[vídeo]"; }
   else if (message.documentMessage) { type = "document"; text = "[documento]"; }
   else if (message.locationMessage) { type = "location"; text = "[localização]"; }
-  else { type = "other"; text = "[mensagem]"; }
+  else { text = "[mensagem]"; }
 
   // Get instance
   const { data: inst } = await supabaseAdmin
@@ -132,7 +132,7 @@ async function handleIncomingMessage(instanceName: string, data: Record<string, 
     direction,
     type,
     content: text,
-    status: direction === "out" ? "sent" : "received",
+    status: direction === "out" ? "sent" : "delivered",
     wa_message_id: key.id ?? null,
     created_at: messageTimestamp,
   });
