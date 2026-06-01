@@ -2,8 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type { Database } from "@/integrations/supabase/types";
-import { evolutionFetch, pingEvolution } from "@/lib/evolution.server";
-import { loadEvolutionSettings } from "@/lib/evolution.server";
+import { evolutionFetch, loadEvolutionSettings, pingEvolution } from "@/lib/evolution.server";
 
 type InstanceStatus = Database["public"]["Enums"]["instance_status"];
 
