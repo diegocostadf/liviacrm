@@ -15,7 +15,7 @@ import {
   transferConversation,
 } from "@/lib/inbox.functions";
 import { sendTextMessage, sendMediaMessage, listInstances } from "@/lib/evolution.functions";
-import { toggleConversationBot } from "@/lib/ai-bot.functions";
+import { toggleConversationBot, resetConversationBot } from "@/lib/ai-bot.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -331,6 +331,7 @@ function Thread({ id, getFn }: { id: string; getFn: ReturnType<typeof useServerF
   const favFn = useServerFn(toggleFavorite);
   const archFn = useServerFn(setArchived);
   const botToggleFn = useServerFn(toggleConversationBot);
+  const resetBotFn = useServerFn(resetConversationBot);
   const { data } = useQuery({ queryKey: ["conversation", id], queryFn: () => getFn({ data: { id } }) });
   const [text, setText] = useState("");
   const [noteMode, setNoteMode] = useState(false);
@@ -374,7 +375,14 @@ function Thread({ id, getFn }: { id: string; getFn: ReturnType<typeof useServerF
     setText("");
     setSending(true);
     try {
-      if (noteMode) {
+      // Slash commands (não vão pro WhatsApp)
+      const cmd = t.trim().toLowerCase();
+      if (cmd === "/resetar" || cmd === "/reset" || cmd === "/reiniciar") {
+        await resetBotFn({ data: { conversationId: id } });
+        toast.success("Bot reiniciado — histórico ignorado a partir de agora");
+        qc.invalidateQueries({ queryKey: ["conversation", id] });
+        qc.invalidateQueries({ queryKey: ["conversations"] });
+      } else if (noteMode) {
         await noteFn({ data: { conversationId: id, content: t } });
       } else {
         await sendFn({ data: { conversationId: id, text: t } });
@@ -507,7 +515,7 @@ function Thread({ id, getFn }: { id: string; getFn: ReturnType<typeof useServerF
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-            placeholder={noteMode ? "Escreva uma nota interna…" : "Digite uma mensagem…"}
+            placeholder={noteMode ? "Escreva uma nota interna…" : "Digite uma mensagem… (use /resetar para reiniciar o bot)"}
             className="min-h-[44px] resize-none"
             rows={1}
             disabled={sending}
