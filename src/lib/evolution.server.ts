@@ -17,6 +17,13 @@ export function invalidateEvolutionSettingsCache() {
   cached = null;
 }
 
+function normalizeApiUrl(raw: string): string {
+  let url = (raw ?? "").trim().replace(/\/$/, "");
+  // O painel web do Evolution fica em /manager; a API REST fica na raiz.
+  url = url.replace(/\/manager(\/.*)?$/i, "");
+  return url;
+}
+
 export async function loadEvolutionSettings(): Promise<EvolutionSettings> {
   if (cached && Date.now() - cached.at < TTL_MS) return cached.value;
   let dbVal: Partial<EvolutionSettings> = {};
@@ -32,7 +39,7 @@ export async function loadEvolutionSettings(): Promise<EvolutionSettings> {
   } catch { /* fallback to env */ }
 
   const value: EvolutionSettings = {
-    apiUrl: (dbVal.apiUrl ?? process.env.EVOLUTION_API_URL ?? "").replace(/\/$/, ""),
+    apiUrl: normalizeApiUrl(dbVal.apiUrl ?? process.env.EVOLUTION_API_URL ?? ""),
     apiKey: dbVal.apiKey ?? process.env.EVOLUTION_API_KEY ?? "",
     webhookUrl: dbVal.webhookUrl ?? undefined,
     webhookToken: dbVal.webhookToken ?? process.env.EVOLUTION_WEBHOOK_TOKEN ?? undefined,
