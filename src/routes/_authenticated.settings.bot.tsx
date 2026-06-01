@@ -284,12 +284,38 @@ function BotSettingsPage() {
                 <Card className="space-y-4 p-5">
                   <h2 className="text-base font-semibold">Handoff humano</h2>
                   <div className="space-y-1.5">
+                    <Label>WhatsApp do humano (notificação de transferência)</Label>
+                    <Input
+                      value={form.handoff_phone}
+                      onChange={(e) => setForm({ ...form, handoff_phone: e.target.value })}
+                      placeholder="Ex.: 5511999999999 (com DDI + DDD)"
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Quando o bot transferir o atendimento, este número receberá uma mensagem com o nome, telefone e motivo do handoff.
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
                     <Label>Palavras-chave que pausam o bot (separadas por vírgula)</Label>
                     <Input value={form.handoff_keywords} onChange={(e) => setForm({ ...form, handoff_keywords: e.target.value })} />
                   </div>
                   <div className="space-y-1.5">
                     <Label>Mensagem fora do horário</Label>
                     <Textarea rows={2} value={form.out_of_hours_message} onChange={(e) => setForm({ ...form, out_of_hours_message: e.target.value })} placeholder="Estamos fora do horário de atendimento…" />
+                  </div>
+                </Card>
+
+                <Card className="space-y-3 p-5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-base font-semibold">Indicador de "digitando"</h2>
+                      <p className="text-xs text-muted-foreground">
+                        Mostra o status "digitando…" no WhatsApp antes do bot enviar cada mensagem, tornando a conversa mais natural.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={form.typing_indicator}
+                      onCheckedChange={(v) => setForm({ ...form, typing_indicator: v })}
+                    />
                   </div>
                 </Card>
 
