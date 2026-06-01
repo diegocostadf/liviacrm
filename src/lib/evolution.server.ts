@@ -8,6 +8,7 @@ export type EvolutionSettings = {
   webhookUrl?: string;
   webhookToken?: string;
   webhookEvents?: string[];
+  defaultInstance?: string;
 };
 
 let cached: { value: EvolutionSettings; at: number } | null = null;
@@ -44,6 +45,7 @@ export async function loadEvolutionSettings(): Promise<EvolutionSettings> {
     webhookUrl: dbVal.webhookUrl ?? undefined,
     webhookToken: dbVal.webhookToken ?? process.env.EVOLUTION_WEBHOOK_TOKEN ?? undefined,
     webhookEvents: dbVal.webhookEvents,
+    defaultInstance: typeof dbVal.defaultInstance === "string" ? dbVal.defaultInstance : undefined,
   };
   cached = { value, at: Date.now() };
   return value;
