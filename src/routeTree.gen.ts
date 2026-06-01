@@ -14,11 +14,16 @@ import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated.index'
 import { Route as ApiSettingsRouteImport } from './routes/api/settings'
 import { Route as ApiConnectionsRouteImport } from './routes/api/connections'
+import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated.settings'
 import { Route as AuthenticatedKnowledgeRouteImport } from './routes/_authenticated.knowledge'
 import { Route as AuthenticatedInboxRouteImport } from './routes/_authenticated.inbox'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated.dashboard'
 import { Route as AuthenticatedConnectionsRouteImport } from './routes/_authenticated.connections'
+import { Route as AuthenticatedSettingsWebhooksRouteImport } from './routes/_authenticated.settings.webhooks'
+import { Route as AuthenticatedSettingsKnowledgeRouteImport } from './routes/_authenticated.settings.knowledge'
 import { Route as AuthenticatedSettingsEvolutionRouteImport } from './routes/_authenticated.settings.evolution'
+import { Route as AuthenticatedSettingsBotRouteImport } from './routes/_authenticated.settings.bot'
+import { Route as AuthenticatedSettingsAiProvidersRouteImport } from './routes/_authenticated.settings.ai-providers'
 import { Route as ApiPublicWebhooksEvolutionRouteImport } from './routes/api/public/webhooks/evolution'
 
 const LoginRoute = LoginRouteImport.update({
@@ -45,6 +50,11 @@ const ApiConnectionsRoute = ApiConnectionsRouteImport.update({
   path: '/api/connections',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedKnowledgeRoute = AuthenticatedKnowledgeRouteImport.update({
   id: '/knowledge',
   path: '/knowledge',
@@ -66,11 +76,35 @@ const AuthenticatedConnectionsRoute =
     path: '/connections',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedSettingsWebhooksRoute =
+  AuthenticatedSettingsWebhooksRouteImport.update({
+    id: '/webhooks',
+    path: '/webhooks',
+    getParentRoute: () => AuthenticatedSettingsRoute,
+  } as any)
+const AuthenticatedSettingsKnowledgeRoute =
+  AuthenticatedSettingsKnowledgeRouteImport.update({
+    id: '/knowledge',
+    path: '/knowledge',
+    getParentRoute: () => AuthenticatedSettingsRoute,
+  } as any)
 const AuthenticatedSettingsEvolutionRoute =
   AuthenticatedSettingsEvolutionRouteImport.update({
-    id: '/settings/evolution',
-    path: '/settings/evolution',
-    getParentRoute: () => AuthenticatedRoute,
+    id: '/evolution',
+    path: '/evolution',
+    getParentRoute: () => AuthenticatedSettingsRoute,
+  } as any)
+const AuthenticatedSettingsBotRoute =
+  AuthenticatedSettingsBotRouteImport.update({
+    id: '/bot',
+    path: '/bot',
+    getParentRoute: () => AuthenticatedSettingsRoute,
+  } as any)
+const AuthenticatedSettingsAiProvidersRoute =
+  AuthenticatedSettingsAiProvidersRouteImport.update({
+    id: '/ai-providers',
+    path: '/ai-providers',
+    getParentRoute: () => AuthenticatedSettingsRoute,
   } as any)
 const ApiPublicWebhooksEvolutionRoute =
   ApiPublicWebhooksEvolutionRouteImport.update({
@@ -86,9 +120,14 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/inbox': typeof AuthenticatedInboxRoute
   '/knowledge': typeof AuthenticatedKnowledgeRoute
+  '/settings': typeof AuthenticatedSettingsRouteWithChildren
   '/api/connections': typeof ApiConnectionsRoute
   '/api/settings': typeof ApiSettingsRoute
+  '/settings/ai-providers': typeof AuthenticatedSettingsAiProvidersRoute
+  '/settings/bot': typeof AuthenticatedSettingsBotRoute
   '/settings/evolution': typeof AuthenticatedSettingsEvolutionRoute
+  '/settings/knowledge': typeof AuthenticatedSettingsKnowledgeRoute
+  '/settings/webhooks': typeof AuthenticatedSettingsWebhooksRoute
   '/api/public/webhooks/evolution': typeof ApiPublicWebhooksEvolutionRoute
 }
 export interface FileRoutesByTo {
@@ -97,10 +136,15 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/inbox': typeof AuthenticatedInboxRoute
   '/knowledge': typeof AuthenticatedKnowledgeRoute
+  '/settings': typeof AuthenticatedSettingsRouteWithChildren
   '/api/connections': typeof ApiConnectionsRoute
   '/api/settings': typeof ApiSettingsRoute
   '/': typeof AuthenticatedIndexRoute
+  '/settings/ai-providers': typeof AuthenticatedSettingsAiProvidersRoute
+  '/settings/bot': typeof AuthenticatedSettingsBotRoute
   '/settings/evolution': typeof AuthenticatedSettingsEvolutionRoute
+  '/settings/knowledge': typeof AuthenticatedSettingsKnowledgeRoute
+  '/settings/webhooks': typeof AuthenticatedSettingsWebhooksRoute
   '/api/public/webhooks/evolution': typeof ApiPublicWebhooksEvolutionRoute
 }
 export interface FileRoutesById {
@@ -111,10 +155,15 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/inbox': typeof AuthenticatedInboxRoute
   '/_authenticated/knowledge': typeof AuthenticatedKnowledgeRoute
+  '/_authenticated/settings': typeof AuthenticatedSettingsRouteWithChildren
   '/api/connections': typeof ApiConnectionsRoute
   '/api/settings': typeof ApiSettingsRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/_authenticated/settings/ai-providers': typeof AuthenticatedSettingsAiProvidersRoute
+  '/_authenticated/settings/bot': typeof AuthenticatedSettingsBotRoute
   '/_authenticated/settings/evolution': typeof AuthenticatedSettingsEvolutionRoute
+  '/_authenticated/settings/knowledge': typeof AuthenticatedSettingsKnowledgeRoute
+  '/_authenticated/settings/webhooks': typeof AuthenticatedSettingsWebhooksRoute
   '/api/public/webhooks/evolution': typeof ApiPublicWebhooksEvolutionRoute
 }
 export interface FileRouteTypes {
@@ -126,9 +175,14 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/inbox'
     | '/knowledge'
+    | '/settings'
     | '/api/connections'
     | '/api/settings'
+    | '/settings/ai-providers'
+    | '/settings/bot'
     | '/settings/evolution'
+    | '/settings/knowledge'
+    | '/settings/webhooks'
     | '/api/public/webhooks/evolution'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -137,10 +191,15 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/inbox'
     | '/knowledge'
+    | '/settings'
     | '/api/connections'
     | '/api/settings'
     | '/'
+    | '/settings/ai-providers'
+    | '/settings/bot'
     | '/settings/evolution'
+    | '/settings/knowledge'
+    | '/settings/webhooks'
     | '/api/public/webhooks/evolution'
   id:
     | '__root__'
@@ -150,10 +209,15 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/inbox'
     | '/_authenticated/knowledge'
+    | '/_authenticated/settings'
     | '/api/connections'
     | '/api/settings'
     | '/_authenticated/'
+    | '/_authenticated/settings/ai-providers'
+    | '/_authenticated/settings/bot'
     | '/_authenticated/settings/evolution'
+    | '/_authenticated/settings/knowledge'
+    | '/_authenticated/settings/webhooks'
     | '/api/public/webhooks/evolution'
   fileRoutesById: FileRoutesById
 }
@@ -202,6 +266,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiConnectionsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/settings': {
+      id: '/_authenticated/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AuthenticatedSettingsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/knowledge': {
       id: '/_authenticated/knowledge'
       path: '/knowledge'
@@ -230,12 +301,40 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedConnectionsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/settings/webhooks': {
+      id: '/_authenticated/settings/webhooks'
+      path: '/webhooks'
+      fullPath: '/settings/webhooks'
+      preLoaderRoute: typeof AuthenticatedSettingsWebhooksRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
+    }
+    '/_authenticated/settings/knowledge': {
+      id: '/_authenticated/settings/knowledge'
+      path: '/knowledge'
+      fullPath: '/settings/knowledge'
+      preLoaderRoute: typeof AuthenticatedSettingsKnowledgeRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
+    }
     '/_authenticated/settings/evolution': {
       id: '/_authenticated/settings/evolution'
-      path: '/settings/evolution'
+      path: '/evolution'
       fullPath: '/settings/evolution'
       preLoaderRoute: typeof AuthenticatedSettingsEvolutionRouteImport
-      parentRoute: typeof AuthenticatedRoute
+      parentRoute: typeof AuthenticatedSettingsRoute
+    }
+    '/_authenticated/settings/bot': {
+      id: '/_authenticated/settings/bot'
+      path: '/bot'
+      fullPath: '/settings/bot'
+      preLoaderRoute: typeof AuthenticatedSettingsBotRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
+    }
+    '/_authenticated/settings/ai-providers': {
+      id: '/_authenticated/settings/ai-providers'
+      path: '/ai-providers'
+      fullPath: '/settings/ai-providers'
+      preLoaderRoute: typeof AuthenticatedSettingsAiProvidersRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
     }
     '/api/public/webhooks/evolution': {
       id: '/api/public/webhooks/evolution'
@@ -247,13 +346,34 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AuthenticatedSettingsRouteChildren {
+  AuthenticatedSettingsAiProvidersRoute: typeof AuthenticatedSettingsAiProvidersRoute
+  AuthenticatedSettingsBotRoute: typeof AuthenticatedSettingsBotRoute
+  AuthenticatedSettingsEvolutionRoute: typeof AuthenticatedSettingsEvolutionRoute
+  AuthenticatedSettingsKnowledgeRoute: typeof AuthenticatedSettingsKnowledgeRoute
+  AuthenticatedSettingsWebhooksRoute: typeof AuthenticatedSettingsWebhooksRoute
+}
+
+const AuthenticatedSettingsRouteChildren: AuthenticatedSettingsRouteChildren = {
+  AuthenticatedSettingsAiProvidersRoute: AuthenticatedSettingsAiProvidersRoute,
+  AuthenticatedSettingsBotRoute: AuthenticatedSettingsBotRoute,
+  AuthenticatedSettingsEvolutionRoute: AuthenticatedSettingsEvolutionRoute,
+  AuthenticatedSettingsKnowledgeRoute: AuthenticatedSettingsKnowledgeRoute,
+  AuthenticatedSettingsWebhooksRoute: AuthenticatedSettingsWebhooksRoute,
+}
+
+const AuthenticatedSettingsRouteWithChildren =
+  AuthenticatedSettingsRoute._addFileChildren(
+    AuthenticatedSettingsRouteChildren,
+  )
+
 interface AuthenticatedRouteChildren {
   AuthenticatedConnectionsRoute: typeof AuthenticatedConnectionsRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedInboxRoute: typeof AuthenticatedInboxRoute
   AuthenticatedKnowledgeRoute: typeof AuthenticatedKnowledgeRoute
+  AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRouteWithChildren
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
-  AuthenticatedSettingsEvolutionRoute: typeof AuthenticatedSettingsEvolutionRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
@@ -261,8 +381,8 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedInboxRoute: AuthenticatedInboxRoute,
   AuthenticatedKnowledgeRoute: AuthenticatedKnowledgeRoute,
+  AuthenticatedSettingsRoute: AuthenticatedSettingsRouteWithChildren,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
-  AuthenticatedSettingsEvolutionRoute: AuthenticatedSettingsEvolutionRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
