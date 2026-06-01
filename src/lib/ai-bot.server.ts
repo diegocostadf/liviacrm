@@ -112,7 +112,16 @@ export async function handleBotReply(conversationId: string): Promise<void> {
       whatsapp_instances: { evolution_instance_name: string };
     }).whatsapp_instances;
     const contact = (conv as unknown as {
-      contacts: { id: string; name: string | null; phone: string };
+      contacts: {
+        id: string;
+        name: string | null;
+        phone: string;
+        email?: string | null;
+        city?: string | null;
+        state?: string | null;
+        company?: string | null;
+        tags?: string[] | null;
+      };
     }).contacts;
     if (!instance?.evolution_instance_name || !contact?.phone) return;
 
@@ -142,7 +151,10 @@ export async function handleBotReply(conversationId: string): Promise<void> {
         instance.evolution_instance_name,
         contact.phone,
         "Entendido! Vou chamar um humano da equipe pra continuar com você por aqui. 👋",
+        undefined,
+        bot.typing_indicator,
       );
+      await notifyHumanHandoff(bot, instance.evolution_instance_name, contact, "Palavra-chave de handoff detectada.");
       return;
     }
 
@@ -153,6 +165,8 @@ export async function handleBotReply(conversationId: string): Promise<void> {
         instance.evolution_instance_name,
         contact.phone,
         bot.out_of_hours_message,
+        undefined,
+        bot.typing_indicator,
       );
       return;
     }
