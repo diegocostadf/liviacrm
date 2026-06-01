@@ -454,21 +454,31 @@ function Thread({ id, getFn }: { id: string; getFn: ReturnType<typeof useServerF
         </div>
         <div className="flex items-center gap-1">
           {conv && (
-            <Button
-              variant={conv.bot_active ? "default" : "outline"}
-              size="sm"
-              className={`h-8 gap-1.5 ${conv.bot_active ? "bg-violet-600 hover:bg-violet-700 text-white" : ""}`}
-              onClick={async () => {
-                await botToggleFn({ data: { conversationId: conv.id, active: !conv.bot_active } });
-                qc.invalidateQueries({ queryKey: ["conversation", id] });
-                qc.invalidateQueries({ queryKey: ["conversations"] });
-                toast.success(conv.bot_active ? "Bot pausado. Você assumiu a conversa." : "Bot reativado.");
-              }}
-              title={conv.bot_active ? "Assumir conversa (pausa o bot)" : "Reativar bot"}
-            >
-              <Bot className="h-4 w-4" />
-              {conv.bot_active ? "Assumir" : "Ativar bot"}
-            </Button>
+            conv.bot_active ? (
+              <div
+                className="flex h-8 items-center gap-1.5 rounded-md bg-violet-600/10 px-2.5 text-xs font-medium text-violet-600"
+                title="Bot ativo. Para assumir, envie /assumir <numero> do WhatsApp de handoff."
+              >
+                <Bot className="h-4 w-4" />
+                Bot ativo
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5"
+                onClick={async () => {
+                  await botToggleFn({ data: { conversationId: conv.id, active: true } });
+                  qc.invalidateQueries({ queryKey: ["conversation", id] });
+                  qc.invalidateQueries({ queryKey: ["conversations"] });
+                  toast.success("Bot reativado.");
+                }}
+                title="Reativar bot nesta conversa"
+              >
+                <Bot className="h-4 w-4" />
+                Ativar bot
+              </Button>
+            )
           )}
           <Button variant="ghost" size="icon" onClick={() => conv && favFn({ data: { id: conv.id, value: !conv.is_favorite } }).then(() => qc.invalidateQueries({ queryKey: ["conversation", id] }))}>
             <Star className={`h-4 w-4 ${conv?.is_favorite ? "fill-yellow-400 text-yellow-400" : ""}`} />
