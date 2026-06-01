@@ -574,7 +574,7 @@ function ContactPanel({ id, getFn }: { id: string; getFn: ReturnType<typeof useS
   } | undefined;
   const notes = (data?.notes ?? []) as unknown as Array<{ id: string; content: string; created_at: string }>;
 
-  const [tab, setTab] = useState<"detalhes" | "notas">("detalhes");
+  const [tab, setTab] = useState<"detalhes" | "historico" | "notas">("detalhes");
   const [tags, setTags] = useState("");
   const [name, setName] = useState("");
   const [city, setCity] = useState("");
