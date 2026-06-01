@@ -241,6 +241,12 @@ export async function handleBotReply(conversationId: string): Promise<void> {
       score: number;
       next_step: string;
       summary: string;
+      contact_name?: string;
+      contact_email?: string;
+      contact_city?: string;
+      contact_state?: string;
+      contact_company?: string;
+      tags?: string[];
     };
     try {
       parsed = JSON.parse(call.function.arguments);
@@ -308,7 +314,7 @@ export async function handleBotReply(conversationId: string): Promise<void> {
       }
       contactPatch.tags = merged.slice(0, 50);
     }
-    await supabaseAdmin.from("contacts").update(contactPatch).eq("id", contact.id);
+    await supabaseAdmin.from("contacts").update(contactPatch as never).eq("id", contact.id);
 
     if (parsed.handoff) {
       await supabaseAdmin
