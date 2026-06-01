@@ -192,7 +192,9 @@ async function handleIncomingMessage(instanceName: string, data: Record<string, 
   // Fire bot reply for inbound text-ish messages. Never await — webhook must
   // return quickly. Errors are swallowed inside handleBotReply.
   if (direction === "in" && (type === "text" || type === "image" || type === "document")) {
-    void handleBotReply(conversationId);
+    // In serverless workers, fire-and-forget is cancelled when the Response
+    // returns. Await so the bot actually runs. handleBotReply never throws.
+    await handleBotReply(conversationId);
   }
   void isNewConversation;
 }
