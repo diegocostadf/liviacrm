@@ -330,18 +330,98 @@ function CampaignDetailPage() {
             <CardHeader><CardTitle className="text-base">Importar CSV</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               <p className="text-xs text-muted-foreground">
-                Cole CSV com cabeçalho. Obrigatória a coluna <code>phone</code>. Opcional: <code>name</code> e qualquer outra coluna vira <code>{`{{coluna}}`}</code> no template.
+                Envie um arquivo <code>.csv</code> ou cole o conteúdo abaixo. Cabeçalho obrigatório com a coluna <code>phone</code>. Opcional: <code>name</code> — qualquer outra coluna vira <code>{`{{coluna}}`}</code> no template. Aceita separador <code>,</code>, <code>;</code> ou tab, e campos entre aspas.
               </p>
-              <Textarea
-                rows={10}
-                value={csv}
-                onChange={(e) => setCsv(e.target.value)}
-                className="font-mono text-xs"
-                placeholder="phone,name,curso&#10;5511999999999,Maria,OAB&#10;5511888888888,João,Federal"
-              />
-              <div className="flex items-center justify-between">
-                <div className="text-xs text-muted-foreground">{parsed.length} linhas detectadas</div>
-                <Button onClick={handleImport} disabled={importing || !parsed.length}>
+
+              <div
+                className="rounded-lg border border-dashed border-border bg-muted/30 p-6 text-center transition hover:bg-muted/50"
+                onDragOver={(e) => { e.preventDefault(); }}
+                onDrop={(e) => { e.preventDefault(); handleFile(e.dataTransfer.files?.[0]); }}
+              >
+                <FileUp className="mx-auto mb-2 h-6 w-6 text-muted-foreground" />
+                <div className="text-sm">Arraste um CSV aqui ou</div>
+                <div className="mt-2 flex items-center justify-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+                    Escolher arquivo
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={downloadTemplate}>
+                    Baixar modelo
+                  </Button>
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv,text/csv,text/plain"
+                  className="hidden"
+                  onChange={(e) => handleFile(e.target.files?.[0])}
+                />
+                {fileName && (
+                  <div className="mt-3 text-xs text-muted-foreground">
+                    Arquivo: <span className="font-mono">{fileName}</span>
+                  </div>
+                )}
+              </div>
+
+              <details className="rounded-md border border-border">
+                <summary className="cursor-pointer px-3 py-2 text-xs text-muted-foreground">
+                  Ou cole/edite o conteúdo manualmente
+                </summary>
+                <div className="p-3">
+                  <Textarea
+                    rows={10}
+                    value={csv}
+                    onChange={(e) => { setCsv(e.target.value); setFileName(null); }}
+                    className="font-mono text-xs"
+                    placeholder="phone,name,curso&#10;5511999999999,Maria,OAB&#10;5511888888888,João,Federal"
+                  />
+                </div>
+              </details>
+
+              {parsed.length > 0 && (
+                <div className="space-y-2 rounded-md border border-border p-3">
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <Badge variant="outline">{parsed.length} linhas</Badge>
+                    {detectedColumns.map((c) => (
+                      <Badge key={c} variant={c === "phone" ? "default" : "outline"} className="text-[10px]">
+                        {c}
+                      </Badge>
+                    ))}
+                  </div>
+                  {!hasPhoneColumn && (
+                    <div className="text-xs text-rose-600">
+                      ⚠ Falta a coluna obrigatória <code>phone</code>.
+                    </div>
+                  )}
+                  <div className="max-h-48 overflow-auto rounded border border-border">
+                    <table className="w-full text-xs">
+                      <thead className="bg-muted/50">
+                        <tr>
+                          {detectedColumns.map((c) => (
+                            <th key={c} className="px-2 py-1 text-left font-medium">{c}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {parsed.slice(0, 5).map((r, i) => (
+                          <tr key={i} className="border-t border-border">
+                            {detectedColumns.map((c) => (
+                              <td key={c} className="px-2 py-1 font-mono">{r[c]}</td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {parsed.length > 5 && (
+                      <div className="border-t border-border px-2 py-1 text-[11px] text-muted-foreground">
+                        + {parsed.length - 5} linha(s) não mostradas no preview
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end">
+                <Button onClick={handleImport} disabled={importing || !parsed.length || !hasPhoneColumn}>
                   <Upload className="mr-2 h-4 w-4" />
                   {importing ? "Importando…" : `Importar ${parsed.length} contatos`}
                 </Button>
