@@ -17,6 +17,7 @@ import { Route as ApiConnectionsRouteImport } from './routes/api/connections'
 import { Route as AuthenticatedInboxRouteImport } from './routes/_authenticated.inbox'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated.dashboard'
 import { Route as AuthenticatedConnectionsRouteImport } from './routes/_authenticated.connections'
+import { Route as AuthenticatedSettingsEvolutionRouteImport } from './routes/_authenticated.settings.evolution'
 import { Route as ApiPublicWebhooksEvolutionRouteImport } from './routes/api/public/webhooks/evolution'
 
 const LoginRoute = LoginRouteImport.update({
@@ -59,6 +60,12 @@ const AuthenticatedConnectionsRoute =
     path: '/connections',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedSettingsEvolutionRoute =
+  AuthenticatedSettingsEvolutionRouteImport.update({
+    id: '/settings/evolution',
+    path: '/settings/evolution',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const ApiPublicWebhooksEvolutionRoute =
   ApiPublicWebhooksEvolutionRouteImport.update({
     id: '/api/public/webhooks/evolution',
@@ -74,6 +81,7 @@ export interface FileRoutesByFullPath {
   '/inbox': typeof AuthenticatedInboxRoute
   '/api/connections': typeof ApiConnectionsRoute
   '/api/settings': typeof ApiSettingsRoute
+  '/settings/evolution': typeof AuthenticatedSettingsEvolutionRoute
   '/api/public/webhooks/evolution': typeof ApiPublicWebhooksEvolutionRoute
 }
 export interface FileRoutesByTo {
@@ -84,6 +92,7 @@ export interface FileRoutesByTo {
   '/api/connections': typeof ApiConnectionsRoute
   '/api/settings': typeof ApiSettingsRoute
   '/': typeof AuthenticatedIndexRoute
+  '/settings/evolution': typeof AuthenticatedSettingsEvolutionRoute
   '/api/public/webhooks/evolution': typeof ApiPublicWebhooksEvolutionRoute
 }
 export interface FileRoutesById {
@@ -96,6 +105,7 @@ export interface FileRoutesById {
   '/api/connections': typeof ApiConnectionsRoute
   '/api/settings': typeof ApiSettingsRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/_authenticated/settings/evolution': typeof AuthenticatedSettingsEvolutionRoute
   '/api/public/webhooks/evolution': typeof ApiPublicWebhooksEvolutionRoute
 }
 export interface FileRouteTypes {
@@ -108,6 +118,7 @@ export interface FileRouteTypes {
     | '/inbox'
     | '/api/connections'
     | '/api/settings'
+    | '/settings/evolution'
     | '/api/public/webhooks/evolution'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -118,6 +129,7 @@ export interface FileRouteTypes {
     | '/api/connections'
     | '/api/settings'
     | '/'
+    | '/settings/evolution'
     | '/api/public/webhooks/evolution'
   id:
     | '__root__'
@@ -129,6 +141,7 @@ export interface FileRouteTypes {
     | '/api/connections'
     | '/api/settings'
     | '/_authenticated/'
+    | '/_authenticated/settings/evolution'
     | '/api/public/webhooks/evolution'
   fileRoutesById: FileRoutesById
 }
@@ -198,6 +211,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedConnectionsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/settings/evolution': {
+      id: '/_authenticated/settings/evolution'
+      path: '/settings/evolution'
+      fullPath: '/settings/evolution'
+      preLoaderRoute: typeof AuthenticatedSettingsEvolutionRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/api/public/webhooks/evolution': {
       id: '/api/public/webhooks/evolution'
       path: '/api/public/webhooks/evolution'
@@ -213,6 +233,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedInboxRoute: typeof AuthenticatedInboxRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
+  AuthenticatedSettingsEvolutionRoute: typeof AuthenticatedSettingsEvolutionRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
@@ -220,6 +241,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedInboxRoute: AuthenticatedInboxRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
+  AuthenticatedSettingsEvolutionRoute: AuthenticatedSettingsEvolutionRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
