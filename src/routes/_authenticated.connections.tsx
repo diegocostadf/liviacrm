@@ -1,16 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
 import { useState, useEffect } from "react";
-import {
-  listInstances,
-  createInstance,
-  connectInstance,
-  fetchInstanceStatus,
-  disconnectInstance,
-  deleteInstance,
-  testConnection,
-} from "@/lib/evolution.functions";
+import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -20,6 +12,29 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { toast } from "sonner";
 import { Plus, Trash2, QrCode, Power, RefreshCw, PlugZap, CheckCircle2, AlertTriangle } from "lucide-react";
 
+type WhatsappInstance = Tables<"whatsapp_instances">;
+type TestResult =
+  | { ok: true; baseUrl: string; latencyMs: number; version: string | null; message: string | null }
+  | { ok: false; error: string };
+
+async function callConnectionsApi<T>(method: "GET" | "POST", body?: Record<string, unknown>): Promise<T> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) throw new Error("Sessão expirada. Faça login novamente.");
+
+  const response = await fetch("/api/connections", {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${session.access_token}`,
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(typeof payload.error === "string" ? payload.error : "Erro na conexão");
+  return payload as T;
+}
+
 export const Route = createFileRoute("/_authenticated/connections")({
   head: () => ({ meta: [{ title: "Conexões — Lívia CRM" }] }),
   component: ConnectionsPage,
@@ -27,31 +42,27 @@ export const Route = createFileRoute("/_authenticated/connections")({
 
 function ConnectionsPage() {
   const qc = useQueryClient();
-  const listFn = useServerFn(listInstances);
-  const createFn = useServerFn(createInstance);
-  const connectFn = useServerFn(connectInstance);
-  const statusFn = useServerFn(fetchInstanceStatus);
-  const disconnectFn = useServerFn(disconnectInstance);
-  const deleteFn = useServerFn(deleteInstance);
-  const testFn = useServerFn(testConnection);
 
-  const { data: instances } = useQuery({
+  const { data } = useQuery({
     queryKey: ["instances"],
-    queryFn: () => listFn(),
+    queryFn: () => callConnectionsApi<{ instances: WhatsappInstance[]; syncError: string | null }>("GET"),
     refetchInterval: 10_000,
   });
+  const instances = data?.instances ?? [];
 
   const [showNew, setShowNew] = useState(false);
   const [newName, setNewName] = useState("");
   const [qr, setQr] = useState<{ name: string; base64: string | null; code: string | null } | null>(null);
   const [testResult, setTestResult] = useState<
-    | { ok: true; baseUrl: string; latencyMs: number; version: string | null; message: string | null }
-    | { ok: false; error: string }
-    | null
+    TestResult | null
   >(null);
 
+  useEffect(() => {
+    if (data?.syncError) toast.warning(`Não foi possível sincronizar a Evolution: ${data.syncError}`);
+  }, [data?.syncError]);
+
   const test = useMutation({
-    mutationFn: () => testFn(),
+    mutationFn: () => callConnectionsApi<TestResult>("POST", { action: "test" }),
     onSuccess: (r) => {
       setTestResult(r);
       if (r.ok) toast.success(`Evolution OK em ${r.latencyMs}ms`);
@@ -65,7 +76,7 @@ function ConnectionsPage() {
   });
 
   const create = useMutation({
-    mutationFn: (name: string) => createFn({ data: { name } }),
+    mutationFn: (name: string) => callConnectionsApi<{ instance: WhatsappInstance }>("POST", { action: "create", name }),
     onSuccess: () => {
       toast.success("Instância criada");
       setShowNew(false);
@@ -77,7 +88,7 @@ function ConnectionsPage() {
 
   async function handleConnect(name: string) {
     try {
-      const r = await connectFn({ data: { name } });
+      const r = await callConnectionsApi<{ qrBase64: string | null; pairingCode: string | null }>("POST", { action: "connect", name });
       setQr({ name, base64: r.qrBase64, code: r.pairingCode });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro");
@@ -89,7 +100,7 @@ function ConnectionsPage() {
     if (!qr) return;
     const id = setInterval(async () => {
       try {
-        const r = await statusFn({ data: { name: qr.name } });
+        const r = await callConnectionsApi<{ status: string }>("POST", { action: "status", name: qr.name });
         if (r.status === "connected") {
           toast.success("Conectado!");
           setQr(null);
@@ -98,7 +109,7 @@ function ConnectionsPage() {
       } catch { /* noop */ }
     }, 3000);
     return () => clearInterval(id);
-  }, [qr, statusFn, qc]);
+  }, [qr, qc]);
 
   return (
     <div className="h-screen overflow-y-auto p-6">
@@ -164,14 +175,14 @@ function ConnectionsPage() {
                   <QrCode className="mr-1.5 h-3.5 w-3.5" /> Conectar
                 </Button>
               ) : (
-                <Button size="sm" variant="outline" onClick={async () => { await disconnectFn({ data: { name: inst.evolution_instance_name } }); qc.invalidateQueries({ queryKey: ["instances"] }); }}>
+                <Button size="sm" variant="outline" onClick={async () => { await callConnectionsApi("POST", { action: "disconnect", name: inst.evolution_instance_name }); qc.invalidateQueries({ queryKey: ["instances"] }); }}>
                   <Power className="mr-1.5 h-3.5 w-3.5" /> Desconectar
                 </Button>
               )}
-              <Button size="sm" variant="ghost" onClick={() => statusFn({ data: { name: inst.evolution_instance_name } }).then(() => qc.invalidateQueries({ queryKey: ["instances"] }))}>
+              <Button size="sm" variant="ghost" onClick={() => callConnectionsApi("POST", { action: "status", name: inst.evolution_instance_name }).then(() => qc.invalidateQueries({ queryKey: ["instances"] }))}>
                 <RefreshCw className="h-3.5 w-3.5" />
               </Button>
-              <Button size="sm" variant="ghost" onClick={async () => { if (confirm("Excluir instância?")) { await deleteFn({ data: { name: inst.evolution_instance_name } }); qc.invalidateQueries({ queryKey: ["instances"] }); } }}>
+              <Button size="sm" variant="ghost" onClick={async () => { if (confirm("Excluir instância?")) { await callConnectionsApi("POST", { action: "delete", name: inst.evolution_instance_name }); qc.invalidateQueries({ queryKey: ["instances"] }); } }}>
                 <Trash2 className="h-3.5 w-3.5 text-destructive" />
               </Button>
             </div>
