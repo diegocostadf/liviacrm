@@ -1,11 +1,12 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { LayoutDashboard, MessageSquare, Smartphone, LogOut, Settings } from "lucide-react";
+import { LayoutDashboard, MessageSquare, Smartphone, LogOut, Settings, Sun, Moon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getMyProfile } from "@/lib/auth.functions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { useTheme } from "@/hooks/use-theme";
 import type { ReactNode } from "react";
 
 const nav = [
@@ -20,6 +21,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const fetchProfile = useServerFn(getMyProfile);
   const { data } = useQuery({ queryKey: ["me"], queryFn: () => fetchProfile() });
+  const { theme, toggleTheme } = useTheme();
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -66,6 +68,15 @@ export function AppShell({ children }: { children: ReactNode }) {
               <div className="truncate text-xs font-medium">{data?.profile?.display_name ?? "Usuário"}</div>
               <div className="truncate text-[11px] text-muted-foreground">{data?.profile?.email}</div>
             </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={toggleTheme}
+              title={theme === "dark" ? "Mudar para tema claro" : "Mudar para tema escuro"}
+            >
+              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </Button>
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleLogout} title="Sair">
               <LogOut className="h-4 w-4" />
             </Button>
