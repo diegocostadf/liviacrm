@@ -54,14 +54,14 @@ export const upsertWebhook = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     await assertAdmin(context.userId);
     if (data.id) {
-      const patch: Record<string, unknown> = {
+      const patch = {
         name: data.name,
         url: data.url,
         events: data.events,
         active: data.active,
         updated_at: new Date().toISOString(),
+        ...(data.secret ? { secret: data.secret } : {}),
       };
-      if (data.secret) patch.secret = data.secret;
       const { error } = await supabaseAdmin.from("webhook_endpoints").update(patch).eq("id", data.id);
       if (error) throw new Error(error.message);
       return { ok: true, id: data.id };
