@@ -8,8 +8,7 @@ const nameSchema = z.object({ name: z.string().min(1).max(60).regex(/^[a-zA-Z0-9
 
 function buildWebhookUrl() {
   const base = process.env.PUBLIC_APP_URL
-    ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "")
-    ?? "";
+    || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "");
   return base ? `${base.replace(/\/$/, "")}/api/public/webhooks/evolution` : undefined;
 }
 
@@ -69,7 +68,7 @@ export const connectInstance = createServerFn({ method: "POST" })
       .eq("evolution_instance_name", data.name);
     const qr = (res?.base64 as string) ?? (res?.qrcode as { base64?: string })?.base64 ?? null;
     const code = (res?.code as string) ?? (res?.qrcode as { code?: string })?.code ?? null;
-    return { qrBase64: qr, pairingCode: code, raw: res };
+    return { qrBase64: qr, pairingCode: code };
   });
 
 export const fetchInstanceStatus = createServerFn({ method: "POST" })
