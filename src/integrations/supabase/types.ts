@@ -26,9 +26,14 @@ export type Database = {
           instance_id: string
           landing_link: string | null
           language: string
+          max_tokens: number
+          model_name: string
+          model_provider: string
           out_of_hours_message: string | null
           persona: string
           rules: Json
+          system_extra: string | null
+          temperature: number
           tone: string
           updated_at: string
         }
@@ -43,9 +48,14 @@ export type Database = {
           instance_id: string
           landing_link?: string | null
           language?: string
+          max_tokens?: number
+          model_name?: string
+          model_provider?: string
           out_of_hours_message?: string | null
           persona?: string
           rules?: Json
+          system_extra?: string | null
+          temperature?: number
           tone?: string
           updated_at?: string
         }
@@ -60,9 +70,14 @@ export type Database = {
           instance_id?: string
           landing_link?: string | null
           language?: string
+          max_tokens?: number
+          model_name?: string
+          model_provider?: string
           out_of_hours_message?: string | null
           persona?: string
           rules?: Json
+          system_extra?: string | null
+          temperature?: number
           tone?: string
           updated_at?: string
         }
