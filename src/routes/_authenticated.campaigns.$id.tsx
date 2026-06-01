@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Play, Pause, Upload, Trash2, Eye, RefreshCcw } from "lucide-react";
+import { ArrowLeft, Play, Pause, Upload, Trash2, Eye, RefreshCcw, FileUp } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,18 +29,64 @@ const STATUS_LABEL: Record<string, { label: string; tone: string }> = {
   failed: { label: "Falha", tone: "bg-rose-500/15 text-rose-600" },
 };
 
+/**
+ * CSV parser que respeita aspas duplas, escapes ("") e quebras de linha dentro de campos.
+ * Detecta delimitador entre vírgula, ponto-e-vírgula ou tab.
+ */
 function parseCsv(input: string): Array<Record<string, string>> {
-  const lines = input.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-  if (!lines.length) return [];
-  // Sniff delimiter
-  const delim = lines[0].includes(";") && !lines[0].includes(",") ? ";" : ",";
-  const headers = lines[0].split(delim).map((h) => h.trim().toLowerCase());
-  return lines.slice(1).map((line) => {
-    const cells = line.split(delim).map((c) => c.trim());
-    const row: Record<string, string> = {};
-    headers.forEach((h, i) => { row[h] = cells[i] ?? ""; });
-    return row;
-  });
+  let text = input.replace(/^\uFEFF/, ""); // BOM
+  if (!text.trim()) return [];
+
+  // Sniff delimiter pela primeira linha (fora de aspas)
+  const firstLineEnd = (() => {
+    let inQ = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (c === '"') inQ = !inQ;
+      else if ((c === "\n" || c === "\r") && !inQ) return i;
+    }
+    return text.length;
+  })();
+  const header = text.slice(0, firstLineEnd);
+  const counts = {
+    ",": (header.match(/,/g) ?? []).length,
+    ";": (header.match(/;/g) ?? []).length,
+    "\t": (header.match(/\t/g) ?? []).length,
+  };
+  const delim = (Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? ",") as string;
+
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQ) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }
+        else inQ = false;
+      } else field += c;
+    } else {
+      if (c === '"') inQ = true;
+      else if (c === delim) { row.push(field); field = ""; }
+      else if (c === "\n" || c === "\r") {
+        if (field.length || row.length) { row.push(field); rows.push(row); }
+        row = []; field = "";
+        if (c === "\r" && text[i + 1] === "\n") i++;
+      } else field += c;
+    }
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+
+  if (!rows.length) return [];
+  const headers = rows[0].map((h) => h.trim().toLowerCase());
+  return rows.slice(1)
+    .filter((r) => r.some((c) => c.trim() !== ""))
+    .map((r) => {
+      const obj: Record<string, string> = {};
+      headers.forEach((h, i) => { obj[h] = (r[i] ?? "").trim(); });
+      return obj;
+    });
 }
 
 function CampaignDetailPage() {
@@ -65,6 +111,8 @@ function CampaignDetailPage() {
 
   const [csv, setCsv] = useState("phone,name\n5511999999999,Maria\n");
   const [importing, setImporting] = useState(false);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [previewText, setPreviewText] = useState("");
   const [template, setTemplate] = useState("");
   const [savedTemplate, setSavedTemplate] = useState("");
@@ -109,10 +157,36 @@ function CampaignDetailPage() {
   }, [campaign?.status, id]);
 
   const parsed = useMemo(() => parseCsv(csv), [csv]);
+  const hasPhoneColumn = parsed.length > 0 && Object.prototype.hasOwnProperty.call(parsed[0], "phone");
+  const detectedColumns = parsed.length > 0 ? Object.keys(parsed[0]) : [];
+
+  async function handleFile(file: File | null | undefined) {
+    if (!file) return;
+    const okType = /\.csv$|\.txt$/i.test(file.name) || file.type.includes("csv") || file.type.includes("text");
+    if (!okType) { toast.error("Envie um arquivo .csv"); return; }
+    if (file.size > 5 * 1024 * 1024) { toast.error("Arquivo muito grande (máx 5MB)"); return; }
+    try {
+      const text = await file.text();
+      setCsv(text);
+      setFileName(file.name);
+      toast.success(`${file.name} carregado`);
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
+
+  function downloadTemplate() {
+    const sample = "phone,name,curso\n5511999999999,Maria,OAB\n5511888888888,João,Federal\n";
+    const blob = new Blob([sample], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "modelo-campanha.csv"; a.click();
+    URL.revokeObjectURL(url);
+  }
 
   async function handleImport() {
     if (!parsed.length) { toast.error("CSV vazio ou sem cabeçalho"); return; }
-    if (!parsed[0].phone) { toast.error("O CSV precisa ter a coluna 'phone'"); return; }
+    if (!hasPhoneColumn) { toast.error("O CSV precisa ter a coluna 'phone'"); return; }
     setImporting(true);
     try {
       const items = parsed.map((r) => {
@@ -122,6 +196,8 @@ function CampaignDetailPage() {
       const { inserted } = await addFn({ data: { campaignId: id, targets: items, dedupe: true } });
       toast.success(`${inserted} contatos importados`);
       setCsv("phone,name\n");
+      setFileName(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
       qc.invalidateQueries({ queryKey: ["campaign", id] });
     } catch (e) {
       toast.error((e as Error).message);
