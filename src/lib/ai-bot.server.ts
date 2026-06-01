@@ -20,6 +20,8 @@ type BotConfig = {
   landing_link: string | null;
   out_of_hours_message: string | null;
   handoff_keywords: string[];
+  handoff_phone: string | null;
+  typing_indicator: boolean;
   business_hours: { start_hour?: number; end_hour?: number; enabled?: boolean } | null;
 };
 
@@ -43,6 +45,16 @@ const REPLY_TOOL = {
         score: { type: "integer", minimum: 0, maximum: 100 },
         next_step: { type: "string", description: "Próximo passo recomendado em 1 frase." },
         summary: { type: "string", description: "Resumo do lead em 1 frase." },
+        contact_name: { type: "string", description: "Nome completo do lead, se mencionado na conversa. Caso contrário, omita." },
+        contact_email: { type: "string", description: "E-mail do lead, se mencionado. Caso contrário, omita." },
+        contact_city: { type: "string", description: "Cidade do lead, se mencionada. Caso contrário, omita." },
+        contact_state: { type: "string", description: "Estado/UF do lead, se mencionado." },
+        contact_company: { type: "string", description: "Empresa/instituição do lead, se mencionada." },
+        tags: {
+          type: "array",
+          items: { type: "string" },
+          description: "Tags curtas (1-3 palavras, minúsculas) representando interesse, produto desejado, perfil ou objeções. Ex.: 'concurso-federal','duvida-preco','oab','interessado-grupo'.",
+        },
       },
       required: ["reply", "temperature", "intent", "score", "next_step", "summary"],
       additionalProperties: false,
