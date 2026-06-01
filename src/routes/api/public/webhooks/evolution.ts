@@ -55,18 +55,44 @@ async function handleIncomingMessage(instanceName: string, data: Record<string, 
 
   let text = "";
   let type: "text" | "image" | "audio" | "video" | "document" | "location" | "sticker" | "contact" = "text";
+  let mediaUrl: string | null = null;
+  let mediaMime: string | null = null;
+  const base64 = typeof (data.message as { base64?: unknown }).base64 === "string"
+    ? ((data.message as { base64?: string }).base64 as string)
+    : (typeof (data as { base64?: unknown }).base64 === "string" ? ((data as { base64?: string }).base64 as string) : null);
   if (typeof message.conversation === "string") {
     text = message.conversation;
   } else if (message.extendedTextMessage) {
     text = (message.extendedTextMessage as { text?: string }).text ?? "";
   } else if (message.imageMessage) {
     type = "image";
-    text = (message.imageMessage as { caption?: string }).caption ?? "[imagem]";
-  } else if (message.audioMessage) { type = "audio"; text = "[áudio]"; }
-  else if (message.videoMessage) { type = "video"; text = (message.videoMessage as { caption?: string }).caption ?? "[vídeo]"; }
-  else if (message.documentMessage) { type = "document"; text = "[documento]"; }
-  else if (message.locationMessage) { type = "location"; text = "[localização]"; }
-  else { text = "[mensagem]"; }
+    const m = message.imageMessage as { caption?: string; mimetype?: string };
+    text = m.caption ?? "[imagem]";
+    mediaMime = m.mimetype ?? "image/jpeg";
+    if (base64) mediaUrl = `data:${mediaMime};base64,${base64}`;
+  } else if (message.audioMessage) {
+    type = "audio";
+    text = "[áudio]";
+    const m = message.audioMessage as { mimetype?: string };
+    mediaMime = m.mimetype ?? "audio/ogg";
+    if (base64) mediaUrl = `data:${mediaMime};base64,${base64}`;
+  } else if (message.videoMessage) {
+    type = "video";
+    const m = message.videoMessage as { caption?: string; mimetype?: string };
+    text = m.caption ?? "[vídeo]";
+    mediaMime = m.mimetype ?? "video/mp4";
+    if (base64) mediaUrl = `data:${mediaMime};base64,${base64}`;
+  } else if (message.documentMessage) {
+    type = "document";
+    const m = message.documentMessage as { fileName?: string; mimetype?: string };
+    text = m.fileName ?? "[documento]";
+    mediaMime = m.mimetype ?? "application/octet-stream";
+    if (base64) mediaUrl = `data:${mediaMime};base64,${base64}`;
+  } else if (message.locationMessage) {
+    type = "location";
+    const m = message.locationMessage as { degreesLatitude?: number; degreesLongitude?: number };
+    text = `📍 ${m.degreesLatitude},${m.degreesLongitude}`;
+  } else { text = "[mensagem]"; }
 
   // Get instance
   const { data: inst } = await supabaseAdmin
@@ -133,6 +159,8 @@ async function handleIncomingMessage(instanceName: string, data: Record<string, 
     direction,
     type,
     content: text,
+    media_url: mediaUrl,
+    media_mime: mediaMime,
     status: direction === "out" ? "sent" : "delivered",
     wa_message_id: key.id ?? null,
     created_at: messageTimestamp,

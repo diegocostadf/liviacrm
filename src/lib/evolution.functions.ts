@@ -203,3 +203,80 @@ export const sendTextMessage = createServerFn({ method: "POST" })
 
     return msg;
   });
+
+const sendMediaSchema = z.object({
+  conversationId: z.string().uuid(),
+  mediaBase64: z.string().min(10), // raw base64 (no data: prefix)
+  mimetype: z.string().min(3).max(100),
+  filename: z.string().min(1).max(200),
+  caption: z.string().max(1024).optional(),
+});
+
+export const sendMediaMessage = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => sendMediaSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: conv, error: convErr } = await supabaseAdmin
+      .from("conversations")
+      .select("id, contacts(phone), whatsapp_instances(evolution_instance_name)")
+      .eq("id", data.conversationId)
+      .single();
+    if (convErr || !conv) throw new Error("Conversation not found");
+    const contact = (conv as unknown as { contacts: { phone: string } }).contacts;
+    const instance = (conv as unknown as { whatsapp_instances: { evolution_instance_name: string } }).whatsapp_instances;
+
+    let mediatype: "image" | "video" | "audio" | "document" = "document";
+    if (data.mimetype.startsWith("image/")) mediatype = "image";
+    else if (data.mimetype.startsWith("video/")) mediatype = "video";
+    else if (data.mimetype.startsWith("audio/")) mediatype = "audio";
+
+    const path = mediatype === "audio"
+      ? `/message/sendWhatsAppAudio/${instance.evolution_instance_name}`
+      : `/message/sendMedia/${instance.evolution_instance_name}`;
+
+    const payload: Record<string, unknown> = mediatype === "audio"
+      ? { number: contact.phone, audio: data.mediaBase64 }
+      : {
+          number: contact.phone,
+          mediatype,
+          mimetype: data.mimetype,
+          caption: data.caption ?? "",
+          media: data.mediaBase64,
+          fileName: data.filename,
+        };
+
+    const res = (await evolutionFetch(path, { method: "POST", json: payload })) as { key?: { id?: string } };
+
+    const dataUrl = `data:${data.mimetype};base64,${data.mediaBase64}`;
+    const dbType: "image" | "video" | "audio" | "document" = mediatype;
+    const preview = data.caption || (mediatype === "image" ? "[imagem]" : mediatype === "audio" ? "[áudio]" : mediatype === "video" ? "[vídeo]" : `[${data.filename}]`);
+
+    const { data: msg, error: msgErr } = await supabaseAdmin
+      .from("messages")
+      .insert({
+        conversation_id: data.conversationId,
+        direction: "out",
+        type: dbType,
+        content: data.caption ?? null,
+        media_url: dataUrl,
+        media_mime: data.mimetype,
+        status: "sent",
+        wa_message_id: res?.key?.id ?? null,
+        sender_id: context.userId,
+        metadata: { filename: data.filename },
+      })
+      .select()
+      .single();
+    if (msgErr) throw new Error(msgErr.message);
+
+    await supabaseAdmin
+      .from("conversations")
+      .update({
+        last_message_at: new Date().toISOString(),
+        last_message_preview: preview.slice(0, 120),
+        unread_count: 0,
+      })
+      .eq("id", data.conversationId);
+
+    return msg;
+  });
