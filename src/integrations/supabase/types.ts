@@ -121,6 +121,126 @@ export type Database = {
         }
         Relationships: []
       }
+      campaign_step_sends: {
+        Row: {
+          attempts: number
+          campaign_id: string
+          contact_id: string | null
+          created_at: string
+          error: string | null
+          id: string
+          locked_until: string | null
+          phone: string
+          rendered_message: string | null
+          replied_at: string | null
+          sent_at: string | null
+          status: Database["public"]["Enums"]["campaign_step_send_status"]
+          step_id: string
+          target_id: string
+          updated_at: string
+          wa_message_id: string | null
+        }
+        Insert: {
+          attempts?: number
+          campaign_id: string
+          contact_id?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          locked_until?: string | null
+          phone: string
+          rendered_message?: string | null
+          replied_at?: string | null
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["campaign_step_send_status"]
+          step_id: string
+          target_id: string
+          updated_at?: string
+          wa_message_id?: string | null
+        }
+        Update: {
+          attempts?: number
+          campaign_id?: string
+          contact_id?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          locked_until?: string | null
+          phone?: string
+          rendered_message?: string | null
+          replied_at?: string | null
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["campaign_step_send_status"]
+          step_id?: string
+          target_id?: string
+          updated_at?: string
+          wa_message_id?: string | null
+        }
+        Relationships: []
+      }
+      campaign_steps: {
+        Row: {
+          audience: Database["public"]["Enums"]["campaign_step_audience"]
+          audience_step_id: string | null
+          audience_tags: string[]
+          campaign_id: string
+          completed_at: string | null
+          created_at: string
+          failed_count: number
+          id: string
+          label: string | null
+          materialized_at: string | null
+          name: string
+          ord: number
+          scheduled_at: string | null
+          sent_count: number
+          status: Database["public"]["Enums"]["campaign_step_status"]
+          template: string
+          total_count: number
+          updated_at: string
+        }
+        Insert: {
+          audience?: Database["public"]["Enums"]["campaign_step_audience"]
+          audience_step_id?: string | null
+          audience_tags?: string[]
+          campaign_id: string
+          completed_at?: string | null
+          created_at?: string
+          failed_count?: number
+          id?: string
+          label?: string | null
+          materialized_at?: string | null
+          name: string
+          ord?: number
+          scheduled_at?: string | null
+          sent_count?: number
+          status?: Database["public"]["Enums"]["campaign_step_status"]
+          template?: string
+          total_count?: number
+          updated_at?: string
+        }
+        Update: {
+          audience?: Database["public"]["Enums"]["campaign_step_audience"]
+          audience_step_id?: string | null
+          audience_tags?: string[]
+          campaign_id?: string
+          completed_at?: string | null
+          created_at?: string
+          failed_count?: number
+          id?: string
+          label?: string | null
+          materialized_at?: string | null
+          name?: string
+          ord?: number
+          scheduled_at?: string | null
+          sent_count?: number
+          status?: Database["public"]["Enums"]["campaign_step_status"]
+          template?: string
+          total_count?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       campaign_targets: {
         Row: {
           attempts: number
@@ -196,10 +316,13 @@ export type Database = {
           completed_at: string | null
           created_at: string
           created_by: string | null
+          event_date: string | null
           failed_count: number
           id: string
           instance_id: string
           name: string
+          opt_out_keywords: string[]
+          opt_out_reply: string | null
           replied_count: number
           scheduled_at: string | null
           sent_count: number
@@ -218,10 +341,13 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           created_by?: string | null
+          event_date?: string | null
           failed_count?: number
           id?: string
           instance_id: string
           name: string
+          opt_out_keywords?: string[]
+          opt_out_reply?: string | null
           replied_count?: number
           scheduled_at?: string | null
           sent_count?: number
@@ -240,10 +366,13 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           created_by?: string | null
+          event_date?: string | null
           failed_count?: number
           id?: string
           instance_id?: string
           name?: string
+          opt_out_keywords?: string[]
+          opt_out_reply?: string | null
           replied_count?: number
           scheduled_at?: string | null
           sent_count?: number
@@ -284,6 +413,9 @@ export type Database = {
           last_score_at: string | null
           lead_status: Database["public"]["Enums"]["lead_status"]
           name: string | null
+          opt_out_reason: string | null
+          opted_out: boolean
+          opted_out_at: string | null
           phone: string
           profile_pic_url: string | null
           source: string | null
@@ -308,6 +440,9 @@ export type Database = {
           last_score_at?: string | null
           lead_status?: Database["public"]["Enums"]["lead_status"]
           name?: string | null
+          opt_out_reason?: string | null
+          opted_out?: boolean
+          opted_out_at?: string | null
           phone: string
           profile_pic_url?: string | null
           source?: string | null
@@ -332,6 +467,9 @@ export type Database = {
           last_score_at?: string | null
           lead_status?: Database["public"]["Enums"]["lead_status"]
           name?: string | null
+          opt_out_reason?: string | null
+          opted_out?: boolean
+          opted_out_at?: string | null
           phone?: string
           profile_pic_url?: string | null
           source?: string | null
@@ -870,6 +1008,26 @@ export type Database = {
         | "paused"
         | "completed"
         | "failed"
+      campaign_step_audience:
+        | "all"
+        | "not_responded_step"
+        | "responded_step"
+        | "not_subscribed"
+        | "subscribed"
+        | "tag_any"
+      campaign_step_send_status:
+        | "pending"
+        | "sent"
+        | "failed"
+        | "skipped"
+        | "replied"
+      campaign_step_status:
+        | "draft"
+        | "scheduled"
+        | "sending"
+        | "completed"
+        | "paused"
+        | "failed"
       campaign_target_status:
         | "pending"
         | "sent"
@@ -1038,6 +1196,29 @@ export const Constants = {
         "running",
         "paused",
         "completed",
+        "failed",
+      ],
+      campaign_step_audience: [
+        "all",
+        "not_responded_step",
+        "responded_step",
+        "not_subscribed",
+        "subscribed",
+        "tag_any",
+      ],
+      campaign_step_send_status: [
+        "pending",
+        "sent",
+        "failed",
+        "skipped",
+        "replied",
+      ],
+      campaign_step_status: [
+        "draft",
+        "scheduled",
+        "sending",
+        "completed",
+        "paused",
         "failed",
       ],
       campaign_target_status: [
