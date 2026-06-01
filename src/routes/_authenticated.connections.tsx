@@ -175,14 +175,14 @@ function ConnectionsPage() {
                   <QrCode className="mr-1.5 h-3.5 w-3.5" /> Conectar
                 </Button>
               ) : (
-                <Button size="sm" variant="outline" onClick={async () => { await disconnectFn({ data: { name: inst.evolution_instance_name } }); qc.invalidateQueries({ queryKey: ["instances"] }); }}>
+                <Button size="sm" variant="outline" onClick={async () => { await callConnectionsApi("POST", { action: "disconnect", name: inst.evolution_instance_name }); qc.invalidateQueries({ queryKey: ["instances"] }); }}>
                   <Power className="mr-1.5 h-3.5 w-3.5" /> Desconectar
                 </Button>
               )}
-              <Button size="sm" variant="ghost" onClick={() => statusFn({ data: { name: inst.evolution_instance_name } }).then(() => qc.invalidateQueries({ queryKey: ["instances"] }))}>
+              <Button size="sm" variant="ghost" onClick={() => callConnectionsApi("POST", { action: "status", name: inst.evolution_instance_name }).then(() => qc.invalidateQueries({ queryKey: ["instances"] }))}>
                 <RefreshCw className="h-3.5 w-3.5" />
               </Button>
-              <Button size="sm" variant="ghost" onClick={async () => { if (confirm("Excluir instância?")) { await deleteFn({ data: { name: inst.evolution_instance_name } }); qc.invalidateQueries({ queryKey: ["instances"] }); } }}>
+              <Button size="sm" variant="ghost" onClick={async () => { if (confirm("Excluir instância?")) { await callConnectionsApi("POST", { action: "delete", name: inst.evolution_instance_name }); qc.invalidateQueries({ queryKey: ["instances"] }); } }}>
                 <Trash2 className="h-3.5 w-3.5 text-destructive" />
               </Button>
             </div>
