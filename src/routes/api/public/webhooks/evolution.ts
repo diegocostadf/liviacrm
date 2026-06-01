@@ -1,11 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { loadEvolutionSettings } from "@/lib/evolution.server";
 
 export const Route = createFileRoute("/api/public/webhooks/evolution")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const token = process.env.EVOLUTION_WEBHOOK_TOKEN;
+        const { webhookToken: token } = await loadEvolutionSettings();
         const url = new URL(request.url);
         const provided = request.headers.get("x-webhook-token") || url.searchParams.get("token");
         if (token && provided !== token) {
