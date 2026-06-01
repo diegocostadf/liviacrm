@@ -41,7 +41,16 @@ const REPLY_TOOL = {
         temperature: { type: "string", enum: ["frio", "morno", "quente"] },
         intent: {
           type: "string",
-          enum: ["curioso", "interessado", "pronto_pra_comprar", "objecao", "desinteressado"],
+          enum: [
+            "interessado",
+            "inscrito",
+            "objecao",
+            "sem_interesse",
+            "fora_escopo",
+            "lead_quente",
+          ],
+          description:
+            "Classificação de intenção do lead: INTERESSADO (quer saber mais), INSCRITO (confirmou que entrou no grupo/inscreveu), OBJECAO (dúvida ou resistência específica), SEM_INTERESSE (pediu para sair / não quer participar), FORA_ESCOPO (perguntou algo não relacionado ao evento), LEAD_QUENTE (interesse alto, dor específica ou perguntou sobre o produto pago). NÃO use 'silencio' — é reservado ao sistema.",
         },
         score: { type: "integer", minimum: 0, maximum: 100 },
         next_step: { type: "string", description: "Próximo passo recomendado em 1 frase." },
