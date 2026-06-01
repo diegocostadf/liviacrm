@@ -330,6 +330,7 @@ function Thread({ id, getFn }: { id: string; getFn: ReturnType<typeof useServerF
   const noteFn = useServerFn(addNote);
   const favFn = useServerFn(toggleFavorite);
   const archFn = useServerFn(setArchived);
+  const botToggleFn = useServerFn(toggleConversationBot);
   const { data } = useQuery({ queryKey: ["conversation", id], queryFn: () => getFn({ data: { id } }) });
   const [text, setText] = useState("");
   const [noteMode, setNoteMode] = useState(false);
@@ -357,7 +358,15 @@ function Thread({ id, getFn }: { id: string; getFn: ReturnType<typeof useServerF
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [timeline.length]);
 
-  const conv = data?.conversation as { id: string; is_favorite: boolean; status: string; contact: { name: string | null; phone: string; profile_pic_url: string | null }; instance: { name: string; status: string } } | undefined;
+  const conv = data?.conversation as {
+    id: string;
+    is_favorite: boolean;
+    status: string;
+    bot_active: boolean;
+    intent_temperature: "frio" | "morno" | "quente" | null;
+    contact: { name: string | null; phone: string; profile_pic_url: string | null };
+    instance: { name: string; status: string };
+  } | undefined;
 
   async function handleSend() {
     if (!text.trim() || sending) return;
@@ -436,6 +445,23 @@ function Thread({ id, getFn }: { id: string; getFn: ReturnType<typeof useServerF
           </div>
         </div>
         <div className="flex items-center gap-1">
+          {conv && (
+            <Button
+              variant={conv.bot_active ? "default" : "outline"}
+              size="sm"
+              className={`h-8 gap-1.5 ${conv.bot_active ? "bg-violet-600 hover:bg-violet-700 text-white" : ""}`}
+              onClick={async () => {
+                await botToggleFn({ data: { conversationId: conv.id, active: !conv.bot_active } });
+                qc.invalidateQueries({ queryKey: ["conversation", id] });
+                qc.invalidateQueries({ queryKey: ["conversations"] });
+                toast.success(conv.bot_active ? "Bot pausado. Você assumiu a conversa." : "Bot reativado.");
+              }}
+              title={conv.bot_active ? "Assumir conversa (pausa o bot)" : "Reativar bot"}
+            >
+              <Bot className="h-4 w-4" />
+              {conv.bot_active ? "Assumir" : "Ativar bot"}
+            </Button>
+          )}
           <Button variant="ghost" size="icon" onClick={() => conv && favFn({ data: { id: conv.id, value: !conv.is_favorite } }).then(() => qc.invalidateQueries({ queryKey: ["conversation", id] }))}>
             <Star className={`h-4 w-4 ${conv?.is_favorite ? "fill-yellow-400 text-yellow-400" : ""}`} />
           </Button>
