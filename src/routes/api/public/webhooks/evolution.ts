@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { loadEvolutionSettings } from "@/lib/evolution.server";
-import { handleBotReply, handleHandoffCommand } from "@/lib/ai-bot.server";
+import { handleBotReply, handleHandoffCommand, handleResetCommand } from "@/lib/ai-bot.server";
 
 export const Route = createFileRoute("/api/public/webhooks/evolution")({
   server: {
@@ -201,6 +201,17 @@ async function handleIncomingMessage(instanceName: string, data: Record<string, 
       unread_count: direction === "in" ? ((existingConv?.unread_count ?? 0) + 1) : 0,
     })
     .eq("id", conversationId);
+
+  // Reset command from the lead's WhatsApp (/resetar, /reset, /reiniciar)
+  if (direction === "in" && typeof text === "string") {
+    const wasReset = await handleResetCommand({
+      conversationId,
+      instanceName,
+      phone,
+      text,
+    });
+    if (wasReset) return;
+  }
 
   // Fire bot reply for inbound text-ish messages. Never await — webhook must
   // return quickly. Errors are swallowed inside handleBotReply.
