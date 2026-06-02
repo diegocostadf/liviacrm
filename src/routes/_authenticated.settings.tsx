@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Outlet, useRouterState, redirect } from "@tanstack/react-router";
-import { PlugZap, Bot, Sparkles, BookOpen, Webhook } from "lucide-react";
+import { PlugZap, Bot, Sparkles, BookOpen, Webhook, Smartphone, Users } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "Configurações — Lívia CRM" }] }),
@@ -13,10 +13,12 @@ export const Route = createFileRoute("/_authenticated/settings")({
 
 const items = [
   { to: "/settings/evolution", label: "Evolution API", icon: PlugZap, desc: "Credenciais e instâncias do WhatsApp" },
+  { to: "/settings/connections", label: "Conexões", icon: Smartphone, desc: "Instâncias do WhatsApp e QR Code" },
   { to: "/settings/ai-providers", label: "Provedores de IA", icon: Sparkles, desc: "Lovable AI, Claude, OpenAI, Google" },
   { to: "/settings/bot", label: "Bot Júlia", icon: Bot, desc: "Persona, modelo e regras por instância" },
   { to: "/settings/knowledge", label: "Base de conhecimento", icon: BookOpen, desc: "Documentos para RAG" },
   { to: "/settings/webhooks", label: "Webhooks externos", icon: Webhook, desc: "Saída para CRM e integrações" },
+  { to: "/settings/users", label: "Usuários", icon: Users, desc: "Gerencie quem pode acessar o sistema" },
 ] as const;
 
 function SettingsLayout() {

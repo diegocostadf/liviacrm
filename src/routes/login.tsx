@@ -14,10 +14,8 @@ export const Route = createFileRoute("/login")({
 
 function LoginPage() {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -34,21 +32,8 @@ function LoginPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: window.location.origin,
-            data: { display_name: name },
-          },
-        });
-        if (error) throw error;
-        toast.success("Conta criada! Verifique seu e-mail.");
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-      }
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erro ao autenticar");
     } finally {
@@ -74,25 +59,7 @@ function LoginPage() {
           <p className="text-sm text-muted-foreground">Máquina de vendas para WhatsApp</p>
         </div>
         <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
-          <div className="mb-4 flex gap-1 rounded-md bg-muted p-1">
-            <button
-              type="button"
-              onClick={() => setMode("signin")}
-              className={`flex-1 rounded px-3 py-1.5 text-sm transition ${mode === "signin" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}
-            >Entrar</button>
-            <button
-              type="button"
-              onClick={() => setMode("signup")}
-              className={`flex-1 rounded px-3 py-1.5 text-sm transition ${mode === "signup" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}
-            >Criar conta</button>
-          </div>
           <form onSubmit={handleSubmit} className="space-y-3">
-            {mode === "signup" && (
-              <div className="space-y-1.5">
-                <Label htmlFor="name">Nome</Label>
-                <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
-              </div>
-            )}
             <div className="space-y-1.5">
               <Label htmlFor="email">E-mail</Label>
               <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
@@ -102,7 +69,7 @@ function LoginPage() {
               <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} />
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Aguarde…" : mode === "signin" ? "Entrar" : "Criar conta"}
+              {loading ? "Aguarde…" : "Entrar"}
             </Button>
           </form>
           <div className="my-4 flex items-center gap-3 text-xs text-muted-foreground">
@@ -111,6 +78,9 @@ function LoginPage() {
           <Button type="button" variant="outline" className="w-full" onClick={handleGoogle} disabled={loading}>
             Entrar com Google
           </Button>
+          <p className="mt-4 text-center text-xs text-muted-foreground">
+            O cadastro de novos usuários é feito por um administrador.
+          </p>
         </div>
       </div>
     </div>
