@@ -87,7 +87,7 @@ export const updateUser = createServerFn({ method: "POST" })
       const { error } = await supabaseAdmin.auth.admin.updateUserById(data.id, authPatch);
       if (error) throw new Error(error.message);
     }
-    const profilePatch: Record<string, unknown> = {};
+    const profilePatch: { display_name?: string; email?: string } = {};
     if (data.display_name !== undefined) profilePatch.display_name = data.display_name;
     if (data.email !== undefined) profilePatch.email = data.email;
     if (Object.keys(profilePatch).length > 0) {
