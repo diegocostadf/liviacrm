@@ -162,7 +162,7 @@ export const updateLead = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase } = context;
     const { id, ...rest } = data;
-    const patch: Record<string, unknown> = { ...rest };
+    const patch = { ...rest } as typeof rest;
     if (patch.email === "") patch.email = null;
     const { error } = await supabase.from("contacts").update(patch).eq("id", id);
     if (error) throw new Error(error.message);
