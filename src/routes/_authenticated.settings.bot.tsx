@@ -70,6 +70,54 @@ const DEFAULT_FORM: Form = {
   bh_end: 21,
 };
 
+type BotConfigRow = Partial<{
+  enabled: boolean;
+  persona: string;
+  goal: string;
+  tone: string;
+  language: string;
+  model_provider: string;
+  model_name: string;
+  temperature: number | string;
+  max_tokens: number;
+  system_extra: string | null;
+  system_prompt_md: string | null;
+  group_link: string | null;
+  landing_link: string | null;
+  out_of_hours_message: string | null;
+  handoff_keywords: string[];
+  handoff_phone: string | null;
+  typing_indicator: boolean;
+  business_hours: { enabled?: boolean; start_hour?: number; end_hour?: number } | null;
+}>;
+
+function formFromConfig(c: BotConfigRow | null | undefined): Form {
+  if (!c) return DEFAULT_FORM;
+  const bh = c.business_hours ?? {};
+  return {
+    enabled: c.enabled ?? DEFAULT_FORM.enabled,
+    persona: c.persona ?? DEFAULT_FORM.persona,
+    goal: c.goal ?? DEFAULT_FORM.goal,
+    tone: c.tone ?? DEFAULT_FORM.tone,
+    language: c.language ?? DEFAULT_FORM.language,
+    model_provider: (c.model_provider as ProviderId) ?? DEFAULT_FORM.model_provider,
+    model_name: c.model_name ?? DEFAULT_FORM.model_name,
+    temperature: Number(c.temperature ?? DEFAULT_FORM.temperature),
+    max_tokens: c.max_tokens ?? DEFAULT_FORM.max_tokens,
+    system_extra: c.system_extra ?? "",
+    system_prompt_md: c.system_prompt_md ?? "",
+    group_link: c.group_link ?? "",
+    landing_link: c.landing_link ?? "",
+    out_of_hours_message: c.out_of_hours_message ?? "",
+    handoff_keywords: (c.handoff_keywords ?? []).join(", "),
+    handoff_phone: c.handoff_phone ?? "",
+    typing_indicator: c.typing_indicator ?? DEFAULT_FORM.typing_indicator,
+    bh_enabled: Boolean(bh.enabled),
+    bh_start: bh.start_hour ?? DEFAULT_FORM.bh_start,
+    bh_end: bh.end_hour ?? DEFAULT_FORM.bh_end,
+  };
+}
+
 function BotSettingsPage() {
   const qc = useQueryClient();
   const list = useServerFn(listBotConfigs);
