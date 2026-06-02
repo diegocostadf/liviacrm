@@ -452,6 +452,30 @@ function CampaignDetailPage() {
                   {importing ? "Importando…" : `Importar ${parsed.length} contatos`}
                 </Button>
               </div>
+
+              <div className="rounded-md border border-border bg-muted/20 p-3 space-y-2">
+                <Label className="text-xs font-medium">Classificação inicial dos leads</Label>
+                <Select value={initialIntent} onValueChange={(v) => setInitialIntent(v as typeof initialIntent)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="silencio">SILÊNCIO — não respondeu ainda (padrão)</SelectItem>
+                    <SelectItem value="interessado">INTERESSADO — demonstrou interesse</SelectItem>
+                    <SelectItem value="lead_quente">LEAD QUENTE — interesse alto</SelectItem>
+                    <SelectItem value="inscrito">INSCRITO — já confirmou inscrição</SelectItem>
+                    <SelectItem value="objecao">OBJEÇÃO — levantou dúvida/resistência</SelectItem>
+                    <SelectItem value="sem_interesse">SEM INTERESSE — pediu para sair</SelectItem>
+                    <SelectItem value="fora_escopo">FORA DE ESCOPO — assunto não relacionado</SelectItem>
+                  </SelectContent>
+                </Select>
+                <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={overwriteIntent}
+                    onChange={(e) => setOverwriteIntent(e.target.checked)}
+                  />
+                  Sobrescrever classificação se o contato já existir no CRM
+                </label>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
