@@ -3,7 +3,8 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const BOT_DEFAULTS = {
-  persona: "Você é Júlia, assistente de vendas amigável e direta da Russomano Educação. Responde rápido, sem jargão.",
+  persona:
+    "Você é Júlia, assistente de vendas amigável e direta da Russomano Educação. Responde rápido, sem jargão.",
   goal: "Qualificar o lead, tirar dúvidas com base na Base de Conhecimento e enviar o link certo para conversão.",
   tone: "amigável, breve, sem jargão",
   language: "pt-BR",
@@ -18,7 +19,10 @@ async function getSupabaseAdmin() {
 
 async function assertCanManageBot(userId: string) {
   const supabaseAdmin = await getSupabaseAdmin();
-  const { data: roles } = await supabaseAdmin.from("user_roles").select("role").eq("user_id", userId);
+  const { data: roles } = await supabaseAdmin
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId);
   const ok = (roles ?? []).some((r) => r.role === "admin" || r.role === "gestor");
   if (!ok) throw new Error("Acesso restrito a administradores e gestores.");
 }
@@ -30,7 +34,7 @@ function textOrFallback(value: string | undefined, fallback: string) {
 
 function nullableText(value: string | null | undefined) {
   const text = (value ?? "").trim();
-  return text ? value ?? text : null;
+  return text ? (value ?? text) : null;
 }
 
 const nullableUrl = z.preprocess((value) => {
@@ -47,9 +51,7 @@ export const listBotConfigs = createServerFn({ method: "GET" })
       .from("whatsapp_instances")
       .select("id, name, evolution_instance_name, status, phone_number")
       .order("created_at", { ascending: false });
-    const { data: configs } = await supabaseAdmin
-      .from("ai_bot_configs")
-      .select("*");
+    const { data: configs } = await supabaseAdmin.from("ai_bot_configs").select("*");
     const byInst = new Map((configs ?? []).map((c) => [c.instance_id, c]));
     return (instances ?? []).map((inst) => ({
       instance: inst,
@@ -64,7 +66,9 @@ const upsertSchema = z.object({
   goal: z.string().max(10000).default(""),
   tone: z.string().max(1000).default(""),
   language: z.string().max(20).default(""),
-  model_provider: z.enum(["lovable", "openai", "anthropic", "google"]).default(BOT_DEFAULTS.modelProvider),
+  model_provider: z
+    .enum(["lovable", "openai", "anthropic", "google"])
+    .default(BOT_DEFAULTS.modelProvider),
   model_name: z.string().max(120).default(BOT_DEFAULTS.modelName),
   temperature: z.coerce.number().min(0).max(2).default(0.4),
   max_tokens: z.coerce.number().int().min(64).max(8000).default(1024),
@@ -76,11 +80,13 @@ const upsertSchema = z.object({
   handoff_keywords: z.array(z.string().min(1).max(40)).max(20).optional(),
   handoff_phone: z.string().max(40).nullable().optional(),
   typing_indicator: z.boolean().optional(),
-  business_hours: z.object({
-    start_hour: z.coerce.number().int().min(0).max(23).optional(),
-    end_hour: z.coerce.number().int().min(0).max(23).optional(),
-    enabled: z.boolean().optional(),
-  }).optional(),
+  business_hours: z
+    .object({
+      start_hour: z.coerce.number().int().min(0).max(23).optional(),
+      end_hour: z.coerce.number().int().min(0).max(23).optional(),
+      enabled: z.boolean().optional(),
+    })
+    .optional(),
 });
 
 export const upsertBotConfig = createServerFn({ method: "POST" })
@@ -122,7 +128,9 @@ export const upsertBotConfig = createServerFn({ method: "POST" })
 
 export const toggleConversationBot = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ conversationId: z.string().uuid(), active: z.boolean() }).parse(d))
+  .inputValidator((d) =>
+    z.object({ conversationId: z.string().uuid(), active: z.boolean() }).parse(d),
+  )
   .handler(async ({ data }) => {
     const supabaseAdmin = await getSupabaseAdmin();
     const { error } = await supabaseAdmin
@@ -158,7 +166,14 @@ export const resetConversationBot = createServerFn({ method: "POST" })
 
 export const listIntentEvents = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ conversationId: z.string().uuid(), limit: z.number().int().min(1).max(50).default(10) }).parse(d))
+  .inputValidator((d) =>
+    z
+      .object({
+        conversationId: z.string().uuid(),
+        limit: z.number().int().min(1).max(50).default(10),
+      })
+      .parse(d),
+  )
   .handler(async ({ data }) => {
     const supabaseAdmin = await getSupabaseAdmin();
     const { data: events, error } = await supabaseAdmin

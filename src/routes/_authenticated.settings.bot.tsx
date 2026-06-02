@@ -10,7 +10,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
 import { toast } from "sonner";
@@ -49,7 +55,8 @@ type Form = {
 
 const DEFAULT_FORM: Form = {
   enabled: false,
-  persona: "Você é Júlia, assistente de vendas amigável e direta da Russomano Educação. Responde rápido, sem jargão.",
+  persona:
+    "Você é Júlia, assistente de vendas amigável e direta da Russomano Educação. Responde rápido, sem jargão.",
   goal: "Qualificar o lead, tirar dúvidas com base na Base de Conhecimento e enviar o link certo para conversão.",
   tone: "amigável, breve, sem jargão",
   language: "pt-BR",
@@ -125,7 +132,10 @@ function BotSettingsPage() {
   const fetchProviders = useServerFn(getAIProviders);
 
   const { data, isLoading } = useQuery({ queryKey: ["bot-configs"], queryFn: () => list() });
-  const { data: providers } = useQuery({ queryKey: ["ai-providers"], queryFn: () => fetchProviders() });
+  const { data: providers } = useQuery({
+    queryKey: ["ai-providers"],
+    queryFn: () => fetchProviders(),
+  });
 
   const [selected, setSelected] = useState<string | null>(null);
   const [form, setForm] = useState<Form>(DEFAULT_FORM);
@@ -168,10 +178,17 @@ function BotSettingsPage() {
           group_link: form.group_link || null,
           landing_link: form.landing_link || null,
           out_of_hours_message: form.out_of_hours_message || null,
-          handoff_keywords: form.handoff_keywords.split(",").map((s) => s.trim()).filter(Boolean),
+          handoff_keywords: form.handoff_keywords
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean),
           handoff_phone: form.handoff_phone || null,
           typing_indicator: form.typing_indicator,
-          business_hours: { enabled: form.bh_enabled, start_hour: form.bh_start, end_hour: form.bh_end },
+          business_hours: {
+            enabled: form.bh_enabled,
+            start_hour: form.bh_start,
+            end_hour: form.bh_end,
+          },
         },
       });
     },
@@ -215,7 +232,9 @@ function BotSettingsPage() {
             <Card className="p-4">
               <Label className="mb-1.5 block text-xs">Instância</Label>
               <Select value={selected ?? undefined} onValueChange={setSelected}>
-                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
                 <SelectContent>
                   {data.map((d) => (
                     <SelectItem key={d.instance.id} value={d.instance.id}>
@@ -233,9 +252,14 @@ function BotSettingsPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <h2 className="text-base font-semibold">Ativação</h2>
-                      <p className="text-xs text-muted-foreground">Quando ligado, o bot assume novas conversas automaticamente.</p>
+                      <p className="text-xs text-muted-foreground">
+                        Quando ligado, o bot assume novas conversas automaticamente.
+                      </p>
                     </div>
-                    <Switch checked={form.enabled} onCheckedChange={(v) => setForm({ ...form, enabled: v })} />
+                    <Switch
+                      checked={form.enabled}
+                      onCheckedChange={(v) => setForm({ ...form, enabled: v })}
+                    />
                   </div>
                 </Card>
 
@@ -247,29 +271,61 @@ function BotSettingsPage() {
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
                       <Label>Provedor</Label>
-                      <Select value={form.model_provider} onValueChange={(v) => setForm({ ...form, model_provider: v as ProviderId })}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
+                      <Select
+                        value={form.model_provider}
+                        onValueChange={(v) => setForm({ ...form, model_provider: v as ProviderId })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
                         <SelectContent>
-                          {(["lovable", "anthropic", "openai", "google"] as ProviderId[]).map((id) => (
-                            <SelectItem key={id} value={id} disabled={!availableProviders.includes(id)}>
-                              {id === "lovable" ? "Lovable AI Gateway" : id === "anthropic" ? "Anthropic Claude" : id === "openai" ? "OpenAI" : "Google AI Studio"}
-                              {!availableProviders.includes(id) ? " (desativado)" : ""}
-                            </SelectItem>
-                          ))}
+                          {(["lovable", "anthropic", "openai", "google"] as ProviderId[]).map(
+                            (id) => (
+                              <SelectItem
+                                key={id}
+                                value={id}
+                                disabled={!availableProviders.includes(id)}
+                              >
+                                {id === "lovable"
+                                  ? "Lovable AI Gateway"
+                                  : id === "anthropic"
+                                    ? "Anthropic Claude"
+                                    : id === "openai"
+                                      ? "OpenAI"
+                                      : "Google AI Studio"}
+                                {!availableProviders.includes(id) ? " (desativado)" : ""}
+                              </SelectItem>
+                            ),
+                          )}
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-1.5">
                       <Label>Modelo</Label>
-                      <Input value={form.model_name} onChange={(e) => setForm({ ...form, model_name: e.target.value })} />
+                      <Input
+                        value={form.model_name}
+                        onChange={(e) => setForm({ ...form, model_name: e.target.value })}
+                      />
                     </div>
                     <div className="space-y-1.5">
                       <Label>Criatividade (temperature: {form.temperature.toFixed(2)})</Label>
-                      <Slider value={[form.temperature]} min={0} max={1.5} step={0.05} onValueChange={([v]) => setForm({ ...form, temperature: v })} />
+                      <Slider
+                        value={[form.temperature]}
+                        min={0}
+                        max={1.5}
+                        step={0.05}
+                        onValueChange={([v]) => setForm({ ...form, temperature: v })}
+                      />
                     </div>
                     <div className="space-y-1.5">
                       <Label>Máx. tokens</Label>
-                      <Input type="number" min={64} max={8000} value={form.max_tokens} onChange={(e) => setForm({ ...form, max_tokens: Number(e.target.value) })} />
+                      <Input
+                        type="number"
+                        min={64}
+                        max={8000}
+                        value={form.max_tokens}
+                        onChange={(e) => setForm({ ...form, max_tokens: Number(e.target.value) })}
+                      />
                     </div>
                   </div>
                 </Card>
@@ -278,9 +334,11 @@ function BotSettingsPage() {
                   <div>
                     <h2 className="text-base font-semibold">System Prompt (Markdown)</h2>
                     <p className="text-xs text-muted-foreground">
-                      Escreva aqui todo o direcional do bot em Markdown (persona, objetivo, regras, exemplos, FAQs).
-                      Quando preenchido, este texto <strong>substitui</strong> os campos Persona/Objetivo/Tom/Idioma abaixo
-                      como instrução principal. Os links, base de conhecimento e regras de segurança continuam sendo anexados automaticamente.
+                      Escreva aqui todo o direcional do bot em Markdown (persona, objetivo, regras,
+                      exemplos, FAQs). Quando preenchido, este texto <strong>substitui</strong> os
+                      campos Persona/Objetivo/Tom/Idioma abaixo como instrução principal. Os links,
+                      base de conhecimento e regras de segurança continuam sendo anexados
+                      automaticamente.
                     </p>
                   </div>
                   <Textarea
@@ -292,7 +350,9 @@ function BotSettingsPage() {
                   />
                   <div className="text-[11px] text-muted-foreground">
                     {form.system_prompt_md.length.toLocaleString("pt-BR")} caracteres
-                    {form.system_prompt_md.trim() ? " · usando este prompt como direcional principal" : " · usando Persona/Objetivo/Tom abaixo"}
+                    {form.system_prompt_md.trim()
+                      ? " · usando este prompt como direcional principal"
+                      : " · usando Persona/Objetivo/Tom abaixo"}
                   </div>
                 </Card>
 
@@ -303,25 +363,44 @@ function BotSettingsPage() {
                   </p>
                   <div className="space-y-1.5">
                     <Label>Persona (quem é o bot?)</Label>
-                    <Textarea rows={3} value={form.persona} onChange={(e) => setForm({ ...form, persona: e.target.value })} />
+                    <Textarea
+                      rows={3}
+                      value={form.persona}
+                      onChange={(e) => setForm({ ...form, persona: e.target.value })}
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <Label>Objetivo</Label>
-                    <Textarea rows={2} value={form.goal} onChange={(e) => setForm({ ...form, goal: e.target.value })} />
+                    <Textarea
+                      rows={2}
+                      value={form.goal}
+                      onChange={(e) => setForm({ ...form, goal: e.target.value })}
+                    />
                   </div>
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
                       <Label>Tom</Label>
-                      <Input value={form.tone} onChange={(e) => setForm({ ...form, tone: e.target.value })} />
+                      <Input
+                        value={form.tone}
+                        onChange={(e) => setForm({ ...form, tone: e.target.value })}
+                      />
                     </div>
                     <div className="space-y-1.5">
                       <Label>Idioma</Label>
-                      <Input value={form.language} onChange={(e) => setForm({ ...form, language: e.target.value })} />
+                      <Input
+                        value={form.language}
+                        onChange={(e) => setForm({ ...form, language: e.target.value })}
+                      />
                     </div>
                   </div>
                   <div className="space-y-1.5">
                     <Label>Instruções extras (opcional)</Label>
-                    <Textarea rows={3} value={form.system_extra} onChange={(e) => setForm({ ...form, system_extra: e.target.value })} placeholder="Regras adicionais, FAQs curtas, restrições…" />
+                    <Textarea
+                      rows={3}
+                      value={form.system_extra}
+                      onChange={(e) => setForm({ ...form, system_extra: e.target.value })}
+                      placeholder="Regras adicionais, FAQs curtas, restrições…"
+                    />
                   </div>
                 </Card>
 
@@ -333,11 +412,19 @@ function BotSettingsPage() {
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
                       <Label>Link do grupo</Label>
-                      <Input value={form.group_link} onChange={(e) => setForm({ ...form, group_link: e.target.value })} placeholder="https://chat.whatsapp.com/…" />
+                      <Input
+                        value={form.group_link}
+                        onChange={(e) => setForm({ ...form, group_link: e.target.value })}
+                        placeholder="https://chat.whatsapp.com/…"
+                      />
                     </div>
                     <div className="space-y-1.5">
                       <Label>Landing page</Label>
-                      <Input value={form.landing_link} onChange={(e) => setForm({ ...form, landing_link: e.target.value })} placeholder="https://…" />
+                      <Input
+                        value={form.landing_link}
+                        onChange={(e) => setForm({ ...form, landing_link: e.target.value })}
+                        placeholder="https://…"
+                      />
                     </div>
                   </div>
                 </Card>
@@ -352,16 +439,25 @@ function BotSettingsPage() {
                       placeholder="Ex.: 5511999999999 (com DDI + DDD)"
                     />
                     <p className="text-[11px] text-muted-foreground">
-                      Quando o bot transferir o atendimento, este número receberá uma mensagem com o nome, telefone e motivo do handoff.
+                      Quando o bot transferir o atendimento, este número receberá uma mensagem com o
+                      nome, telefone e motivo do handoff.
                     </p>
                   </div>
                   <div className="space-y-1.5">
                     <Label>Palavras-chave que pausam o bot (separadas por vírgula)</Label>
-                    <Input value={form.handoff_keywords} onChange={(e) => setForm({ ...form, handoff_keywords: e.target.value })} />
+                    <Input
+                      value={form.handoff_keywords}
+                      onChange={(e) => setForm({ ...form, handoff_keywords: e.target.value })}
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <Label>Mensagem fora do horário</Label>
-                    <Textarea rows={2} value={form.out_of_hours_message} onChange={(e) => setForm({ ...form, out_of_hours_message: e.target.value })} placeholder="Estamos fora do horário de atendimento…" />
+                    <Textarea
+                      rows={2}
+                      value={form.out_of_hours_message}
+                      onChange={(e) => setForm({ ...form, out_of_hours_message: e.target.value })}
+                      placeholder="Estamos fora do horário de atendimento…"
+                    />
                   </div>
                 </Card>
 
@@ -370,7 +466,8 @@ function BotSettingsPage() {
                     <div>
                       <h2 className="text-base font-semibold">Indicador de "digitando"</h2>
                       <p className="text-xs text-muted-foreground">
-                        Mostra o status "digitando…" no WhatsApp antes do bot enviar cada mensagem, tornando a conversa mais natural.
+                        Mostra o status "digitando…" no WhatsApp antes do bot enviar cada mensagem,
+                        tornando a conversa mais natural.
                       </p>
                     </div>
                     <Switch
@@ -386,17 +483,32 @@ function BotSettingsPage() {
                       <Clock className="h-4 w-4" />
                       <h2 className="text-base font-semibold">Horário comercial</h2>
                     </div>
-                    <Switch checked={form.bh_enabled} onCheckedChange={(v) => setForm({ ...form, bh_enabled: v })} />
+                    <Switch
+                      checked={form.bh_enabled}
+                      onCheckedChange={(v) => setForm({ ...form, bh_enabled: v })}
+                    />
                   </div>
                   {form.bh_enabled && (
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1.5">
                         <Label>Início (hora)</Label>
-                        <Input type="number" min={0} max={23} value={form.bh_start} onChange={(e) => setForm({ ...form, bh_start: Number(e.target.value) })} />
+                        <Input
+                          type="number"
+                          min={0}
+                          max={23}
+                          value={form.bh_start}
+                          onChange={(e) => setForm({ ...form, bh_start: Number(e.target.value) })}
+                        />
                       </div>
                       <div className="space-y-1.5">
                         <Label>Fim (hora)</Label>
-                        <Input type="number" min={0} max={23} value={form.bh_end} onChange={(e) => setForm({ ...form, bh_end: Number(e.target.value) })} />
+                        <Input
+                          type="number"
+                          min={0}
+                          max={23}
+                          value={form.bh_end}
+                          onChange={(e) => setForm({ ...form, bh_end: Number(e.target.value) })}
+                        />
                       </div>
                     </div>
                   )}
@@ -405,7 +517,11 @@ function BotSettingsPage() {
                 <Separator />
                 <div className="flex items-center justify-between">
                   <div className="text-xs text-muted-foreground">
-                    {form.enabled ? <Badge>bot ativo</Badge> : <Badge variant="outline">bot inativo</Badge>}
+                    {form.enabled ? (
+                      <Badge>bot ativo</Badge>
+                    ) : (
+                      <Badge variant="outline">bot inativo</Badge>
+                    )}
                   </div>
                   <Button onClick={() => save.mutate()} disabled={save.isPending}>
                     <Save className="mr-2 h-4 w-4" /> {save.isPending ? "Salvando…" : "Salvar"}
