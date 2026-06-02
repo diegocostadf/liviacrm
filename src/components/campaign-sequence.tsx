@@ -363,6 +363,13 @@ function StepDialog({
     audience_step_id: string | null;
     audience_tags: string[];
     ord: number;
+    allowed_weekdays?: number[] | null;
+    max_per_hour?: number | null;
+    max_per_day?: number | null;
+    pause_on_reply?: boolean | null;
+    dedupe_skip_days?: number | null;
+    retry_max_attempts?: number | null;
+    retry_backoff_seconds?: number | null;
   }) => Promise<void>;
 }) {
   const nextOrd = (steps[steps.length - 1]?.ord ?? 0) + 1;
@@ -377,6 +384,44 @@ function StepDialog({
   const [audienceTags, setAudienceTags] = useState((initial?.audience_tags ?? []).join(", "));
   const [ord, setOrd] = useState(initial?.ord ?? nextOrd);
   const [saving, setSaving] = useState(false);
+
+  // Overrides (null = herda da campanha)
+  const [overrideOpen, setOverrideOpen] = useState(
+    !!(initial && (
+      initial.allowed_weekdays || initial.max_per_hour != null || initial.max_per_day != null ||
+      initial.pause_on_reply != null || initial.dedupe_skip_days != null ||
+      initial.retry_max_attempts != null || initial.retry_backoff_seconds != null
+    )),
+  );
+  const [ovMaxHour, setOvMaxHour] = useState<string>(
+    initial?.max_per_hour != null ? String(initial.max_per_hour) : "",
+  );
+  const [ovMaxDay, setOvMaxDay] = useState<string>(
+    initial?.max_per_day != null ? String(initial.max_per_day) : "",
+  );
+  const [ovDedupe, setOvDedupe] = useState<string>(
+    initial?.dedupe_skip_days != null ? String(initial.dedupe_skip_days) : "",
+  );
+  const [ovPauseReply, setOvPauseReply] = useState<"" | "yes" | "no">(
+    initial?.pause_on_reply == null ? "" : initial.pause_on_reply ? "yes" : "no",
+  );
+  const [ovRetryMax, setOvRetryMax] = useState<string>(
+    initial?.retry_max_attempts != null ? String(initial.retry_max_attempts) : "",
+  );
+  const [ovBackoff, setOvBackoff] = useState<string>(
+    initial?.retry_backoff_seconds != null ? String(initial.retry_backoff_seconds) : "",
+  );
+  const [ovWeekdays, setOvWeekdays] = useState<number[] | null>(
+    initial?.allowed_weekdays ?? null,
+  );
+
+  function toggleOvWeekday(v: number) {
+    setOvWeekdays((cur) => {
+      const base = cur ?? [];
+      const next = base.includes(v) ? base.filter((x) => x !== v) : [...base, v].sort();
+      return next.length === 0 ? null : next;
+    });
+  }
 
   // Auto-suggest label (D-X) from event_date + scheduledAt
   const computedLabel = (() => {
