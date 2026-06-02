@@ -155,6 +155,8 @@ function BotSettingsPage() {
       }),
     onSuccess: () => {
       toast.success("Configuração do bot salva");
+      // Allow the form to re-hydrate from the freshly persisted DB row.
+      loadedForRef.current = null;
       qc.invalidateQueries({ queryKey: ["bot-configs"] });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
