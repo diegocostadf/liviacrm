@@ -72,6 +72,47 @@ export const reprocessDocument = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const getDocument = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data }) => {
+    const { data: doc, error } = await supabaseAdmin
+      .from("knowledge_documents")
+      .select("id, name, mime, source_text, status, error, size_bytes, created_at, updated_at")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!doc) throw new Error("Documento não encontrado.");
+    return doc;
+  });
+
+const updateSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1).max(200),
+  text: z.string().min(20).max(500_000),
+});
+
+export const updateDocument = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => updateSchema.parse(d))
+  .handler(async ({ data }) => {
+    const { error: upErr } = await supabaseAdmin
+      .from("knowledge_documents")
+      .update({
+        name: data.name,
+        source_text: data.text,
+        size_bytes: data.text.length,
+        status: "processing",
+        error: null,
+      })
+      .eq("id", data.id);
+    if (upErr) throw new Error(upErr.message);
+    // Re-index: drop existing chunks and re-process from the new text.
+    await supabaseAdmin.from("knowledge_chunks").delete().eq("document_id", data.id);
+    await processDocument(data.id, data.text);
+    return { ok: true };
+  });
+
 export const deleteDocument = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
