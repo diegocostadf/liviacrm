@@ -224,46 +224,51 @@ export async function handleBotReply(conversationId: string): Promise<void> {
       .join("\n");
 
     const customMd = (bot.system_prompt_md ?? "").trim();
-    const baseDirective = customMd
-      ? customMd
-      : [
-          `Você é ${bot.persona}`,
-          `Objetivo: ${bot.goal}`,
-          `Tom: ${bot.tone}`,
-          `Idioma: ${bot.language}`,
-        ].join("\n");
+    const hasCustomPrompt = customMd.length > 0;
+
+    // Default behavior rules — só usadas quando NÃO há prompt customizado.
+    // Quando o operador escreve o prompt, ele é a autoridade.
+    const defaultBehaviorBlock = [
+      `Você é ${bot.persona}`,
+      `Objetivo: ${bot.goal}`,
+      `Tom: ${bot.tone}`,
+      `Idioma: ${bot.language}`,
+      "",
+      "Regras de comportamento padrão:",
+      "- Respostas curtas e humanas (máx 3 frases).",
+      "- Nunca invente preço, prazo ou bônus. Se não souber, peça contexto.",
+      "- Use os links somente quando o lead demonstrar interesse claro.",
+      "- Marque handoff=true se o lead pedir falar com humano, reclamar, ou demonstrar irritação.",
+    ].join("\n");
+
+    // Instrumentação CRM — SEMPRE necessária para extração via tool call.
+    // Não dita comportamento conversacional, só campos a preencher.
+    const crmInstrumentationBlock = [
+      "INSTRUMENTAÇÃO CRM (obrigatório a cada turno, não afeta o estilo da conversa):",
+      "- Extraia e devolva nos campos da ferramenta qualquer dado novo: contact_name, contact_email, contact_city, contact_state, contact_company.",
+      "- Não pergunte de novo um dado que já está preenchido no CRM (veja contexto do lead acima).",
+      "- Adicione tags relevantes (interesse, produto, objeções).",
+      "- Escreva um history_note curto com o que houve de novo neste turno (não repita o histórico anterior).",
+      "- Quando o lead CONFIRMAR que fez a inscrição (ex.: 'já me inscrevi', 'fiz o cadastro'), marque journey_completed=true.",
+      "",
+      "Classificação de intenção (campo 'intent', escolha SEMPRE uma):",
+      "- interessado | inscrito | objecao | sem_interesse | fora_escopo | lead_quente",
+      "- NUNCA use 'silencio' — esse rótulo é controlado pelo sistema quando o lead não responde.",
+    ].join("\n");
+
+    const authorityNote = hasCustomPrompt
+      ? "IMPORTANTE: o bloco acima é a fonte de verdade definida pelo operador. Siga-o criteriosamente. Em caso de conflito com qualquer outra instrução abaixo, o bloco do operador prevalece — exceto pela instrumentação CRM (extração de campos para a ferramenta), que é mecânica e não afeta o estilo da conversa."
+      : "";
 
     const system = [
-      baseDirective,
+      hasCustomPrompt ? customMd : defaultBehaviorBlock,
+      authorityNote,
       `Nome do lead: ${contact.name ?? "desconhecido"}.`,
-      linkBlock ? `Links disponíveis:\n${linkBlock}` : "",
-      contact.history ? `Histórico recente do lead no CRM (não repita literalmente, use como contexto):\n${contact.history.slice(-2000)}` : "",
+      linkBlock ? `Links disponíveis (use conforme as regras do operador acima):\n${linkBlock}` : "",
+      contact.history ? `Histórico recente do lead no CRM (use como contexto, não repita literalmente):\n${contact.history.slice(-2000)}` : "",
       bot.system_extra ?? "",
-      [
-        "Regras gerais (não negociáveis):",
-        "- Respostas curtas e humanas (máx 3 frases).",
-        "- Nunca invente preço, prazo ou bônus. Se não souber, peça contexto.",
-        "- Use os links somente quando o lead demonstrar interesse claro.",
-        "- Marque handoff=true se o lead pedir falar com humano, reclamar, ou demonstrar irritação.",
-        "",
-        "CRM (obrigatório a cada turno):",
-        "- Sempre extraia e devolva nos campos da ferramenta qualquer dado novo: contact_name, contact_email, contact_city, contact_state, contact_company.",
-        "- Se ainda não souber o e-mail do lead, pergunte de forma natural ('qual seu melhor e-mail pra eu te enviar a confirmação?'). Idem para a cidade ('de qual cidade você fala com a gente?'). Faça uma pergunta por vez, sem soar formulário.",
-        "- Não pergunte de novo um dado que já está preenchido no CRM (veja contexto acima).",
-        "- Sempre adicione tags relevantes (interesse, produto, objeções).",
-        "- Sempre escreva um history_note curto descrevendo o que houve de novo neste turno (não repita o histórico anterior).",
-        "- O sucesso da jornada é o lead se inscrever via link de inscrição. Mande o link assim que houver intenção clara. Quando o lead CONFIRMAR que fez a inscrição (ex.: 'já me inscrevi', 'fiz o cadastro', 'concluí'), marque journey_completed=true.",
-        "",
-        "Classificação de intenção (campo 'intent', escolha SEMPRE uma):",
-        "- interessado: demonstrou interesse, quer saber mais.",
-        "- inscrito: confirmou que entrou no grupo / fez a inscrição.",
-        "- objecao: levantou dúvida ou resistência específica (preço, tempo, formato).",
-        "- sem_interesse: pediu para sair ou disse que não quer participar.",
-        "- fora_escopo: perguntou algo não relacionado ao evento.",
-        "- lead_quente: interesse alto, mencionou dor específica ou perguntou sobre o produto pago.",
-        "- NUNCA use 'silencio' — esse rótulo é controlado pelo sistema quando o lead não responde.",
-      ].join("\n"),
       kbContext,
+      crmInstrumentationBlock,
     ]
       .filter((s) => s && s.trim())
       .join("\n\n");
