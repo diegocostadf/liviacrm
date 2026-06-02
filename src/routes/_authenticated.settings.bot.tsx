@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Bot, Save, Sparkles, MessageSquare, Clock } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -81,6 +81,7 @@ function BotSettingsPage() {
 
   const [selected, setSelected] = useState<string | null>(null);
   const [form, setForm] = useState<Form>(DEFAULT_FORM);
+  const loadedForRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!data?.length) return;
@@ -89,11 +90,16 @@ function BotSettingsPage() {
 
   useEffect(() => {
     if (!selected || !data) return;
+    // Only hydrate the form when the selected instance changes. Avoid
+    // overwriting in-progress edits when the query refetches in background
+    // (window focus, invalidation, etc).
+    if (loadedForRef.current === selected) return;
     const entry = data.find((d) => d.instance.id === selected);
     if (!entry) return;
     const c = entry.config;
     if (!c) {
       setForm(DEFAULT_FORM);
+      loadedForRef.current = selected;
       return;
     }
     const bh = (c.business_hours ?? {}) as { enabled?: boolean; start_hour?: number; end_hour?: number };
@@ -119,6 +125,7 @@ function BotSettingsPage() {
       bh_start: bh.start_hour ?? 8,
       bh_end: bh.end_hour ?? 21,
     });
+    loadedForRef.current = selected;
   }, [selected, data]);
 
   const save = useMutation({
