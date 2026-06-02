@@ -39,6 +39,13 @@ type Step = {
   total_count: number;
   sent_count: number;
   failed_count: number;
+  allowed_weekdays?: number[] | null;
+  max_per_hour?: number | null;
+  max_per_day?: number | null;
+  pause_on_reply?: boolean | null;
+  dedupe_skip_days?: number | null;
+  retry_max_attempts?: number | null;
+  retry_backoff_seconds?: number | null;
 };
 
 const AUDIENCE_LABEL: Record<Step["audience"], string> = {
@@ -356,6 +363,13 @@ function StepDialog({
     audience_step_id: string | null;
     audience_tags: string[];
     ord: number;
+    allowed_weekdays?: number[] | null;
+    max_per_hour?: number | null;
+    max_per_day?: number | null;
+    pause_on_reply?: boolean | null;
+    dedupe_skip_days?: number | null;
+    retry_max_attempts?: number | null;
+    retry_backoff_seconds?: number | null;
   }) => Promise<void>;
 }) {
   const nextOrd = (steps[steps.length - 1]?.ord ?? 0) + 1;
@@ -370,6 +384,44 @@ function StepDialog({
   const [audienceTags, setAudienceTags] = useState((initial?.audience_tags ?? []).join(", "));
   const [ord, setOrd] = useState(initial?.ord ?? nextOrd);
   const [saving, setSaving] = useState(false);
+
+  // Overrides (null = herda da campanha)
+  const [overrideOpen, setOverrideOpen] = useState(
+    !!(initial && (
+      initial.allowed_weekdays || initial.max_per_hour != null || initial.max_per_day != null ||
+      initial.pause_on_reply != null || initial.dedupe_skip_days != null ||
+      initial.retry_max_attempts != null || initial.retry_backoff_seconds != null
+    )),
+  );
+  const [ovMaxHour, setOvMaxHour] = useState<string>(
+    initial?.max_per_hour != null ? String(initial.max_per_hour) : "",
+  );
+  const [ovMaxDay, setOvMaxDay] = useState<string>(
+    initial?.max_per_day != null ? String(initial.max_per_day) : "",
+  );
+  const [ovDedupe, setOvDedupe] = useState<string>(
+    initial?.dedupe_skip_days != null ? String(initial.dedupe_skip_days) : "",
+  );
+  const [ovPauseReply, setOvPauseReply] = useState<"" | "yes" | "no">(
+    initial?.pause_on_reply == null ? "" : initial.pause_on_reply ? "yes" : "no",
+  );
+  const [ovRetryMax, setOvRetryMax] = useState<string>(
+    initial?.retry_max_attempts != null ? String(initial.retry_max_attempts) : "",
+  );
+  const [ovBackoff, setOvBackoff] = useState<string>(
+    initial?.retry_backoff_seconds != null ? String(initial.retry_backoff_seconds) : "",
+  );
+  const [ovWeekdays, setOvWeekdays] = useState<number[] | null>(
+    initial?.allowed_weekdays ?? null,
+  );
+
+  function toggleOvWeekday(v: number) {
+    setOvWeekdays((cur) => {
+      const base = cur ?? [];
+      const next = base.includes(v) ? base.filter((x) => x !== v) : [...base, v].sort();
+      return next.length === 0 ? null : next;
+    });
+  }
 
   // Auto-suggest label (D-X) from event_date + scheduledAt
   const computedLabel = (() => {
@@ -475,6 +527,85 @@ function StepDialog({
               placeholder={`Oi, {{name}}! Quero te contar uma novidade…`}
             />
           </div>
+
+          <details
+            className="rounded-md border border-border bg-muted/20"
+            open={overrideOpen}
+            onToggle={(e) => setOverrideOpen((e.target as HTMLDetailsElement).open)}
+          >
+            <summary className="cursor-pointer px-3 py-2 text-xs font-medium">
+              Sobrescrever regras desta etapa (opcional — vazio = herda da campanha)
+            </summary>
+            <div className="space-y-3 p-3">
+              <div>
+                <Label className="text-xs">Dias da semana (vazio = herda)</Label>
+                <div className="mt-1 flex flex-wrap gap-1.5">
+                  {[
+                    { v: 0, l: "Dom" }, { v: 1, l: "Seg" }, { v: 2, l: "Ter" },
+                    { v: 3, l: "Qua" }, { v: 4, l: "Qui" }, { v: 5, l: "Sex" }, { v: 6, l: "Sáb" },
+                  ].map((d) => {
+                    const active = (ovWeekdays ?? []).includes(d.v);
+                    return (
+                      <button
+                        type="button"
+                        key={d.v}
+                        onClick={() => toggleOvWeekday(d.v)}
+                        className={`rounded-md border px-2.5 py-1 text-[11px] ${
+                          active
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border bg-background text-muted-foreground"
+                        }`}
+                      >
+                        {d.l}
+                      </button>
+                    );
+                  })}
+                  {ovWeekdays && (
+                    <button
+                      type="button"
+                      onClick={() => setOvWeekdays(null)}
+                      className="text-[10px] text-muted-foreground underline"
+                    >
+                      limpar (herda)
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+                <div>
+                  <Label className="text-xs">Máx/hora</Label>
+                  <Input type="number" min={1} value={ovMaxHour} onChange={(e) => setOvMaxHour(e.target.value)} placeholder="herda" />
+                </div>
+                <div>
+                  <Label className="text-xs">Máx/dia</Label>
+                  <Input type="number" min={1} value={ovMaxDay} onChange={(e) => setOvMaxDay(e.target.value)} placeholder="herda" />
+                </div>
+                <div>
+                  <Label className="text-xs">Pular já contatado (dias)</Label>
+                  <Input type="number" min={0} value={ovDedupe} onChange={(e) => setOvDedupe(e.target.value)} placeholder="herda" />
+                </div>
+                <div>
+                  <Label className="text-xs">Pausar se respondeu</Label>
+                  <Select value={ovPauseReply} onValueChange={(v) => setOvPauseReply(v as "" | "yes" | "no")}>
+                    <SelectTrigger><SelectValue placeholder="herda" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Herdar</SelectItem>
+                      <SelectItem value="yes">Sim</SelectItem>
+                      <SelectItem value="no">Não</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">Retry máx</Label>
+                  <Input type="number" min={1} max={10} value={ovRetryMax} onChange={(e) => setOvRetryMax(e.target.value)} placeholder="herda" />
+                </div>
+                <div>
+                  <Label className="text-xs">Backoff base (s)</Label>
+                  <Input type="number" min={10} max={3600} value={ovBackoff} onChange={(e) => setOvBackoff(e.target.value)} placeholder="herda" />
+                </div>
+              </div>
+            </div>
+          </details>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
@@ -498,6 +629,13 @@ function StepDialog({
                       ? audienceTags.split(",").map((t) => t.trim()).filter(Boolean)
                       : [],
                   ord,
+                  allowed_weekdays: ovWeekdays,
+                  max_per_hour: ovMaxHour.trim() ? Number(ovMaxHour) : null,
+                  max_per_day: ovMaxDay.trim() ? Number(ovMaxDay) : null,
+                  dedupe_skip_days: ovDedupe.trim() ? Number(ovDedupe) : null,
+                  pause_on_reply: ovPauseReply === "" ? null : ovPauseReply === "yes",
+                  retry_max_attempts: ovRetryMax.trim() ? Number(ovRetryMax) : null,
+                  retry_backoff_seconds: ovBackoff.trim() ? Number(ovBackoff) : null,
                 });
                 onClose();
               } catch (e) {
