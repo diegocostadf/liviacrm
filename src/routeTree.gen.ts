@@ -24,6 +24,7 @@ import { Route as AuthenticatedCampaignsRouteImport } from './routes/_authentica
 import { Route as AuthenticatedLeadsIndexRouteImport } from './routes/_authenticated.leads.index'
 import { Route as AuthenticatedCampaignsIndexRouteImport } from './routes/_authenticated.campaigns.index'
 import { Route as AuthenticatedSettingsWebhooksRouteImport } from './routes/_authenticated.settings.webhooks'
+import { Route as AuthenticatedSettingsUsersRouteImport } from './routes/_authenticated.settings.users'
 import { Route as AuthenticatedSettingsKnowledgeRouteImport } from './routes/_authenticated.settings.knowledge'
 import { Route as AuthenticatedSettingsEvolutionRouteImport } from './routes/_authenticated.settings.evolution'
 import { Route as AuthenticatedSettingsConnectionsRouteImport } from './routes/_authenticated.settings.connections'
@@ -111,6 +112,12 @@ const AuthenticatedSettingsWebhooksRoute =
     path: '/webhooks',
     getParentRoute: () => AuthenticatedSettingsRoute,
   } as any)
+const AuthenticatedSettingsUsersRoute =
+  AuthenticatedSettingsUsersRouteImport.update({
+    id: '/users',
+    path: '/users',
+    getParentRoute: () => AuthenticatedSettingsRoute,
+  } as any)
 const AuthenticatedSettingsKnowledgeRoute =
   AuthenticatedSettingsKnowledgeRouteImport.update({
     id: '/knowledge',
@@ -183,6 +190,7 @@ export interface FileRoutesByFullPath {
   '/settings/connections': typeof AuthenticatedSettingsConnectionsRoute
   '/settings/evolution': typeof AuthenticatedSettingsEvolutionRoute
   '/settings/knowledge': typeof AuthenticatedSettingsKnowledgeRoute
+  '/settings/users': typeof AuthenticatedSettingsUsersRoute
   '/settings/webhooks': typeof AuthenticatedSettingsWebhooksRoute
   '/campaigns/': typeof AuthenticatedCampaignsIndexRoute
   '/leads/': typeof AuthenticatedLeadsIndexRoute
@@ -206,6 +214,7 @@ export interface FileRoutesByTo {
   '/settings/connections': typeof AuthenticatedSettingsConnectionsRoute
   '/settings/evolution': typeof AuthenticatedSettingsEvolutionRoute
   '/settings/knowledge': typeof AuthenticatedSettingsKnowledgeRoute
+  '/settings/users': typeof AuthenticatedSettingsUsersRoute
   '/settings/webhooks': typeof AuthenticatedSettingsWebhooksRoute
   '/campaigns': typeof AuthenticatedCampaignsIndexRoute
   '/leads': typeof AuthenticatedLeadsIndexRoute
@@ -233,6 +242,7 @@ export interface FileRoutesById {
   '/_authenticated/settings/connections': typeof AuthenticatedSettingsConnectionsRoute
   '/_authenticated/settings/evolution': typeof AuthenticatedSettingsEvolutionRoute
   '/_authenticated/settings/knowledge': typeof AuthenticatedSettingsKnowledgeRoute
+  '/_authenticated/settings/users': typeof AuthenticatedSettingsUsersRoute
   '/_authenticated/settings/webhooks': typeof AuthenticatedSettingsWebhooksRoute
   '/_authenticated/campaigns/': typeof AuthenticatedCampaignsIndexRoute
   '/_authenticated/leads/': typeof AuthenticatedLeadsIndexRoute
@@ -260,6 +270,7 @@ export interface FileRouteTypes {
     | '/settings/connections'
     | '/settings/evolution'
     | '/settings/knowledge'
+    | '/settings/users'
     | '/settings/webhooks'
     | '/campaigns/'
     | '/leads/'
@@ -283,6 +294,7 @@ export interface FileRouteTypes {
     | '/settings/connections'
     | '/settings/evolution'
     | '/settings/knowledge'
+    | '/settings/users'
     | '/settings/webhooks'
     | '/campaigns'
     | '/leads'
@@ -309,6 +321,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/connections'
     | '/_authenticated/settings/evolution'
     | '/_authenticated/settings/knowledge'
+    | '/_authenticated/settings/users'
     | '/_authenticated/settings/webhooks'
     | '/_authenticated/campaigns/'
     | '/_authenticated/leads/'
@@ -432,6 +445,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsWebhooksRouteImport
       parentRoute: typeof AuthenticatedSettingsRoute
     }
+    '/_authenticated/settings/users': {
+      id: '/_authenticated/settings/users'
+      path: '/users'
+      fullPath: '/settings/users'
+      preLoaderRoute: typeof AuthenticatedSettingsUsersRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
+    }
     '/_authenticated/settings/knowledge': {
       id: '/_authenticated/settings/knowledge'
       path: '/knowledge'
@@ -533,6 +553,7 @@ interface AuthenticatedSettingsRouteChildren {
   AuthenticatedSettingsConnectionsRoute: typeof AuthenticatedSettingsConnectionsRoute
   AuthenticatedSettingsEvolutionRoute: typeof AuthenticatedSettingsEvolutionRoute
   AuthenticatedSettingsKnowledgeRoute: typeof AuthenticatedSettingsKnowledgeRoute
+  AuthenticatedSettingsUsersRoute: typeof AuthenticatedSettingsUsersRoute
   AuthenticatedSettingsWebhooksRoute: typeof AuthenticatedSettingsWebhooksRoute
 }
 
@@ -542,6 +563,7 @@ const AuthenticatedSettingsRouteChildren: AuthenticatedSettingsRouteChildren = {
   AuthenticatedSettingsConnectionsRoute: AuthenticatedSettingsConnectionsRoute,
   AuthenticatedSettingsEvolutionRoute: AuthenticatedSettingsEvolutionRoute,
   AuthenticatedSettingsKnowledgeRoute: AuthenticatedSettingsKnowledgeRoute,
+  AuthenticatedSettingsUsersRoute: AuthenticatedSettingsUsersRoute,
   AuthenticatedSettingsWebhooksRoute: AuthenticatedSettingsWebhooksRoute,
 }
 
@@ -587,3 +609,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
