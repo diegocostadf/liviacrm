@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { CampaignSequence } from "@/components/campaign-sequence";
 import {
   getCampaign, addCampaignTargets, removeCampaignTarget,
   setCampaignStatus, tickCampaignFn, previewCampaignMessage, updateCampaign,
@@ -272,12 +273,24 @@ function CampaignDetailPage() {
         <div className="h-full bg-primary transition-all" style={{ width: `${pct}%` }} />
       </div>
 
-      <Tabs defaultValue="targets">
+      <Tabs defaultValue="sequence">
         <TabsList>
+          <TabsTrigger value="sequence">Sequência</TabsTrigger>
           <TabsTrigger value="targets">Destinatários ({targets.length})</TabsTrigger>
           <TabsTrigger value="import">Importar CSV</TabsTrigger>
           <TabsTrigger value="message">Mensagem</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="sequence">
+          <CampaignSequence
+            campaign={{
+              id: campaign.id,
+              event_date: (campaign as { event_date?: string | null }).event_date ?? null,
+              opt_out_keywords: (campaign as { opt_out_keywords?: string[] | null }).opt_out_keywords ?? null,
+              opt_out_reply: (campaign as { opt_out_reply?: string | null }).opt_out_reply ?? null,
+            }}
+          />
+        </TabsContent>
 
         <TabsContent value="targets">
           <Card>
