@@ -11,6 +11,9 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { CampaignSequence } from "@/components/campaign-sequence";
 import {
   getCampaign, addCampaignTargets, removeCampaignTarget,
@@ -113,6 +116,10 @@ function CampaignDetailPage() {
   const [csv, setCsv] = useState("phone,name\n5511999999999,Maria\n");
   const [importing, setImporting] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [initialIntent, setInitialIntent] = useState<
+    "interessado" | "inscrito" | "objecao" | "sem_interesse" | "silencio" | "fora_escopo" | "lead_quente"
+  >("silencio");
+  const [overwriteIntent, setOverwriteIntent] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [previewText, setPreviewText] = useState("");
   const [template, setTemplate] = useState("");
@@ -194,7 +201,13 @@ function CampaignDetailPage() {
         const { phone, name, ...rest } = r;
         return { phone, name: name || undefined, custom_fields: rest };
       });
-      const { inserted } = await addFn({ data: { campaignId: id, targets: items, dedupe: true } });
+      const { inserted } = await addFn({ data: {
+        campaignId: id,
+        targets: items,
+        dedupe: true,
+        initial_intent: initialIntent,
+        overwrite_intent: overwriteIntent,
+      } });
       toast.success(`${inserted} contatos importados`);
       setCsv("phone,name\n");
       setFileName(null);
@@ -438,6 +451,30 @@ function CampaignDetailPage() {
                   <Upload className="mr-2 h-4 w-4" />
                   {importing ? "Importando…" : `Importar ${parsed.length} contatos`}
                 </Button>
+              </div>
+
+              <div className="rounded-md border border-border bg-muted/20 p-3 space-y-2">
+                <Label className="text-xs font-medium">Classificação inicial dos leads</Label>
+                <Select value={initialIntent} onValueChange={(v) => setInitialIntent(v as typeof initialIntent)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="silencio">SILÊNCIO — não respondeu ainda (padrão)</SelectItem>
+                    <SelectItem value="interessado">INTERESSADO — demonstrou interesse</SelectItem>
+                    <SelectItem value="lead_quente">LEAD QUENTE — interesse alto</SelectItem>
+                    <SelectItem value="inscrito">INSCRITO — já confirmou inscrição</SelectItem>
+                    <SelectItem value="objecao">OBJEÇÃO — levantou dúvida/resistência</SelectItem>
+                    <SelectItem value="sem_interesse">SEM INTERESSE — pediu para sair</SelectItem>
+                    <SelectItem value="fora_escopo">FORA DE ESCOPO — assunto não relacionado</SelectItem>
+                  </SelectContent>
+                </Select>
+                <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={overwriteIntent}
+                    onChange={(e) => setOverwriteIntent(e.target.checked)}
+                  />
+                  Sobrescrever classificação se o contato já existir no CRM
+                </label>
               </div>
             </CardContent>
           </Card>

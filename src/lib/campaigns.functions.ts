@@ -25,6 +25,18 @@ const createSchema = z.object({
   window_end_hour: z.number().int().min(0).max(23).default(21),
 });
 
+/** Regras de SLA / disparo aceitas em update/patch. */
+const rulesSchema = z.object({
+  allowed_weekdays: z.array(z.number().int().min(0).max(6)).max(7).optional(),
+  max_per_hour: z.number().int().min(1).max(10000).optional(),
+  max_per_day: z.number().int().min(1).max(1000000).optional(),
+  pause_on_reply: z.boolean().optional(),
+  dedupe_skip_days: z.number().int().min(0).max(365).optional(),
+  allowed_instance_ids: z.array(z.string().uuid()).max(20).optional(),
+  retry_max_attempts: z.number().int().min(1).max(10).optional(),
+  retry_backoff_seconds: z.number().int().min(10).max(3600).optional(),
+});
+
 export const createCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => createSchema.parse(d))
@@ -48,7 +60,7 @@ export const createCampaign = createServerFn({ method: "POST" })
     return { id: inserted.id };
   });
 
-const updateSchema = createSchema.partial().extend({ id: z.string().uuid() });
+const updateSchema = createSchema.partial().merge(rulesSchema).extend({ id: z.string().uuid() });
 
 export const updateCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -102,6 +114,29 @@ const targetItemSchema = z.object({
   custom_fields: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
 });
 
+const initialIntentSchema = z.enum([
+  "interessado",
+  "inscrito",
+  "objecao",
+  "sem_interesse",
+  "silencio",
+  "fora_escopo",
+  "lead_quente",
+]);
+
+function intentToStatus(intent: z.infer<typeof initialIntentSchema>): "novo" | "engajado" | "inscrito" | "perdido" {
+  if (intent === "inscrito") return "inscrito";
+  if (intent === "sem_interesse") return "perdido";
+  if (intent === "lead_quente" || intent === "interessado" || intent === "objecao") return "engajado";
+  return "novo";
+}
+
+function intentToTemperature(intent: z.infer<typeof initialIntentSchema>): "frio" | "morno" | "quente" {
+  if (intent === "lead_quente" || intent === "interessado") return "quente";
+  if (intent === "inscrito" || intent === "objecao") return "morno";
+  return "frio";
+}
+
 export const addCampaignTargets = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) =>
@@ -109,6 +144,8 @@ export const addCampaignTargets = createServerFn({ method: "POST" })
       campaignId: z.string().uuid(),
       targets: z.array(targetItemSchema).min(1).max(5000),
       dedupe: z.boolean().default(true),
+      initial_intent: initialIntentSchema.default("silencio"),
+      overwrite_intent: z.boolean().default(false),
     }).parse(d),
   )
   .handler(async ({ data }) => {
@@ -148,6 +185,90 @@ export const addCampaignTargets = createServerFn({ method: "POST" })
       if (error) throw new Error(error.message);
       inserted += chunk.length;
     }
+
+    // ===== CRM: upsert de contatos + classificação inicial =====
+    const phonesByName = new Map<string, string | null>();
+    for (const t of items) phonesByName.set(t.phone, t.name);
+    const allPhones = [...phonesByName.keys()];
+
+    const { data: existingContacts } = await supabaseAdmin
+      .from("contacts")
+      .select("id, phone")
+      .in("phone", allPhones);
+    const existingByPhone = new Map((existingContacts ?? []).map((c) => [c.phone, c.id]));
+
+    // 1) Cria contatos novos
+    const toCreate = allPhones
+      .filter((p) => !existingByPhone.has(p))
+      .map((p) => ({
+        phone: p,
+        name: phonesByName.get(p),
+        source: "campaign_import",
+        lead_status: intentToStatus(data.initial_intent),
+      }));
+    if (toCreate.length) {
+      for (let i = 0; i < toCreate.length; i += 500) {
+        const chunk = toCreate.slice(i, i + 500);
+        const { data: ins } = await supabaseAdmin
+          .from("contacts")
+          .insert(chunk)
+          .select("id, phone");
+        for (const row of ins ?? []) existingByPhone.set(row.phone, row.id);
+      }
+    }
+
+    // 2) Decide quem recebe novo lead_intent_event (sempre para novos; opt-in para existentes)
+    const recipientsForEvent: Array<{ phone: string; id: string }> = [];
+    for (const p of allPhones) {
+      const id = existingByPhone.get(p);
+      if (!id) continue;
+      const wasNew = !existingContacts?.some((c) => c.phone === p);
+      if (wasNew || data.overwrite_intent) {
+        recipientsForEvent.push({ phone: p, id });
+      }
+    }
+
+    // 3) Insere lead_intent_events (trigger cuida do last_intent)
+    // Precisa de conversation_id NOT NULL — usa "synthetic" via primeira conversa existente
+    // OU pula esse insert se a tabela exige conversa. Para evitar erro, criamos eventos APENAS
+    // se já existir uma conversa do contato. Para os demais, atualizamos last_intent diretamente.
+    if (recipientsForEvent.length) {
+      const contactIds = recipientsForEvent.map((r) => r.id);
+      const { data: convs } = await supabaseAdmin
+        .from("conversations")
+        .select("id, contact_id")
+        .in("contact_id", contactIds);
+      const convByContact = new Map((convs ?? []).map((c) => [c.contact_id, c.id]));
+
+      const events = recipientsForEvent
+        .filter((r) => convByContact.has(r.id))
+        .map((r) => ({
+          conversation_id: convByContact.get(r.id) as string,
+          contact_id: r.id,
+          intent: data.initial_intent,
+          temperature: intentToTemperature(data.initial_intent),
+          score: data.initial_intent === "lead_quente" ? 80 : 0,
+          model: "import:csv",
+          summary: "Classificação inicial via importação de campanha",
+        }));
+      if (events.length) {
+        await supabaseAdmin.from("lead_intent_events").insert(events);
+      }
+
+      // Para contatos sem conversa, atualiza last_intent + lead_status diretamente
+      const directIds = recipientsForEvent.filter((r) => !convByContact.has(r.id)).map((r) => r.id);
+      if (directIds.length) {
+        await supabaseAdmin
+          .from("contacts")
+          .update({
+            last_intent: data.initial_intent,
+            last_intent_at: new Date().toISOString(),
+            lead_status: intentToStatus(data.initial_intent),
+          })
+          .in("id", directIds);
+      }
+    }
+    // ===== /CRM =====
 
     const { count } = await supabaseAdmin
       .from("campaign_targets")

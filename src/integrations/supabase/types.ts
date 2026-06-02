@@ -129,6 +129,7 @@ export type Database = {
           created_at: string
           error: string | null
           id: string
+          instance_id_used: string | null
           locked_until: string | null
           phone: string
           rendered_message: string | null
@@ -147,6 +148,7 @@ export type Database = {
           created_at?: string
           error?: string | null
           id?: string
+          instance_id_used?: string | null
           locked_until?: string | null
           phone: string
           rendered_message?: string | null
@@ -165,6 +167,7 @@ export type Database = {
           created_at?: string
           error?: string | null
           id?: string
+          instance_id_used?: string | null
           locked_until?: string | null
           phone?: string
           rendered_message?: string | null
@@ -180,18 +183,26 @@ export type Database = {
       }
       campaign_steps: {
         Row: {
+          allowed_instance_ids: string[] | null
+          allowed_weekdays: number[] | null
           audience: Database["public"]["Enums"]["campaign_step_audience"]
           audience_step_id: string | null
           audience_tags: string[]
           campaign_id: string
           completed_at: string | null
           created_at: string
+          dedupe_skip_days: number | null
           failed_count: number
           id: string
           label: string | null
           materialized_at: string | null
+          max_per_day: number | null
+          max_per_hour: number | null
           name: string
           ord: number
+          pause_on_reply: boolean | null
+          retry_backoff_seconds: number | null
+          retry_max_attempts: number | null
           scheduled_at: string | null
           sent_count: number
           status: Database["public"]["Enums"]["campaign_step_status"]
@@ -200,18 +211,26 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          allowed_instance_ids?: string[] | null
+          allowed_weekdays?: number[] | null
           audience?: Database["public"]["Enums"]["campaign_step_audience"]
           audience_step_id?: string | null
           audience_tags?: string[]
           campaign_id: string
           completed_at?: string | null
           created_at?: string
+          dedupe_skip_days?: number | null
           failed_count?: number
           id?: string
           label?: string | null
           materialized_at?: string | null
+          max_per_day?: number | null
+          max_per_hour?: number | null
           name: string
           ord?: number
+          pause_on_reply?: boolean | null
+          retry_backoff_seconds?: number | null
+          retry_max_attempts?: number | null
           scheduled_at?: string | null
           sent_count?: number
           status?: Database["public"]["Enums"]["campaign_step_status"]
@@ -220,18 +239,26 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          allowed_instance_ids?: string[] | null
+          allowed_weekdays?: number[] | null
           audience?: Database["public"]["Enums"]["campaign_step_audience"]
           audience_step_id?: string | null
           audience_tags?: string[]
           campaign_id?: string
           completed_at?: string | null
           created_at?: string
+          dedupe_skip_days?: number | null
           failed_count?: number
           id?: string
           label?: string | null
           materialized_at?: string | null
+          max_per_day?: number | null
+          max_per_hour?: number | null
           name?: string
           ord?: number
+          pause_on_reply?: boolean | null
+          retry_backoff_seconds?: number | null
+          retry_max_attempts?: number | null
           scheduled_at?: string | null
           sent_count?: number
           status?: Database["public"]["Enums"]["campaign_step_status"]
@@ -313,17 +340,26 @@ export type Database = {
       campaigns: {
         Row: {
           ai_personalize: boolean
+          allowed_instance_ids: string[]
+          allowed_weekdays: number[]
           completed_at: string | null
           created_at: string
           created_by: string | null
+          dedupe_skip_days: number
           event_date: string | null
           failed_count: number
           id: string
           instance_id: string
+          last_instance_idx: number
+          max_per_day: number
+          max_per_hour: number
           name: string
           opt_out_keywords: string[]
           opt_out_reply: string | null
+          pause_on_reply: boolean
           replied_count: number
+          retry_backoff_seconds: number
+          retry_max_attempts: number
           scheduled_at: string | null
           sent_count: number
           started_at: string | null
@@ -338,17 +374,26 @@ export type Database = {
         }
         Insert: {
           ai_personalize?: boolean
+          allowed_instance_ids?: string[]
+          allowed_weekdays?: number[]
           completed_at?: string | null
           created_at?: string
           created_by?: string | null
+          dedupe_skip_days?: number
           event_date?: string | null
           failed_count?: number
           id?: string
           instance_id: string
+          last_instance_idx?: number
+          max_per_day?: number
+          max_per_hour?: number
           name: string
           opt_out_keywords?: string[]
           opt_out_reply?: string | null
+          pause_on_reply?: boolean
           replied_count?: number
+          retry_backoff_seconds?: number
+          retry_max_attempts?: number
           scheduled_at?: string | null
           sent_count?: number
           started_at?: string | null
@@ -363,17 +408,26 @@ export type Database = {
         }
         Update: {
           ai_personalize?: boolean
+          allowed_instance_ids?: string[]
+          allowed_weekdays?: number[]
           completed_at?: string | null
           created_at?: string
           created_by?: string | null
+          dedupe_skip_days?: number
           event_date?: string | null
           failed_count?: number
           id?: string
           instance_id?: string
+          last_instance_idx?: number
+          max_per_day?: number
+          max_per_hour?: number
           name?: string
           opt_out_keywords?: string[]
           opt_out_reply?: string | null
+          pause_on_reply?: boolean
           replied_count?: number
+          retry_backoff_seconds?: number
+          retry_max_attempts?: number
           scheduled_at?: string | null
           sent_count?: number
           started_at?: string | null
@@ -410,6 +464,8 @@ export type Database = {
           journey_completed_at: string | null
           landing_link_sent_at: string | null
           landing_link_sent_count: number
+          last_intent: Database["public"]["Enums"]["intent_label"] | null
+          last_intent_at: string | null
           last_score_at: string | null
           lead_status: Database["public"]["Enums"]["lead_status"]
           name: string | null
@@ -437,6 +493,8 @@ export type Database = {
           journey_completed_at?: string | null
           landing_link_sent_at?: string | null
           landing_link_sent_count?: number
+          last_intent?: Database["public"]["Enums"]["intent_label"] | null
+          last_intent_at?: string | null
           last_score_at?: string | null
           lead_status?: Database["public"]["Enums"]["lead_status"]
           name?: string | null
@@ -464,6 +522,8 @@ export type Database = {
           journey_completed_at?: string | null
           landing_link_sent_at?: string | null
           landing_link_sent_count?: number
+          last_intent?: Database["public"]["Enums"]["intent_label"] | null
+          last_intent_at?: string | null
           last_score_at?: string | null
           lead_status?: Database["public"]["Enums"]["lead_status"]
           name?: string | null
@@ -1021,6 +1081,8 @@ export type Database = {
         | "failed"
         | "skipped"
         | "replied"
+        | "skipped_replied"
+        | "skipped_dedupe"
       campaign_step_status:
         | "draft"
         | "scheduled"
@@ -1212,6 +1274,8 @@ export const Constants = {
         "failed",
         "skipped",
         "replied",
+        "skipped_replied",
+        "skipped_dedupe",
       ],
       campaign_step_status: [
         "draft",
