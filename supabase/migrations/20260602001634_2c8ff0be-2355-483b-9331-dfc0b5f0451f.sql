@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.sync_contact_last_intent() FROM PUBLIC, anon, authenticated;
