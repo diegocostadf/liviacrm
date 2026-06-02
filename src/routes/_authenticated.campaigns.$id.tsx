@@ -11,6 +11,9 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { CampaignSequence } from "@/components/campaign-sequence";
 import {
   getCampaign, addCampaignTargets, removeCampaignTarget,
@@ -113,6 +116,10 @@ function CampaignDetailPage() {
   const [csv, setCsv] = useState("phone,name\n5511999999999,Maria\n");
   const [importing, setImporting] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [initialIntent, setInitialIntent] = useState<
+    "interessado" | "inscrito" | "objecao" | "sem_interesse" | "silencio" | "fora_escopo" | "lead_quente"
+  >("silencio");
+  const [overwriteIntent, setOverwriteIntent] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [previewText, setPreviewText] = useState("");
   const [template, setTemplate] = useState("");
@@ -194,7 +201,13 @@ function CampaignDetailPage() {
         const { phone, name, ...rest } = r;
         return { phone, name: name || undefined, custom_fields: rest };
       });
-      const { inserted } = await addFn({ data: { campaignId: id, targets: items, dedupe: true } });
+      const { inserted } = await addFn({ data: {
+        campaignId: id,
+        targets: items,
+        dedupe: true,
+        initial_intent: initialIntent,
+        overwrite_intent: overwriteIntent,
+      } });
       toast.success(`${inserted} contatos importados`);
       setCsv("phone,name\n");
       setFileName(null);
