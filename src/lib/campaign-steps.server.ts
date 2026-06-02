@@ -2,10 +2,18 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { evolutionFetch } from "./evolution.server";
 import { renderTemplate } from "./campaigns.server";
 
-const MAX_ATTEMPTS = 3;
-
 function normalizePhone(raw: string): string {
   return String(raw ?? "").replace(/\D/g, "");
+}
+
+/** Approx BRT (UTC-3). */
+function brtNow(now = new Date()) {
+  const ms = now.getTime() - 3 * 3600 * 1000;
+  const d = new Date(ms);
+  return {
+    hour: d.getUTCHours(),
+    weekday: d.getUTCDay(), // 0..6 (dom..sáb)
+  };
 }
 
 function isWithinWindow(startHour: number, endHour: number, now = new Date()): boolean {
@@ -13,6 +21,18 @@ function isWithinWindow(startHour: number, endHour: number, now = new Date()): b
   if (startHour === endHour) return true;
   if (startHour < endHour) return h >= startHour && h < endHour;
   return h >= startHour || h < endHour;
+}
+
+function isWithinSchedule(
+  startHour: number,
+  endHour: number,
+  weekdays: number[] | null | undefined,
+  now = new Date(),
+): boolean {
+  const { weekday } = brtNow(now);
+  const days = weekdays && weekdays.length ? weekdays : [0, 1, 2, 3, 4, 5, 6];
+  if (!days.includes(weekday)) return false;
+  return isWithinWindow(startHour, endHour, now);
 }
 
 type Step = {
@@ -27,6 +47,15 @@ type Step = {
   materialized_at: string | null;
   sent_count: number;
   failed_count: number;
+  // Overrides (NULL = herda da campanha)
+  allowed_weekdays: number[] | null;
+  max_per_hour: number | null;
+  max_per_day: number | null;
+  pause_on_reply: boolean | null;
+  dedupe_skip_days: number | null;
+  allowed_instance_ids: string[] | null;
+  retry_max_attempts: number | null;
+  retry_backoff_seconds: number | null;
 };
 
 type Campaign = {
@@ -37,7 +66,50 @@ type Campaign = {
   throttle_max_seconds: number;
   window_start_hour: number;
   window_end_hour: number;
+  allowed_weekdays: number[];
+  max_per_hour: number;
+  max_per_day: number;
+  pause_on_reply: boolean;
+  dedupe_skip_days: number;
+  allowed_instance_ids: string[];
+  retry_max_attempts: number;
+  retry_backoff_seconds: number;
+  last_instance_idx: number;
 };
+
+export type EffectiveRules = {
+  weekdays: number[];
+  windowStart: number;
+  windowEnd: number;
+  maxPerHour: number;
+  maxPerDay: number;
+  pauseOnReply: boolean;
+  dedupeSkipDays: number;
+  instanceIds: string[];
+  retryMaxAttempts: number;
+  retryBackoffSeconds: number;
+};
+
+export function effectiveRules(step: Step, campaign: Campaign): EffectiveRules {
+  const instanceIds =
+    step.allowed_instance_ids && step.allowed_instance_ids.length
+      ? step.allowed_instance_ids
+      : campaign.allowed_instance_ids && campaign.allowed_instance_ids.length
+        ? campaign.allowed_instance_ids
+        : [campaign.instance_id];
+  return {
+    weekdays: step.allowed_weekdays ?? campaign.allowed_weekdays ?? [1, 2, 3, 4, 5],
+    windowStart: campaign.window_start_hour,
+    windowEnd: campaign.window_end_hour,
+    maxPerHour: step.max_per_hour ?? campaign.max_per_hour ?? 60,
+    maxPerDay: step.max_per_day ?? campaign.max_per_day ?? 500,
+    pauseOnReply: step.pause_on_reply ?? campaign.pause_on_reply ?? true,
+    dedupeSkipDays: step.dedupe_skip_days ?? campaign.dedupe_skip_days ?? 0,
+    instanceIds,
+    retryMaxAttempts: step.retry_max_attempts ?? campaign.retry_max_attempts ?? 3,
+    retryBackoffSeconds: step.retry_backoff_seconds ?? campaign.retry_backoff_seconds ?? 120,
+  };
+}
 
 /**
  * Cria registros em campaign_step_sends a partir do public-alvo do step:
