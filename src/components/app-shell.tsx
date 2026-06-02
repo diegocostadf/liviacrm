@@ -1,7 +1,7 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { LayoutDashboard, MessageSquare, Smartphone, LogOut, Settings, Sun, Moon, Megaphone } from "lucide-react";
+import { LayoutDashboard, MessageSquare, LogOut, Settings, Sun, Moon, Megaphone, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getMyProfile } from "@/lib/auth.functions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -12,8 +12,8 @@ import type { ReactNode } from "react";
 const nav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/inbox", label: "Inbox", icon: MessageSquare },
+  { to: "/leads", label: "Leads", icon: Users },
   { to: "/campaigns", label: "Campanhas", icon: Megaphone },
-  { to: "/connections", label: "Conexões", icon: Smartphone },
   { to: "/settings", label: "Configurações", icon: Settings },
 ] as const;
 
