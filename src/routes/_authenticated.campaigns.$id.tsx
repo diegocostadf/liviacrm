@@ -15,6 +15,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { CampaignSequence } from "@/components/campaign-sequence";
+import { CampaignRulesCard } from "@/components/campaign-rules";
 import {
   getCampaign, addCampaignTargets, removeCampaignTarget,
   setCampaignStatus, tickCampaignFn, previewCampaignMessage, updateCampaign,
@@ -292,6 +293,7 @@ function CampaignDetailPage() {
           <TabsTrigger value="targets">Destinatários ({targets.length})</TabsTrigger>
           <TabsTrigger value="import">Importar CSV</TabsTrigger>
           <TabsTrigger value="message">Mensagem</TabsTrigger>
+          <TabsTrigger value="rules">Regras de disparo</TabsTrigger>
         </TabsList>
 
         <TabsContent value="sequence">
@@ -503,6 +505,27 @@ function CampaignDetailPage() {
               </Label>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="rules">
+          <CampaignRulesCard
+            campaign={{
+              id: campaign.id,
+              instance_id: campaign.instance_id,
+              allowed_weekdays: (campaign as { allowed_weekdays?: number[] }).allowed_weekdays ?? [1,2,3,4,5],
+              max_per_hour: (campaign as { max_per_hour?: number }).max_per_hour ?? 60,
+              max_per_day: (campaign as { max_per_day?: number }).max_per_day ?? 500,
+              pause_on_reply: (campaign as { pause_on_reply?: boolean }).pause_on_reply ?? true,
+              dedupe_skip_days: (campaign as { dedupe_skip_days?: number }).dedupe_skip_days ?? 0,
+              allowed_instance_ids: (campaign as { allowed_instance_ids?: string[] }).allowed_instance_ids ?? [],
+              retry_max_attempts: (campaign as { retry_max_attempts?: number }).retry_max_attempts ?? 3,
+              retry_backoff_seconds: (campaign as { retry_backoff_seconds?: number }).retry_backoff_seconds ?? 120,
+              throttle_min_seconds: campaign.throttle_min_seconds,
+              throttle_max_seconds: campaign.throttle_max_seconds,
+              window_start_hour: campaign.window_start_hour,
+              window_end_hour: campaign.window_end_hour,
+            }}
+          />
         </TabsContent>
       </Tabs>
     </div>
