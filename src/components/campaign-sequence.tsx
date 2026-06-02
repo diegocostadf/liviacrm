@@ -39,6 +39,13 @@ type Step = {
   total_count: number;
   sent_count: number;
   failed_count: number;
+  allowed_weekdays?: number[] | null;
+  max_per_hour?: number | null;
+  max_per_day?: number | null;
+  pause_on_reply?: boolean | null;
+  dedupe_skip_days?: number | null;
+  retry_max_attempts?: number | null;
+  retry_backoff_seconds?: number | null;
 };
 
 const AUDIENCE_LABEL: Record<Step["audience"], string> = {
