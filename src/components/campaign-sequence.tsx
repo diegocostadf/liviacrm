@@ -527,6 +527,85 @@ function StepDialog({
               placeholder={`Oi, {{name}}! Quero te contar uma novidade…`}
             />
           </div>
+
+          <details
+            className="rounded-md border border-border bg-muted/20"
+            open={overrideOpen}
+            onToggle={(e) => setOverrideOpen((e.target as HTMLDetailsElement).open)}
+          >
+            <summary className="cursor-pointer px-3 py-2 text-xs font-medium">
+              Sobrescrever regras desta etapa (opcional — vazio = herda da campanha)
+            </summary>
+            <div className="space-y-3 p-3">
+              <div>
+                <Label className="text-xs">Dias da semana (vazio = herda)</Label>
+                <div className="mt-1 flex flex-wrap gap-1.5">
+                  {[
+                    { v: 0, l: "Dom" }, { v: 1, l: "Seg" }, { v: 2, l: "Ter" },
+                    { v: 3, l: "Qua" }, { v: 4, l: "Qui" }, { v: 5, l: "Sex" }, { v: 6, l: "Sáb" },
+                  ].map((d) => {
+                    const active = (ovWeekdays ?? []).includes(d.v);
+                    return (
+                      <button
+                        type="button"
+                        key={d.v}
+                        onClick={() => toggleOvWeekday(d.v)}
+                        className={`rounded-md border px-2.5 py-1 text-[11px] ${
+                          active
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border bg-background text-muted-foreground"
+                        }`}
+                      >
+                        {d.l}
+                      </button>
+                    );
+                  })}
+                  {ovWeekdays && (
+                    <button
+                      type="button"
+                      onClick={() => setOvWeekdays(null)}
+                      className="text-[10px] text-muted-foreground underline"
+                    >
+                      limpar (herda)
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+                <div>
+                  <Label className="text-xs">Máx/hora</Label>
+                  <Input type="number" min={1} value={ovMaxHour} onChange={(e) => setOvMaxHour(e.target.value)} placeholder="herda" />
+                </div>
+                <div>
+                  <Label className="text-xs">Máx/dia</Label>
+                  <Input type="number" min={1} value={ovMaxDay} onChange={(e) => setOvMaxDay(e.target.value)} placeholder="herda" />
+                </div>
+                <div>
+                  <Label className="text-xs">Pular já contatado (dias)</Label>
+                  <Input type="number" min={0} value={ovDedupe} onChange={(e) => setOvDedupe(e.target.value)} placeholder="herda" />
+                </div>
+                <div>
+                  <Label className="text-xs">Pausar se respondeu</Label>
+                  <Select value={ovPauseReply} onValueChange={(v) => setOvPauseReply(v as "" | "yes" | "no")}>
+                    <SelectTrigger><SelectValue placeholder="herda" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Herdar</SelectItem>
+                      <SelectItem value="yes">Sim</SelectItem>
+                      <SelectItem value="no">Não</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">Retry máx</Label>
+                  <Input type="number" min={1} max={10} value={ovRetryMax} onChange={(e) => setOvRetryMax(e.target.value)} placeholder="herda" />
+                </div>
+                <div>
+                  <Label className="text-xs">Backoff base (s)</Label>
+                  <Input type="number" min={10} max={3600} value={ovBackoff} onChange={(e) => setOvBackoff(e.target.value)} placeholder="herda" />
+                </div>
+              </div>
+            </div>
+          </details>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
@@ -550,6 +629,13 @@ function StepDialog({
                       ? audienceTags.split(",").map((t) => t.trim()).filter(Boolean)
                       : [],
                   ord,
+                  allowed_weekdays: ovWeekdays,
+                  max_per_hour: ovMaxHour.trim() ? Number(ovMaxHour) : null,
+                  max_per_day: ovMaxDay.trim() ? Number(ovMaxDay) : null,
+                  dedupe_skip_days: ovDedupe.trim() ? Number(ovDedupe) : null,
+                  pause_on_reply: ovPauseReply === "" ? null : ovPauseReply === "yes",
+                  retry_max_attempts: ovRetryMax.trim() ? Number(ovRetryMax) : null,
+                  retry_backoff_seconds: ovBackoff.trim() ? Number(ovBackoff) : null,
                 });
                 onClose();
               } catch (e) {
