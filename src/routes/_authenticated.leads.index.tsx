@@ -24,7 +24,7 @@ const STATUS_COLORS: Record<string, string> = {
   perdido: "bg-muted text-muted-foreground",
 };
 
-const TEMP_ICON: Record<string, JSX.Element> = {
+const TEMP_ICON: Record<string, React.ReactNode> = {
   frio: <Snowflake className="h-3 w-3" />,
   morno: <Sun className="h-3 w-3" />,
   quente: <Flame className="h-3 w-3" />,

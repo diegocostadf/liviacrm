@@ -27,7 +27,7 @@ const TEMP_COLORS: Record<string, string> = {
   morno: "bg-amber-500/15 text-amber-500",
   quente: "bg-red-500/15 text-red-500",
 };
-const TEMP_ICON: Record<string, JSX.Element> = {
+const TEMP_ICON: Record<string, React.ReactNode> = {
   frio: <Snowflake className="h-3 w-3" />,
   morno: <Sun className="h-3 w-3" />,
   quente: <Flame className="h-3 w-3" />,
