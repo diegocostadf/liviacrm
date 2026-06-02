@@ -66,6 +66,14 @@ export const createStep = createServerFn({ method: "POST" })
         audience_step_id: data.audience_step_id ?? null,
         audience_tags: data.audience_tags,
         ord: data.ord,
+        allowed_weekdays: data.allowed_weekdays ?? null,
+        max_per_hour: data.max_per_hour ?? null,
+        max_per_day: data.max_per_day ?? null,
+        pause_on_reply: data.pause_on_reply ?? null,
+        dedupe_skip_days: data.dedupe_skip_days ?? null,
+        allowed_instance_ids: data.allowed_instance_ids ?? null,
+        retry_max_attempts: data.retry_max_attempts ?? null,
+        retry_backoff_seconds: data.retry_backoff_seconds ?? null,
       })
       .select("id")
       .single();
