@@ -47,7 +47,7 @@ export function CampaignRulesCard({ campaign }: { campaign: CampaignRules }) {
     queryKey: ["instances"],
     queryFn: () => listInst(),
   });
-  const instances = (instData?.instances ?? []) as Array<{ id: string; name: string; status?: string | null }>;
+  const instances = (instData ?? []) as Array<{ id: string; name: string; status?: string | null }>;
 
   const [weekdays, setWeekdays] = useState<number[]>(campaign.allowed_weekdays ?? [1, 2, 3, 4, 5]);
   const [winStart, setWinStart] = useState(campaign.window_start_hour);
