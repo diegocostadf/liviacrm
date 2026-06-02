@@ -21,6 +21,7 @@ import { Route as AuthenticatedInboxRouteImport } from './routes/_authenticated.
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated.dashboard'
 import { Route as AuthenticatedConnectionsRouteImport } from './routes/_authenticated.connections'
 import { Route as AuthenticatedCampaignsRouteImport } from './routes/_authenticated.campaigns'
+import { Route as AuthenticatedLeadsIndexRouteImport } from './routes/_authenticated.leads.index'
 import { Route as AuthenticatedCampaignsIndexRouteImport } from './routes/_authenticated.campaigns.index'
 import { Route as AuthenticatedSettingsWebhooksRouteImport } from './routes/_authenticated.settings.webhooks'
 import { Route as AuthenticatedSettingsKnowledgeRouteImport } from './routes/_authenticated.settings.knowledge'
@@ -28,6 +29,7 @@ import { Route as AuthenticatedSettingsEvolutionRouteImport } from './routes/_au
 import { Route as AuthenticatedSettingsConnectionsRouteImport } from './routes/_authenticated.settings.connections'
 import { Route as AuthenticatedSettingsBotRouteImport } from './routes/_authenticated.settings.bot'
 import { Route as AuthenticatedSettingsAiProvidersRouteImport } from './routes/_authenticated.settings.ai-providers'
+import { Route as AuthenticatedLeadsIdRouteImport } from './routes/_authenticated.leads.$id'
 import { Route as AuthenticatedCampaignsIdRouteImport } from './routes/_authenticated.campaigns.$id'
 import { Route as ApiPublicWebhooksEvolutionRouteImport } from './routes/api/public/webhooks/evolution'
 import { Route as ApiPublicCampaignsTickRouteImport } from './routes/api/public/campaigns/tick'
@@ -92,6 +94,11 @@ const AuthenticatedCampaignsRoute = AuthenticatedCampaignsRouteImport.update({
   path: '/campaigns',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedLeadsIndexRoute = AuthenticatedLeadsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedLeadsRoute,
+} as any)
 const AuthenticatedCampaignsIndexRoute =
   AuthenticatedCampaignsIndexRouteImport.update({
     id: '/',
@@ -134,6 +141,11 @@ const AuthenticatedSettingsAiProvidersRoute =
     path: '/ai-providers',
     getParentRoute: () => AuthenticatedSettingsRoute,
   } as any)
+const AuthenticatedLeadsIdRoute = AuthenticatedLeadsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => AuthenticatedLeadsRoute,
+} as any)
 const AuthenticatedCampaignsIdRoute =
   AuthenticatedCampaignsIdRouteImport.update({
     id: '/$id',
@@ -160,11 +172,12 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/inbox': typeof AuthenticatedInboxRoute
   '/knowledge': typeof AuthenticatedKnowledgeRoute
-  '/leads': typeof AuthenticatedLeadsRoute
+  '/leads': typeof AuthenticatedLeadsRouteWithChildren
   '/settings': typeof AuthenticatedSettingsRouteWithChildren
   '/api/connections': typeof ApiConnectionsRoute
   '/api/settings': typeof ApiSettingsRoute
   '/campaigns/$id': typeof AuthenticatedCampaignsIdRoute
+  '/leads/$id': typeof AuthenticatedLeadsIdRoute
   '/settings/ai-providers': typeof AuthenticatedSettingsAiProvidersRoute
   '/settings/bot': typeof AuthenticatedSettingsBotRoute
   '/settings/connections': typeof AuthenticatedSettingsConnectionsRoute
@@ -172,6 +185,7 @@ export interface FileRoutesByFullPath {
   '/settings/knowledge': typeof AuthenticatedSettingsKnowledgeRoute
   '/settings/webhooks': typeof AuthenticatedSettingsWebhooksRoute
   '/campaigns/': typeof AuthenticatedCampaignsIndexRoute
+  '/leads/': typeof AuthenticatedLeadsIndexRoute
   '/api/public/campaigns/tick': typeof ApiPublicCampaignsTickRoute
   '/api/public/webhooks/evolution': typeof ApiPublicWebhooksEvolutionRoute
 }
@@ -181,12 +195,12 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/inbox': typeof AuthenticatedInboxRoute
   '/knowledge': typeof AuthenticatedKnowledgeRoute
-  '/leads': typeof AuthenticatedLeadsRoute
   '/settings': typeof AuthenticatedSettingsRouteWithChildren
   '/api/connections': typeof ApiConnectionsRoute
   '/api/settings': typeof ApiSettingsRoute
   '/': typeof AuthenticatedIndexRoute
   '/campaigns/$id': typeof AuthenticatedCampaignsIdRoute
+  '/leads/$id': typeof AuthenticatedLeadsIdRoute
   '/settings/ai-providers': typeof AuthenticatedSettingsAiProvidersRoute
   '/settings/bot': typeof AuthenticatedSettingsBotRoute
   '/settings/connections': typeof AuthenticatedSettingsConnectionsRoute
@@ -194,6 +208,7 @@ export interface FileRoutesByTo {
   '/settings/knowledge': typeof AuthenticatedSettingsKnowledgeRoute
   '/settings/webhooks': typeof AuthenticatedSettingsWebhooksRoute
   '/campaigns': typeof AuthenticatedCampaignsIndexRoute
+  '/leads': typeof AuthenticatedLeadsIndexRoute
   '/api/public/campaigns/tick': typeof ApiPublicCampaignsTickRoute
   '/api/public/webhooks/evolution': typeof ApiPublicWebhooksEvolutionRoute
 }
@@ -206,12 +221,13 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/inbox': typeof AuthenticatedInboxRoute
   '/_authenticated/knowledge': typeof AuthenticatedKnowledgeRoute
-  '/_authenticated/leads': typeof AuthenticatedLeadsRoute
+  '/_authenticated/leads': typeof AuthenticatedLeadsRouteWithChildren
   '/_authenticated/settings': typeof AuthenticatedSettingsRouteWithChildren
   '/api/connections': typeof ApiConnectionsRoute
   '/api/settings': typeof ApiSettingsRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/campaigns/$id': typeof AuthenticatedCampaignsIdRoute
+  '/_authenticated/leads/$id': typeof AuthenticatedLeadsIdRoute
   '/_authenticated/settings/ai-providers': typeof AuthenticatedSettingsAiProvidersRoute
   '/_authenticated/settings/bot': typeof AuthenticatedSettingsBotRoute
   '/_authenticated/settings/connections': typeof AuthenticatedSettingsConnectionsRoute
@@ -219,6 +235,7 @@ export interface FileRoutesById {
   '/_authenticated/settings/knowledge': typeof AuthenticatedSettingsKnowledgeRoute
   '/_authenticated/settings/webhooks': typeof AuthenticatedSettingsWebhooksRoute
   '/_authenticated/campaigns/': typeof AuthenticatedCampaignsIndexRoute
+  '/_authenticated/leads/': typeof AuthenticatedLeadsIndexRoute
   '/api/public/campaigns/tick': typeof ApiPublicCampaignsTickRoute
   '/api/public/webhooks/evolution': typeof ApiPublicWebhooksEvolutionRoute
 }
@@ -237,6 +254,7 @@ export interface FileRouteTypes {
     | '/api/connections'
     | '/api/settings'
     | '/campaigns/$id'
+    | '/leads/$id'
     | '/settings/ai-providers'
     | '/settings/bot'
     | '/settings/connections'
@@ -244,6 +262,7 @@ export interface FileRouteTypes {
     | '/settings/knowledge'
     | '/settings/webhooks'
     | '/campaigns/'
+    | '/leads/'
     | '/api/public/campaigns/tick'
     | '/api/public/webhooks/evolution'
   fileRoutesByTo: FileRoutesByTo
@@ -253,12 +272,12 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/inbox'
     | '/knowledge'
-    | '/leads'
     | '/settings'
     | '/api/connections'
     | '/api/settings'
     | '/'
     | '/campaigns/$id'
+    | '/leads/$id'
     | '/settings/ai-providers'
     | '/settings/bot'
     | '/settings/connections'
@@ -266,6 +285,7 @@ export interface FileRouteTypes {
     | '/settings/knowledge'
     | '/settings/webhooks'
     | '/campaigns'
+    | '/leads'
     | '/api/public/campaigns/tick'
     | '/api/public/webhooks/evolution'
   id:
@@ -283,6 +303,7 @@ export interface FileRouteTypes {
     | '/api/settings'
     | '/_authenticated/'
     | '/_authenticated/campaigns/$id'
+    | '/_authenticated/leads/$id'
     | '/_authenticated/settings/ai-providers'
     | '/_authenticated/settings/bot'
     | '/_authenticated/settings/connections'
@@ -290,6 +311,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/knowledge'
     | '/_authenticated/settings/webhooks'
     | '/_authenticated/campaigns/'
+    | '/_authenticated/leads/'
     | '/api/public/campaigns/tick'
     | '/api/public/webhooks/evolution'
   fileRoutesById: FileRoutesById
@@ -389,6 +411,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCampaignsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/leads/': {
+      id: '/_authenticated/leads/'
+      path: '/'
+      fullPath: '/leads/'
+      preLoaderRoute: typeof AuthenticatedLeadsIndexRouteImport
+      parentRoute: typeof AuthenticatedLeadsRoute
+    }
     '/_authenticated/campaigns/': {
       id: '/_authenticated/campaigns/'
       path: '/'
@@ -438,6 +467,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsAiProvidersRouteImport
       parentRoute: typeof AuthenticatedSettingsRoute
     }
+    '/_authenticated/leads/$id': {
+      id: '/_authenticated/leads/$id'
+      path: '/$id'
+      fullPath: '/leads/$id'
+      preLoaderRoute: typeof AuthenticatedLeadsIdRouteImport
+      parentRoute: typeof AuthenticatedLeadsRoute
+    }
     '/_authenticated/campaigns/$id': {
       id: '/_authenticated/campaigns/$id'
       path: '/$id'
@@ -478,6 +514,19 @@ const AuthenticatedCampaignsRouteWithChildren =
     AuthenticatedCampaignsRouteChildren,
   )
 
+interface AuthenticatedLeadsRouteChildren {
+  AuthenticatedLeadsIdRoute: typeof AuthenticatedLeadsIdRoute
+  AuthenticatedLeadsIndexRoute: typeof AuthenticatedLeadsIndexRoute
+}
+
+const AuthenticatedLeadsRouteChildren: AuthenticatedLeadsRouteChildren = {
+  AuthenticatedLeadsIdRoute: AuthenticatedLeadsIdRoute,
+  AuthenticatedLeadsIndexRoute: AuthenticatedLeadsIndexRoute,
+}
+
+const AuthenticatedLeadsRouteWithChildren =
+  AuthenticatedLeadsRoute._addFileChildren(AuthenticatedLeadsRouteChildren)
+
 interface AuthenticatedSettingsRouteChildren {
   AuthenticatedSettingsAiProvidersRoute: typeof AuthenticatedSettingsAiProvidersRoute
   AuthenticatedSettingsBotRoute: typeof AuthenticatedSettingsBotRoute
@@ -507,7 +556,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedInboxRoute: typeof AuthenticatedInboxRoute
   AuthenticatedKnowledgeRoute: typeof AuthenticatedKnowledgeRoute
-  AuthenticatedLeadsRoute: typeof AuthenticatedLeadsRoute
+  AuthenticatedLeadsRoute: typeof AuthenticatedLeadsRouteWithChildren
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRouteWithChildren
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
 }
@@ -518,7 +567,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedInboxRoute: AuthenticatedInboxRoute,
   AuthenticatedKnowledgeRoute: AuthenticatedKnowledgeRoute,
-  AuthenticatedLeadsRoute: AuthenticatedLeadsRoute,
+  AuthenticatedLeadsRoute: AuthenticatedLeadsRouteWithChildren,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRouteWithChildren,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
 }
@@ -538,3 +587,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
