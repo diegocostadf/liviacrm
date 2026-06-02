@@ -217,8 +217,9 @@ export async function materializeStep(stepId: string): Promise<number> {
 
 /**
  * Processa até `batch` envios pendentes de um disparo (step).
- * Respeita janela horária e throttle da campanha. Marca step como completed
- * quando não há mais pendentes.
+ * Respeita janela horária + dias da semana, multi-instância (round-robin com
+ * quota hora/dia), pausa-se-respondeu, dedupe-multi-campanha, retry com
+ * backoff exponencial. Marca step como completed quando esgota pendentes.
  */
 export async function tickStep(stepId: string, batch = 1) {
   const { data: step } = await supabaseAdmin
@@ -227,7 +228,7 @@ export async function tickStep(stepId: string, batch = 1) {
     .eq("id", stepId)
     .maybeSingle();
   if (!step) return { sent: 0, failed: 0, reason: "not_found" as const };
-  const s = step as Step;
+  const s = step as unknown as Step;
 
   if (!["scheduled", "sending"].includes(s.status)) {
     return { sent: 0, failed: 0, reason: "not_active" as const };
@@ -242,30 +243,106 @@ export async function tickStep(stepId: string, batch = 1) {
 
   const { data: campaign } = await supabaseAdmin
     .from("campaigns")
-    .select("id, status, instance_id, throttle_min_seconds, throttle_max_seconds, window_start_hour, window_end_hour")
+    .select("*")
     .eq("id", s.campaign_id)
     .maybeSingle();
   if (!campaign) return { sent: 0, failed: 0, reason: "no_campaign" as const };
-  const c = campaign as Campaign;
+  const c = campaign as unknown as Campaign;
+  const rules = effectiveRules(s, c);
 
-  if (!isWithinWindow(c.window_start_hour, c.window_end_hour)) {
+  if (!isWithinSchedule(rules.windowStart, rules.windowEnd, rules.weekdays)) {
     return { sent: 0, failed: 0, reason: "out_of_window" as const };
   }
 
-  const { data: inst } = await supabaseAdmin
+  // Carrega TODAS as instâncias permitidas
+  const { data: instRows } = await supabaseAdmin
     .from("whatsapp_instances")
-    .select("evolution_instance_name")
-    .eq("id", c.instance_id)
-    .maybeSingle();
-  if (!inst?.evolution_instance_name) return { sent: 0, failed: 0, reason: "no_instance" as const };
+    .select("id, evolution_instance_name")
+    .in("id", rules.instanceIds);
+  const instances = (instRows ?? []).filter((i) => i.evolution_instance_name);
+  if (!instances.length) return { sent: 0, failed: 0, reason: "no_instance" as const };
 
   await supabaseAdmin.from("campaign_steps").update({ status: "sending" }).eq("id", stepId);
+
+  // Pré-carrega contatos que já responderam nesta campanha (para pause_on_reply)
+  let repliedPhones = new Set<string>();
+  if (rules.pauseOnReply) {
+    const { data: replies } = await supabaseAdmin
+      .from("campaign_step_sends")
+      .select("phone")
+      .eq("campaign_id", s.campaign_id)
+      .not("replied_at", "is", null);
+    repliedPhones = new Set((replies ?? []).map((r) => r.phone));
+  }
+
+  // Pré-carrega telefones recém-contatados em OUTRAS campanhas (dedupe)
+  let dedupedPhones = new Set<string>();
+  if (rules.dedupeSkipDays > 0) {
+    const cutoff = new Date(Date.now() - rules.dedupeSkipDays * 86400 * 1000).toISOString();
+    const { data: recent } = await supabaseAdmin
+      .from("campaign_step_sends")
+      .select("phone, campaign_id")
+      .eq("status", "sent")
+      .gt("sent_at", cutoff);
+    dedupedPhones = new Set(
+      (recent ?? []).filter((r) => r.campaign_id !== s.campaign_id).map((r) => r.phone),
+    );
+  }
+
+  // Conta envios já feitos por instância nas últimas 1h e 24h
+  async function getInstanceQuota(instanceId: string) {
+    const hourAgo = new Date(Date.now() - 3600 * 1000).toISOString();
+    const dayAgo = new Date(Date.now() - 86400 * 1000).toISOString();
+    const [{ count: hCount }, { count: dCount }] = await Promise.all([
+      supabaseAdmin
+        .from("campaign_step_sends")
+        .select("id", { count: "exact", head: true })
+        .eq("instance_id_used", instanceId)
+        .eq("status", "sent")
+        .gt("sent_at", hourAgo),
+      supabaseAdmin
+        .from("campaign_step_sends")
+        .select("id", { count: "exact", head: true })
+        .eq("instance_id_used", instanceId)
+        .eq("status", "sent")
+        .gt("sent_at", dayAgo),
+    ]);
+    return { perHour: hCount ?? 0, perDay: dCount ?? 0 };
+  }
+
+  // Cache de quotas por instância (atualizada após cada envio bem-sucedido)
+  const quotas = new Map<string, { perHour: number; perDay: number }>();
+  for (const inst of instances) {
+    quotas.set(inst.id, await getInstanceQuota(inst.id));
+  }
+
+  let rrIdx = c.last_instance_idx ?? 0;
+  function pickInstance(): { id: string; evolution_instance_name: string } | null {
+    for (let k = 0; k < instances.length; k++) {
+      const inst = instances[(rrIdx + k) % instances.length];
+      const q = quotas.get(inst.id) ?? { perHour: 0, perDay: 0 };
+      if (q.perHour < rules.maxPerHour && q.perDay < rules.maxPerDay) {
+        rrIdx = (rrIdx + k + 1) % instances.length;
+        return inst as { id: string; evolution_instance_name: string };
+      }
+    }
+    return null;
+  }
 
   let sent = 0;
   let failed = 0;
   const nowIso = new Date().toISOString();
 
   for (let i = 0; i < batch; i++) {
+    // Quota global esgotada para todas as instâncias deste tick
+    const anyAvailable = instances.some((inst) => {
+      const q = quotas.get(inst.id) ?? { perHour: 0, perDay: 0 };
+      return q.perHour < rules.maxPerHour && q.perDay < rules.maxPerDay;
+    });
+    if (!anyAvailable) {
+      return { sent, failed, reason: "rate_limited" as const };
+    }
+
     const { data: candidates } = await supabaseAdmin
       .from("campaign_step_sends")
       .select("id, target_id, phone, attempts")
@@ -297,6 +374,22 @@ export async function tickStep(stepId: string, batch = 1) {
       .update({ locked_until: new Date(Date.now() + 60_000).toISOString() })
       .eq("id", send.id);
 
+    // Pausa-se-respondeu / dedupe
+    if (rules.pauseOnReply && repliedPhones.has(send.phone)) {
+      await supabaseAdmin
+        .from("campaign_step_sends")
+        .update({ status: "skipped_replied", error: "pause_on_reply", locked_until: null })
+        .eq("id", send.id);
+      continue;
+    }
+    if (rules.dedupeSkipDays > 0 && dedupedPhones.has(send.phone)) {
+      await supabaseAdmin
+        .from("campaign_step_sends")
+        .update({ status: "skipped_dedupe", error: `dedupe_${rules.dedupeSkipDays}d`, locked_until: null })
+        .eq("id", send.id);
+      continue;
+    }
+
     // Recarrega target para variáveis
     const { data: target } = await supabaseAdmin
       .from("campaign_targets")
@@ -316,6 +409,17 @@ export async function tickStep(stepId: string, batch = 1) {
         .update({ status: "skipped", error: "opt-out", locked_until: null })
         .eq("id", send.id);
       continue;
+    }
+
+    // Escolhe instância disponível (round-robin com quota)
+    const inst = pickInstance();
+    if (!inst) {
+      // Liberar lock e abortar este tick
+      await supabaseAdmin
+        .from("campaign_step_sends")
+        .update({ locked_until: null })
+        .eq("id", send.id);
+      return { sent, failed, reason: "rate_limited" as const };
     }
 
     const fields = {
@@ -355,20 +459,28 @@ export async function tickStep(stepId: string, batch = 1) {
           attempts: (send.attempts ?? 0) + 1,
           locked_until: null,
           error: null,
+          instance_id_used: inst.id,
         })
         .eq("id", send.id);
       sent++;
+      const q = quotas.get(inst.id) ?? { perHour: 0, perDay: 0 };
+      quotas.set(inst.id, { perHour: q.perHour + 1, perDay: q.perDay + 1 });
     } catch (e) {
       const attempts = (send.attempts ?? 0) + 1;
-      const finalFail = attempts >= MAX_ATTEMPTS;
+      const finalFail = attempts >= rules.retryMaxAttempts;
+      const backoffSec = Math.min(
+        3600,
+        rules.retryBackoffSeconds * Math.pow(2, Math.max(0, attempts - 1)),
+      );
       await supabaseAdmin
         .from("campaign_step_sends")
         .update({
           status: finalFail ? "failed" : "pending",
           attempts,
           error: (e as Error).message?.slice(0, 500) ?? "send error",
-          locked_until: finalFail ? null : new Date(Date.now() + 60_000).toISOString(),
+          locked_until: finalFail ? null : new Date(Date.now() + backoffSec * 1000).toISOString(),
           rendered_message: rendered.slice(0, 2000),
+          instance_id_used: inst.id,
         })
         .eq("id", send.id);
       if (finalFail) failed++;
@@ -388,6 +500,14 @@ export async function tickStep(stepId: string, batch = 1) {
       const wait = (Math.floor(Math.random() * (max - min + 1)) + min) * 1000;
       await new Promise((r) => setTimeout(r, wait));
     }
+  }
+
+  // Persiste último índice de round-robin para a próxima tick
+  if (instances.length > 1) {
+    await supabaseAdmin
+      .from("campaigns")
+      .update({ last_instance_idx: rrIdx })
+      .eq("id", c.id);
   }
 
   return { sent, failed, reason: "ok" as const };
