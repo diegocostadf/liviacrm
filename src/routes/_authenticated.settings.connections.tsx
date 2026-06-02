@@ -35,7 +35,7 @@ async function callConnectionsApi<T>(method: "GET" | "POST", body?: Record<strin
   return payload as T;
 }
 
-export const Route = createFileRoute("/_authenticated/connections")({
+export const Route = createFileRoute("/_authenticated/settings/connections")({
   head: () => ({ meta: [{ title: "Conexões — Lívia CRM" }] }),
   component: ConnectionsPage,
 });
