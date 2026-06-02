@@ -25,6 +25,15 @@ const baseStepSchema = z.object({
   audience_step_id: z.string().uuid().optional().nullable(),
   audience_tags: z.array(z.string().trim().min(1).max(60)).max(20).default([]),
   ord: z.number().int().min(0).max(999).default(1),
+  // Overrides (null = herda da campanha)
+  allowed_weekdays: z.array(z.number().int().min(0).max(6)).max(7).optional().nullable(),
+  max_per_hour: z.number().int().min(1).max(10000).optional().nullable(),
+  max_per_day: z.number().int().min(1).max(1000000).optional().nullable(),
+  pause_on_reply: z.boolean().optional().nullable(),
+  dedupe_skip_days: z.number().int().min(0).max(365).optional().nullable(),
+  allowed_instance_ids: z.array(z.string().uuid()).max(20).optional().nullable(),
+  retry_max_attempts: z.number().int().min(1).max(10).optional().nullable(),
+  retry_backoff_seconds: z.number().int().min(10).max(3600).optional().nullable(),
 });
 
 export const listSteps = createServerFn({ method: "POST" })
