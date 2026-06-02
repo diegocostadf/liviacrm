@@ -1,15 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { Loader2, Trash2, RefreshCw, Search, FileText, Upload, Check, X } from "lucide-react";
+import { Loader2, Trash2, RefreshCw, Search, FileText, Upload, Check, X, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { listDocuments, createTextDocument, reprocessDocument, deleteDocument, testSearch } from "@/lib/knowledge.functions";
+import { listDocuments, createTextDocument, reprocessDocument, deleteDocument, testSearch, getDocument, updateDocument } from "@/lib/knowledge.functions";
 
 export function KnowledgePage() {
   const list = useServerFn(listDocuments);
@@ -17,6 +18,8 @@ export function KnowledgePage() {
   const reproc = useServerFn(reprocessDocument);
   const del = useServerFn(deleteDocument);
   const search = useServerFn(testSearch);
+  const fetchDoc = useServerFn(getDocument);
+  const update = useServerFn(updateDocument);
   const qc = useQueryClient();
 
   const { data, isLoading } = useQuery({
@@ -29,6 +32,8 @@ export function KnowledgePage() {
   const [text, setText] = useState("");
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Array<{ id: string; content: string; similarity: number }>>([]);
+  const [editing, setEditing] = useState<{ id: string; name: string; text: string } | null>(null);
+  const [editLoading, setEditLoading] = useState(false);
 
   const createMut = useMutation({
     mutationFn: () => create({ data: { name: name.trim(), text: text.trim() } }),
@@ -50,6 +55,28 @@ export function KnowledgePage() {
     mutationFn: (id: string) => del({ data: { id } }),
     onSuccess: () => { toast.success("Documento removido."); qc.invalidateQueries({ queryKey: ["kb-docs"] }); },
   });
+
+  const updateMut = useMutation({
+    mutationFn: () => update({ data: { id: editing!.id, name: editing!.name.trim(), text: editing!.text.trim() } }),
+    onSuccess: () => {
+      toast.success("Documento atualizado. Reindexando…");
+      setEditing(null);
+      qc.invalidateQueries({ queryKey: ["kb-docs"] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro ao atualizar."),
+  });
+
+  async function openEdit(id: string) {
+    setEditLoading(true);
+    try {
+      const doc = await fetchDoc({ data: { id } });
+      setEditing({ id: doc.id, name: doc.name, text: doc.source_text ?? "" });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao carregar documento.");
+    } finally {
+      setEditLoading(false);
+    }
+  }
 
   async function onUploadFile(file: File) {
     if (!file) return;
@@ -117,6 +144,9 @@ export function KnowledgePage() {
                       {d.error && <div className="mt-1 text-xs text-destructive">{d.error}</div>}
                     </div>
                     <StatusBadge status={d.status} />
+                    <Button size="icon" variant="ghost" onClick={() => openEdit(d.id)} title="Editar" disabled={editLoading}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
                     <Button size="icon" variant="ghost" onClick={() => reprocMut.mutate(d.id)} title="Reprocessar">
                       <RefreshCw className="h-4 w-4" />
                     </Button>
@@ -189,6 +219,47 @@ export function KnowledgePage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Editar documento</DialogTitle>
+            <DialogDescription>
+              Ao salvar, os chunks antigos serão removidos e o conteúdo será reindexado.
+            </DialogDescription>
+          </DialogHeader>
+          {editing && (
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">Nome</label>
+                <Input value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">Conteúdo</label>
+                <Textarea
+                  rows={18}
+                  value={editing.text}
+                  onChange={(e) => setEditing({ ...editing, text: e.target.value })}
+                  className="font-mono text-xs"
+                />
+                <div className="mt-1 text-[11px] text-muted-foreground">
+                  {editing.text.length.toLocaleString()} caracteres
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setEditing(null)}>Cancelar</Button>
+            <Button
+              onClick={() => updateMut.mutate()}
+              disabled={updateMut.isPending || !editing || !editing.name.trim() || editing.text.trim().length < 20}
+            >
+              {updateMut.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Salvar e reindexar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
