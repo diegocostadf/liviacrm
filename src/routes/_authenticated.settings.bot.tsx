@@ -144,43 +144,16 @@ function BotSettingsPage() {
     if (loadedForRef.current === selected) return;
     const entry = data.find((d) => d.instance.id === selected);
     if (!entry) return;
-    const c = entry.config;
-    if (!c) {
-      setForm(DEFAULT_FORM);
-      loadedForRef.current = selected;
-      return;
-    }
-    const bh = (c.business_hours ?? {}) as { enabled?: boolean; start_hour?: number; end_hour?: number };
-    setForm({
-      enabled: c.enabled,
-      persona: c.persona,
-      goal: c.goal,
-      tone: c.tone,
-      language: c.language,
-      model_provider: (c.model_provider as ProviderId) ?? "lovable",
-      model_name: c.model_name ?? "google/gemini-3-flash-preview",
-      temperature: Number(c.temperature ?? 0.4),
-      max_tokens: c.max_tokens ?? 1024,
-      system_extra: c.system_extra ?? "",
-      system_prompt_md: (c as { system_prompt_md?: string | null }).system_prompt_md ?? "",
-      group_link: c.group_link ?? "",
-      landing_link: c.landing_link ?? "",
-      out_of_hours_message: c.out_of_hours_message ?? "",
-      handoff_keywords: (c.handoff_keywords ?? []).join(", "),
-      handoff_phone: (c as { handoff_phone?: string | null }).handoff_phone ?? "",
-      typing_indicator: (c as { typing_indicator?: boolean }).typing_indicator ?? true,
-      bh_enabled: Boolean(bh.enabled),
-      bh_start: bh.start_hour ?? 8,
-      bh_end: bh.end_hour ?? 21,
-    });
+    setForm(formFromConfig(entry.config as BotConfigRow | null));
     loadedForRef.current = selected;
   }, [selected, data]);
 
   const save = useMutation({
-    mutationFn: () =>
-      upsert({
+    mutationFn: async () => {
+      if (!selected) throw new Error("Selecione uma instância antes de salvar.");
+      return upsert({
         data: {
-          instance_id: selected!,
+          instance_id: selected,
           enabled: form.enabled,
           persona: form.persona,
           goal: form.goal,
@@ -200,11 +173,13 @@ function BotSettingsPage() {
           typing_indicator: form.typing_indicator,
           business_hours: { enabled: form.bh_enabled, start_hour: form.bh_start, end_hour: form.bh_end },
         },
-      }),
-    onSuccess: () => {
+      });
+    },
+    onSuccess: (result) => {
+      const saved = (result as { config?: BotConfigRow })?.config;
+      if (saved) setForm(formFromConfig(saved));
       toast.success("Configuração do bot salva");
-      // Allow the form to re-hydrate from the freshly persisted DB row.
-      loadedForRef.current = null;
+      loadedForRef.current = selected;
       qc.invalidateQueries({ queryKey: ["bot-configs"] });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
