@@ -38,6 +38,53 @@ async function fetchContactsByPhones(phones: string[]) {
   return rows;
 }
 
+async function fetchStepAudienceRows(stepId: string) {
+  const rows: Array<{ target_id: string; status: string; replied_at: string | null }> = [];
+  for (let from = 0; ; from += DB_PAGE_SIZE) {
+    const { data, error } = await supabaseAdmin
+      .from("campaign_step_sends")
+      .select("target_id, status, replied_at")
+      .eq("step_id", stepId)
+      .range(from, from + DB_PAGE_SIZE - 1);
+    if (error) throw new Error(error.message);
+    rows.push(...(data ?? []));
+    if (!data || data.length < DB_PAGE_SIZE) break;
+  }
+  return rows;
+}
+
+async function fetchRepliedPhones(campaignId: string) {
+  const rows: string[] = [];
+  for (let from = 0; ; from += DB_PAGE_SIZE) {
+    const { data, error } = await supabaseAdmin
+      .from("campaign_step_sends")
+      .select("phone")
+      .eq("campaign_id", campaignId)
+      .not("replied_at", "is", null)
+      .range(from, from + DB_PAGE_SIZE - 1);
+    if (error) throw new Error(error.message);
+    rows.push(...(data ?? []).map((r) => r.phone));
+    if (!data || data.length < DB_PAGE_SIZE) break;
+  }
+  return rows;
+}
+
+async function fetchRecentSentRows(cutoff: string) {
+  const rows: Array<{ phone: string; campaign_id: string }> = [];
+  for (let from = 0; ; from += DB_PAGE_SIZE) {
+    const { data, error } = await supabaseAdmin
+      .from("campaign_step_sends")
+      .select("phone, campaign_id")
+      .eq("status", "sent")
+      .gt("sent_at", cutoff)
+      .range(from, from + DB_PAGE_SIZE - 1);
+    if (error) throw new Error(error.message);
+    rows.push(...(data ?? []));
+    if (!data || data.length < DB_PAGE_SIZE) break;
+  }
+  return rows;
+}
+
 /** Approx BRT (UTC-3). */
 function brtNow(now = new Date()) {
   const ms = now.getTime() - 3 * 3600 * 1000;
