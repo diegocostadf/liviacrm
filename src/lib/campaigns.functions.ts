@@ -4,6 +4,52 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { tickCampaign, renderTemplate } from "./campaigns.server";
 
+const DB_PAGE_SIZE = 1000;
+
+async function fetchExistingTargetPhones(campaignId: string) {
+  const phones: string[] = [];
+  for (let from = 0; ; from += DB_PAGE_SIZE) {
+    const { data, error } = await supabaseAdmin
+      .from("campaign_targets")
+      .select("phone")
+      .eq("campaign_id", campaignId)
+      .order("created_at", { ascending: true })
+      .range(from, from + DB_PAGE_SIZE - 1);
+    if (error) throw new Error(error.message);
+    phones.push(...(data ?? []).map((row) => row.phone));
+    if (!data || data.length < DB_PAGE_SIZE) break;
+  }
+  return phones;
+}
+
+async function fetchExistingContactsByPhones(phones: string[]) {
+  const rows: Array<{ id: string; phone: string }> = [];
+  const uniquePhones = [...new Set(phones)];
+  for (let i = 0; i < uniquePhones.length; i += 500) {
+    const { data, error } = await supabaseAdmin
+      .from("contacts")
+      .select("id, phone")
+      .in("phone", uniquePhones.slice(i, i + 500));
+    if (error) throw new Error(error.message);
+    rows.push(...(data ?? []));
+  }
+  return rows;
+}
+
+async function fetchConversationsByContactIds(contactIds: string[]) {
+  const rows: Array<{ id: string; contact_id: string }> = [];
+  const uniqueIds = [...new Set(contactIds)];
+  for (let i = 0; i < uniqueIds.length; i += 500) {
+    const { data, error } = await supabaseAdmin
+      .from("conversations")
+      .select("id, contact_id")
+      .in("contact_id", uniqueIds.slice(i, i + 500));
+    if (error) throw new Error(error.message);
+    rows.push(...(data ?? []));
+  }
+  return rows;
+}
+
 export const listCampaigns = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async () => {
@@ -84,8 +130,14 @@ export const deleteCampaign = createServerFn({ method: "POST" })
 
 export const getCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
+  .inputValidator((d) => z.object({
+    id: z.string().uuid(),
+    targetPage: z.number().int().min(1).default(1),
+    targetPageSize: z.number().int().min(1).max(200).default(100),
+  }).parse(d))
   .handler(async ({ data }) => {
+    const from = (data.targetPage - 1) * data.targetPageSize;
+    const to = from + data.targetPageSize - 1;
     const { data: campaign, error } = await supabaseAdmin
       .from("campaigns")
       .select("*")
@@ -94,18 +146,32 @@ export const getCampaign = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     if (!campaign) throw new Error("Campanha não encontrada");
 
-    const { data: targets } = await supabaseAdmin
+    const { data: targets, error: targetsError } = await supabaseAdmin
       .from("campaign_targets")
       .select("id, phone, name, status, sent_at, error, attempts, custom_fields, rendered_message")
       .eq("campaign_id", data.id)
       .order("created_at", { ascending: true })
-      .limit(500);
-    const { count: pendingCount } = await supabaseAdmin
-      .from("campaign_targets")
-      .select("id", { count: "exact", head: true })
-      .eq("campaign_id", data.id)
-      .eq("status", "pending");
-    return { campaign, targets: targets ?? [], pendingCount: pendingCount ?? 0 };
+      .range(from, to);
+    if (targetsError) throw new Error(targetsError.message);
+    const [{ count: targetCount }, { count: pendingCount }] = await Promise.all([
+      supabaseAdmin
+        .from("campaign_targets")
+        .select("id", { count: "exact", head: true })
+        .eq("campaign_id", data.id),
+      supabaseAdmin
+        .from("campaign_targets")
+        .select("id", { count: "exact", head: true })
+        .eq("campaign_id", data.id)
+        .eq("status", "pending"),
+    ]);
+    return {
+      campaign,
+      targets: targets ?? [],
+      targetCount: targetCount ?? 0,
+      pendingCount: pendingCount ?? 0,
+      targetPage: data.targetPage,
+      targetPageSize: data.targetPageSize,
+    };
   });
 
 const targetItemSchema = z.object({
@@ -167,35 +233,19 @@ export const addCampaignTargets = createServerFn({ method: "POST" })
         seen.add(t.phone);
         return true;
       });
-      const { data: existing } = await supabaseAdmin
-        .from("campaign_targets")
-        .select("phone")
-        .eq("campaign_id", data.campaignId);
-      const existingSet = new Set((existing ?? []).map((e) => e.phone));
+      const existingSet = new Set(await fetchExistingTargetPhones(data.campaignId));
       items = items.filter((t) => !existingSet.has(t.phone));
     }
 
     if (!items.length) return { inserted: 0 };
-
-    // Insert in chunks of 500
-    let inserted = 0;
-    for (let i = 0; i < items.length; i += 500) {
-      const chunk = items.slice(i, i + 500);
-      const { error } = await supabaseAdmin.from("campaign_targets").insert(chunk);
-      if (error) throw new Error(error.message);
-      inserted += chunk.length;
-    }
 
     // ===== CRM: upsert de contatos + classificação inicial =====
     const phonesByName = new Map<string, string | null>();
     for (const t of items) phonesByName.set(t.phone, t.name);
     const allPhones = [...phonesByName.keys()];
 
-    const { data: existingContacts } = await supabaseAdmin
-      .from("contacts")
-      .select("id, phone")
-      .in("phone", allPhones);
-    const existingByPhone = new Map((existingContacts ?? []).map((c) => [c.phone, c.id]));
+    const existingContacts = await fetchExistingContactsByPhones(allPhones);
+    const existingByPhone = new Map(existingContacts.map((c) => [c.phone, c.id]));
 
     // 1) Cria contatos novos
     const toCreate = allPhones
@@ -217,12 +267,22 @@ export const addCampaignTargets = createServerFn({ method: "POST" })
       }
     }
 
+    // Insere destinatários já vinculados ao contato do CRM.
+    let inserted = 0;
+    const targetsToInsert = items.map((t) => ({ ...t, contact_id: existingByPhone.get(t.phone) ?? null }));
+    for (let i = 0; i < targetsToInsert.length; i += 500) {
+      const chunk = targetsToInsert.slice(i, i + 500);
+      const { error } = await supabaseAdmin.from("campaign_targets").insert(chunk);
+      if (error) throw new Error(error.message);
+      inserted += chunk.length;
+    }
+
     // 2) Decide quem recebe novo lead_intent_event (sempre para novos; opt-in para existentes)
     const recipientsForEvent: Array<{ phone: string; id: string }> = [];
     for (const p of allPhones) {
       const id = existingByPhone.get(p);
       if (!id) continue;
-      const wasNew = !existingContacts?.some((c) => c.phone === p);
+      const wasNew = !existingContacts.some((c) => c.phone === p);
       if (wasNew || data.overwrite_intent) {
         recipientsForEvent.push({ phone: p, id });
       }
@@ -234,11 +294,8 @@ export const addCampaignTargets = createServerFn({ method: "POST" })
     // se já existir uma conversa do contato. Para os demais, atualizamos last_intent diretamente.
     if (recipientsForEvent.length) {
       const contactIds = recipientsForEvent.map((r) => r.id);
-      const { data: convs } = await supabaseAdmin
-        .from("conversations")
-        .select("id, contact_id")
-        .in("contact_id", contactIds);
-      const convByContact = new Map((convs ?? []).map((c) => [c.contact_id, c.id]));
+      const convs = await fetchConversationsByContactIds(contactIds);
+      const convByContact = new Map(convs.map((c) => [c.contact_id, c.id]));
 
       const events = recipientsForEvent
         .filter((r) => convByContact.has(r.id))
@@ -345,24 +402,35 @@ export const getCampaignMetrics = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data }) => {
-    const { data: rows, error } = await supabaseAdmin
-      .from("campaign_step_sends")
-      .select("status, delivered_at, read_at, sent_at, replied_at")
-      .eq("campaign_id", data.id);
-    if (error) throw new Error(error.message);
-
-    const m = { total: 0, pending: 0, sent: 0, delivered: 0, read: 0, replied: 0, failed: 0, skipped: 0 };
-    for (const r of rows ?? []) {
-      m.total++;
-      if (r.status === "pending") m.pending++;
-      if (r.status === "failed") m.failed++;
-      if (r.status === "skipped" || r.status === "skipped_replied" || r.status === "skipped_dedupe") m.skipped++;
-      if (r.status === "replied") m.replied++;
-      // "enviado com sucesso" = qualquer status que teve sent_at
-      if (r.sent_at) m.sent++;
-      if (r.delivered_at) m.delivered++;
-      if (r.read_at) m.read++;
-    }
+    const [targets, pendingTargets, sentTargets, failedTargets, stepTotal, stepPending, stepSent, stepFailed, delivered, read, replied, skipped] = await Promise.all([
+      supabaseAdmin.from("campaign_targets").select("id", { count: "exact", head: true }).eq("campaign_id", data.id),
+      supabaseAdmin.from("campaign_targets").select("id", { count: "exact", head: true }).eq("campaign_id", data.id).eq("status", "pending"),
+      supabaseAdmin.from("campaign_targets").select("id", { count: "exact", head: true }).eq("campaign_id", data.id).eq("status", "sent"),
+      supabaseAdmin.from("campaign_targets").select("id", { count: "exact", head: true }).eq("campaign_id", data.id).eq("status", "failed"),
+      supabaseAdmin.from("campaign_step_sends").select("id", { count: "exact", head: true }).eq("campaign_id", data.id),
+      supabaseAdmin.from("campaign_step_sends").select("id", { count: "exact", head: true }).eq("campaign_id", data.id).eq("status", "pending"),
+      supabaseAdmin.from("campaign_step_sends").select("id", { count: "exact", head: true }).eq("campaign_id", data.id).in("status", ["sent", "replied"]),
+      supabaseAdmin.from("campaign_step_sends").select("id", { count: "exact", head: true }).eq("campaign_id", data.id).eq("status", "failed"),
+      supabaseAdmin.from("campaign_step_sends").select("id", { count: "exact", head: true }).eq("campaign_id", data.id).not("delivered_at", "is", null),
+      supabaseAdmin.from("campaign_step_sends").select("id", { count: "exact", head: true }).eq("campaign_id", data.id).not("read_at", "is", null),
+      supabaseAdmin.from("campaign_step_sends").select("id", { count: "exact", head: true }).eq("campaign_id", data.id).eq("status", "replied"),
+      supabaseAdmin.from("campaign_step_sends").select("id", { count: "exact", head: true }).eq("campaign_id", data.id).in("status", ["skipped", "skipped_replied", "skipped_dedupe"]),
+    ]);
+    const countErrors = [targets, pendingTargets, sentTargets, failedTargets, stepTotal, stepPending, stepSent, stepFailed, delivered, read, replied, skipped]
+      .map((r) => r.error?.message)
+      .filter(Boolean);
+    if (countErrors.length) throw new Error(countErrors[0]);
+    const hasStepSends = (stepTotal.count ?? 0) > 0;
+    const m = {
+      total: targets.count ?? 0,
+      pending: hasStepSends ? (stepPending.count ?? 0) : (pendingTargets.count ?? 0),
+      sent: Math.max(sentTargets.count ?? 0, stepSent.count ?? 0),
+      delivered: delivered.count ?? 0,
+      read: read.count ?? 0,
+      replied: replied.count ?? 0,
+      failed: Math.max(failedTargets.count ?? 0, stepFailed.count ?? 0),
+      skipped: skipped.count ?? 0,
+    };
     const pct = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 1000) / 10 : 0);
     return {
       counts: m,

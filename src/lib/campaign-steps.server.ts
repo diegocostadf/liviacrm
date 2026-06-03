@@ -6,6 +6,85 @@ function normalizePhone(raw: string): string {
   return String(raw ?? "").replace(/\D/g, "");
 }
 
+const DB_PAGE_SIZE = 1000;
+
+async function fetchCampaignTargetPool(campaignId: string) {
+  const rows: Array<{ id: string; phone: string; name: string | null; custom_fields: unknown }> = [];
+  for (let from = 0; ; from += DB_PAGE_SIZE) {
+    const { data, error } = await supabaseAdmin
+      .from("campaign_targets")
+      .select("id, phone, name, custom_fields")
+      .eq("campaign_id", campaignId)
+      .order("created_at", { ascending: true })
+      .range(from, from + DB_PAGE_SIZE - 1);
+    if (error) throw new Error(error.message);
+    rows.push(...(data ?? []));
+    if (!data || data.length < DB_PAGE_SIZE) break;
+  }
+  return rows;
+}
+
+async function fetchContactsByPhones(phones: string[]) {
+  const rows: Array<{ id: string; phone: string; opted_out: boolean; journey_completed: boolean; tags: string[] | null }> = [];
+  const uniquePhones = [...new Set(phones)];
+  for (let i = 0; i < uniquePhones.length; i += 500) {
+    const { data, error } = await supabaseAdmin
+      .from("contacts")
+      .select("id, phone, opted_out, journey_completed, tags")
+      .in("phone", uniquePhones.slice(i, i + 500));
+    if (error) throw new Error(error.message);
+    rows.push(...(data ?? []));
+  }
+  return rows;
+}
+
+async function fetchStepAudienceRows(stepId: string) {
+  const rows: Array<{ target_id: string; status: string; replied_at: string | null }> = [];
+  for (let from = 0; ; from += DB_PAGE_SIZE) {
+    const { data, error } = await supabaseAdmin
+      .from("campaign_step_sends")
+      .select("target_id, status, replied_at")
+      .eq("step_id", stepId)
+      .range(from, from + DB_PAGE_SIZE - 1);
+    if (error) throw new Error(error.message);
+    rows.push(...(data ?? []));
+    if (!data || data.length < DB_PAGE_SIZE) break;
+  }
+  return rows;
+}
+
+async function fetchRepliedPhones(campaignId: string) {
+  const rows: string[] = [];
+  for (let from = 0; ; from += DB_PAGE_SIZE) {
+    const { data, error } = await supabaseAdmin
+      .from("campaign_step_sends")
+      .select("phone")
+      .eq("campaign_id", campaignId)
+      .not("replied_at", "is", null)
+      .range(from, from + DB_PAGE_SIZE - 1);
+    if (error) throw new Error(error.message);
+    rows.push(...(data ?? []).map((r) => r.phone));
+    if (!data || data.length < DB_PAGE_SIZE) break;
+  }
+  return rows;
+}
+
+async function fetchRecentSentRows(cutoff: string) {
+  const rows: Array<{ phone: string; campaign_id: string }> = [];
+  for (let from = 0; ; from += DB_PAGE_SIZE) {
+    const { data, error } = await supabaseAdmin
+      .from("campaign_step_sends")
+      .select("phone, campaign_id")
+      .eq("status", "sent")
+      .gt("sent_at", cutoff)
+      .range(from, from + DB_PAGE_SIZE - 1);
+    if (error) throw new Error(error.message);
+    rows.push(...(data ?? []));
+    if (!data || data.length < DB_PAGE_SIZE) break;
+  }
+  return rows;
+}
+
 /** Approx BRT (UTC-3). */
 function brtNow(now = new Date()) {
   const ms = now.getTime() - 3 * 3600 * 1000;
@@ -130,12 +209,9 @@ export async function materializeStep(stepId: string): Promise<number> {
   if (!step) return 0;
   if (step.materialized_at) return 0;
 
-  // Pool de contatos da campanha
-  const { data: pool } = await supabaseAdmin
-    .from("campaign_targets")
-    .select("id, phone, name, custom_fields")
-    .eq("campaign_id", step.campaign_id);
-  if (!pool?.length) {
+  // Pool de contatos da campanha — paginado para listas grandes.
+  const pool = await fetchCampaignTargetPool(step.campaign_id);
+  if (!pool.length) {
     await supabaseAdmin
       .from("campaign_steps")
       .update({ materialized_at: new Date().toISOString(), total_count: 0 })
@@ -146,24 +222,18 @@ export async function materializeStep(stepId: string): Promise<number> {
   const phones = pool.map((p) => p.phone);
 
   // Mapa de contatos para opt-out / journey / tags
-  const { data: contacts } = await supabaseAdmin
-    .from("contacts")
-    .select("id, phone, opted_out, journey_completed, tags")
-    .in("phone", phones);
-  const cByPhone = new Map((contacts ?? []).map((c) => [c.phone, c]));
+  const contacts = await fetchContactsByPhones(phones);
+  const cByPhone = new Map(contacts.map((c) => [c.phone, c]));
 
   // Filtro por step referenciado
   let allowedTargetIds: Set<string> | null = null;
   if ((step.audience === "not_responded_step" || step.audience === "responded_step") && step.audience_step_id) {
-    const { data: prev } = await supabaseAdmin
-      .from("campaign_step_sends")
-      .select("target_id, status, replied_at")
-      .eq("step_id", step.audience_step_id);
-    const replied = new Set((prev ?? []).filter((r) => r.replied_at || r.status === "replied").map((r) => r.target_id));
+    const prev = await fetchStepAudienceRows(step.audience_step_id);
+    const replied = new Set(prev.filter((r) => r.replied_at || r.status === "replied").map((r) => r.target_id));
     if (step.audience === "responded_step") {
       allowedTargetIds = replied;
     } else {
-      const sent = new Set((prev ?? []).filter((r) => r.status === "sent" || r.status === "replied").map((r) => r.target_id));
+      const sent = new Set(prev.filter((r) => r.status === "sent" || r.status === "replied").map((r) => r.target_id));
       allowedTargetIds = new Set([...sent].filter((id) => !replied.has(id)));
     }
   }
@@ -193,26 +263,29 @@ export async function materializeStep(stepId: string): Promise<number> {
     }));
 
   // Insere em chunks; UNIQUE(step_id,target_id) evita duplicatas em re-execuções
-  let inserted = 0;
   for (let i = 0; i < rows.length; i += 500) {
     const chunk = rows.slice(i, i + 500);
     const { error } = await supabaseAdmin
       .from("campaign_step_sends")
       .upsert(chunk, { onConflict: "step_id,target_id", ignoreDuplicates: true });
     if (error) throw new Error(error.message);
-    inserted += chunk.length;
   }
+
+  const { count: totalSends } = await supabaseAdmin
+    .from("campaign_step_sends")
+    .select("id", { count: "exact", head: true })
+    .eq("step_id", stepId);
 
   await supabaseAdmin
     .from("campaign_steps")
     .update({
       materialized_at: new Date().toISOString(),
-      total_count: inserted,
+      total_count: totalSends ?? rows.length,
       status: step.status === "draft" ? "scheduled" : step.status,
     })
     .eq("id", stepId);
 
-  return inserted;
+  return totalSends ?? rows.length;
 }
 
 /**
@@ -267,25 +340,16 @@ export async function tickStep(stepId: string, batch = 1) {
   // Pré-carrega contatos que já responderam nesta campanha (para pause_on_reply)
   let repliedPhones = new Set<string>();
   if (rules.pauseOnReply) {
-    const { data: replies } = await supabaseAdmin
-      .from("campaign_step_sends")
-      .select("phone")
-      .eq("campaign_id", s.campaign_id)
-      .not("replied_at", "is", null);
-    repliedPhones = new Set((replies ?? []).map((r) => r.phone));
+    repliedPhones = new Set(await fetchRepliedPhones(s.campaign_id));
   }
 
   // Pré-carrega telefones recém-contatados em OUTRAS campanhas (dedupe)
   let dedupedPhones = new Set<string>();
   if (rules.dedupeSkipDays > 0) {
     const cutoff = new Date(Date.now() - rules.dedupeSkipDays * 86400 * 1000).toISOString();
-    const { data: recent } = await supabaseAdmin
-      .from("campaign_step_sends")
-      .select("phone, campaign_id")
-      .eq("status", "sent")
-      .gt("sent_at", cutoff);
+    const recent = await fetchRecentSentRows(cutoff);
     dedupedPhones = new Set(
-      (recent ?? []).filter((r) => r.campaign_id !== s.campaign_id).map((r) => r.phone),
+      recent.filter((r) => r.campaign_id !== s.campaign_id).map((r) => r.phone),
     );
   }
 

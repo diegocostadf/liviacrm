@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Play, Pause, Upload, Trash2, Eye, RefreshCcw, FileUp } from "lucide-react";
+import { ArrowLeft, Play, Pause, Upload, Trash2, Eye, RefreshCcw, FileUp, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -189,10 +189,12 @@ function CampaignDetailPage() {
   const previewFn = useServerFn(previewCampaignMessage);
   const updateFn = useServerFn(updateCampaign);
   const metricsFn = useServerFn(getCampaignMetrics);
+  const [targetPage, setTargetPage] = useState(1);
+  const targetPageSize = 100;
 
   const { data, isLoading } = useQuery({
-    queryKey: ["campaign", id],
-    queryFn: () => getFn({ data: { id } }),
+    queryKey: ["campaign", id, { targetPage, targetPageSize }],
+    queryFn: () => getFn({ data: { id, targetPage, targetPageSize } }),
     refetchInterval: 3000,
   });
 
@@ -204,6 +206,10 @@ function CampaignDetailPage() {
 
   const campaign = data?.campaign;
   const targets = data?.targets ?? [];
+  const targetTotal = data?.targetCount ?? campaign?.total_count ?? 0;
+  const targetTotalPages = Math.max(1, Math.ceil(targetTotal / targetPageSize));
+  const targetFrom = targetTotal === 0 ? 0 : (targetPage - 1) * targetPageSize + 1;
+  const targetTo = Math.min(targetPage * targetPageSize, targetTotal);
 
   const [csv, setCsv] = useState("phone,name\n5511999999999,Maria\n");
   const [importing, setImporting] = useState(false);
@@ -265,7 +271,7 @@ function CampaignDetailPage() {
     const isExcel = /\.(xlsx|xls)$/i.test(file.name);
     const isCsv = /\.(csv|txt)$/i.test(file.name) || file.type.includes("csv") || file.type.includes("text");
     if (!isExcel && !isCsv) { toast.error("Envie um arquivo .csv, .xlsx ou .xls"); return; }
-    if (file.size > 10 * 1024 * 1024) { toast.error("Arquivo muito grande (máx 10MB)"); return; }
+    if (file.size > 25 * 1024 * 1024) { toast.error("Arquivo muito grande (máx 25MB)"); return; }
     try {
       const rows = isExcel
         ? sheetToRows(await file.arrayBuffer())
@@ -305,14 +311,19 @@ function CampaignDetailPage() {
         const { phone, name, ...rest } = r;
         return { phone, name: name || undefined, custom_fields: rest };
       });
-      const { inserted } = await addFn({ data: {
-        campaignId: id,
-        targets: items,
-        dedupe: true,
-        initial_intent: initialIntent,
-        overwrite_intent: overwriteIntent,
-      } });
+      let inserted = 0;
+      for (let i = 0; i < items.length; i += 4000) {
+        const res = await addFn({ data: {
+          campaignId: id,
+          targets: items.slice(i, i + 4000),
+          dedupe: true,
+          initial_intent: initialIntent,
+          overwrite_intent: overwriteIntent,
+        } });
+        inserted += res.inserted;
+      }
       toast.success(`${inserted} contatos importados`);
+      setTargetPage(1);
       setCsv("phone,name\n");
       setFileName(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -424,7 +435,7 @@ function CampaignDetailPage() {
       <Tabs defaultValue="sequence">
         <TabsList>
           <TabsTrigger value="sequence">Sequência</TabsTrigger>
-          <TabsTrigger value="targets">Destinatários ({targets.length})</TabsTrigger>
+          <TabsTrigger value="targets">Destinatários ({targetTotal})</TabsTrigger>
           <TabsTrigger value="import">Importar lista</TabsTrigger>
           <TabsTrigger value="message">Mensagem</TabsTrigger>
           <TabsTrigger value="rules">Regras de disparo</TabsTrigger>
@@ -470,6 +481,7 @@ function CampaignDetailPage() {
                         <td className="px-3 py-2 text-right">
                           <Button variant="ghost" size="icon" onClick={async () => {
                             await rmFn({ data: { id: t.id, campaignId: id } });
+                            if (targets.length === 1 && targetPage > 1) setTargetPage((p) => p - 1);
                             qc.invalidateQueries({ queryKey: ["campaign", id] });
                           }}>
                             <Trash2 className="h-3.5 w-3.5 text-destructive" />
@@ -482,6 +494,18 @@ function CampaignDetailPage() {
                     )}
                   </tbody>
                 </table>
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-3 py-2 text-xs text-muted-foreground">
+                  <span>{targetFrom}-{targetTo} de {targetTotal} destinatários</span>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setTargetPage((p) => Math.max(1, p - 1))} disabled={targetPage <= 1 || isLoading}>
+                      <ChevronLeft className="h-3.5 w-3.5" /> Anterior
+                    </Button>
+                    <span>Página {targetPage} de {targetTotalPages}</span>
+                    <Button variant="outline" size="sm" onClick={() => setTargetPage((p) => Math.min(targetTotalPages, p + 1))} disabled={targetPage >= targetTotalPages || isLoading}>
+                      Próxima <ChevronRight className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
