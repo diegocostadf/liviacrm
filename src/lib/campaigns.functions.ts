@@ -388,24 +388,29 @@ export const getCampaignMetrics = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data }) => {
-    const [targets, pendingTargets, sentTargets, failedTargets, delivered, read, replied, skipped] = await Promise.all([
+    const [targets, pendingTargets, sentTargets, failedTargets, stepTotal, stepPending, stepSent, stepFailed, delivered, read, replied, skipped] = await Promise.all([
       supabaseAdmin.from("campaign_targets").select("id", { count: "exact", head: true }).eq("campaign_id", data.id),
       supabaseAdmin.from("campaign_targets").select("id", { count: "exact", head: true }).eq("campaign_id", data.id).eq("status", "pending"),
       supabaseAdmin.from("campaign_targets").select("id", { count: "exact", head: true }).eq("campaign_id", data.id).eq("status", "sent"),
       supabaseAdmin.from("campaign_targets").select("id", { count: "exact", head: true }).eq("campaign_id", data.id).eq("status", "failed"),
+      supabaseAdmin.from("campaign_step_sends").select("id", { count: "exact", head: true }).eq("campaign_id", data.id),
+      supabaseAdmin.from("campaign_step_sends").select("id", { count: "exact", head: true }).eq("campaign_id", data.id).eq("status", "pending"),
+      supabaseAdmin.from("campaign_step_sends").select("id", { count: "exact", head: true }).eq("campaign_id", data.id).in("status", ["sent", "replied"]),
+      supabaseAdmin.from("campaign_step_sends").select("id", { count: "exact", head: true }).eq("campaign_id", data.id).eq("status", "failed"),
       supabaseAdmin.from("campaign_step_sends").select("id", { count: "exact", head: true }).eq("campaign_id", data.id).not("delivered_at", "is", null),
       supabaseAdmin.from("campaign_step_sends").select("id", { count: "exact", head: true }).eq("campaign_id", data.id).not("read_at", "is", null),
-      supabaseAdmin.from("campaign_step_sends").select("id", { count: "exact", head: true }).eq("campaign_id", data.id).or("status.eq.replied,replied_at.not.is.null"),
+      supabaseAdmin.from("campaign_step_sends").select("id", { count: "exact", head: true }).eq("campaign_id", data.id).eq("status", "replied"),
       supabaseAdmin.from("campaign_step_sends").select("id", { count: "exact", head: true }).eq("campaign_id", data.id).in("status", ["skipped", "skipped_replied", "skipped_dedupe"]),
     ]);
+    const hasStepSends = (stepTotal.count ?? 0) > 0;
     const m = {
       total: targets.count ?? 0,
-      pending: pendingTargets.count ?? 0,
-      sent: sentTargets.count ?? 0,
+      pending: hasStepSends ? (stepPending.count ?? 0) : (pendingTargets.count ?? 0),
+      sent: Math.max(sentTargets.count ?? 0, stepSent.count ?? 0),
       delivered: delivered.count ?? 0,
       read: read.count ?? 0,
       replied: replied.count ?? 0,
-      failed: failedTargets.count ?? 0,
+      failed: Math.max(failedTargets.count ?? 0, stepFailed.count ?? 0),
       skipped: skipped.count ?? 0,
     };
     const pct = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 1000) / 10 : 0);
