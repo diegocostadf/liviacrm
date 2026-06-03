@@ -361,7 +361,7 @@ function CampaignDetailPage() {
           <div>
             <h1 className="text-xl font-semibold">{campaign.name}</h1>
             <div className="text-xs text-muted-foreground">
-              Throttle {campaign.throttle_min_seconds}-{campaign.throttle_max_seconds}s · Janela {campaign.window_start_hour}h–{campaign.window_end_hour}h
+              Cadência {campaign.throttle_min_seconds}-{campaign.throttle_max_seconds}s · Janela {campaign.window_start_hour}h–{campaign.window_end_hour}h · Limite/hora distribuído (regras)
             </div>
           </div>
           <Badge className={s.tone}>{s.label}</Badge>
