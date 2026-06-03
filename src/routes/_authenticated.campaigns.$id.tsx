@@ -20,6 +20,7 @@ import {
   getCampaign, addCampaignTargets, removeCampaignTarget,
   setCampaignStatus, tickCampaignFn, previewCampaignMessage, updateCampaign,
 } from "@/lib/campaigns.functions";
+import * as XLSX from "xlsx";
 
 export const Route = createFileRoute("/_authenticated/campaigns/$id")({
   component: CampaignDetailPage,
@@ -92,6 +93,88 @@ function parseCsv(input: string): Array<Record<string, string>> {
       headers.forEach((h, i) => { obj[h] = (r[i] ?? "").trim(); });
       return obj;
     });
+}
+
+/**
+ * Sinônimos de cabeçalho aceitos no upload. Tudo é normalizado para snake_case
+ * minúsculo antes da comparação. As chaves alvo são as colunas do modelo de
+ * importação ("phone", "name").
+ */
+const HEADER_SYNONYMS: Record<string, string> = {
+  phone: "phone", telefone: "phone", tel: "phone", fone: "phone",
+  celular: "phone", whatsapp: "phone", whats: "phone", wpp: "phone",
+  numero: "phone", número: "phone", "n°": "phone", "nº": "phone",
+  contato: "phone", mobile: "phone", cel: "phone",
+  name: "name", nome: "name", "nome completo": "name", cliente: "name",
+  lead: "name", contato_nome: "name",
+};
+
+function slug(s: string): string {
+  return s
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .trim().toLowerCase()
+    .replace(/\s+/g, "_").replace(/[^a-z0-9_°º]/g, "");
+}
+
+function csvEscape(v: string): string {
+  if (v == null) return "";
+  const s = String(v);
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+/**
+ * Recebe uma matriz (primeira linha = cabeçalho), normaliza nomes via
+ * HEADER_SYNONYMS, remove colunas totalmente vazias e devolve CSV padrão
+ * mais a lista de ajustes feitos para feedback ao usuário.
+ */
+function normalizeRows(rows: string[][]): { csv: string; adjustments: string[] } {
+  if (!rows.length) return { csv: "", adjustments: [] };
+  const rawHeaders = rows[0].map((h) => (h ?? "").toString());
+  const adjustments: string[] = [];
+  const mapped = rawHeaders.map((h) => {
+    const key = slug(h);
+    const target = HEADER_SYNONYMS[key];
+    if (target && target !== key) adjustments.push(`"${h}" → "${target}"`);
+    return target ?? key;
+  });
+
+  // garante coluna phone como primeira
+  const phoneIdx = mapped.indexOf("phone");
+  if (phoneIdx === -1) {
+    return { csv: "", adjustments: [`Nenhuma coluna reconhecida como telefone. Renomeie para "phone".`] };
+  }
+  const order = [phoneIdx, ...mapped.map((_, i) => i).filter((i) => i !== phoneIdx)];
+  const headers = order.map((i) => mapped[i]);
+
+  // remove colunas totalmente vazias e linhas vazias
+  const body = rows.slice(1).map((r) => order.map((i) => (r[i] ?? "").toString().trim()));
+  const keepCol = headers.map((_, c) => body.some((r) => r[c] !== ""));
+  const finalHeaders = headers.filter((_, c) => keepCol[c]);
+  const finalRows = body
+    .map((r) => r.filter((_, c) => keepCol[c]))
+    .filter((r) => r.some((v) => v !== ""));
+
+  if (headers.length !== finalHeaders.length) {
+    adjustments.push(`${headers.length - finalHeaders.length} coluna(s) vazia(s) removida(s)`);
+  }
+
+  const csv = [finalHeaders, ...finalRows]
+    .map((r) => r.map(csvEscape).join(","))
+    .join("\n");
+  return { csv, adjustments };
+}
+
+function sheetToRows(file: ArrayBuffer): string[][] {
+  const wb = XLSX.read(file, { type: "array" });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  return XLSX.utils.sheet_to_json<string[]>(ws, { header: 1, blankrows: false, defval: "" }) as string[][];
+}
+
+function csvTextToRows(text: string): string[][] {
+  const parsed = parseCsv(text);
+  if (!parsed.length) return [];
+  const headers = Object.keys(parsed[0]);
+  return [headers, ...parsed.map((r) => headers.map((h) => r[h] ?? ""))];
 }
 
 function CampaignDetailPage() {
@@ -171,14 +254,26 @@ function CampaignDetailPage() {
 
   async function handleFile(file: File | null | undefined) {
     if (!file) return;
-    const okType = /\.csv$|\.txt$/i.test(file.name) || file.type.includes("csv") || file.type.includes("text");
-    if (!okType) { toast.error("Envie um arquivo .csv"); return; }
-    if (file.size > 5 * 1024 * 1024) { toast.error("Arquivo muito grande (máx 5MB)"); return; }
+    const isExcel = /\.(xlsx|xls)$/i.test(file.name);
+    const isCsv = /\.(csv|txt)$/i.test(file.name) || file.type.includes("csv") || file.type.includes("text");
+    if (!isExcel && !isCsv) { toast.error("Envie um arquivo .csv, .xlsx ou .xls"); return; }
+    if (file.size > 10 * 1024 * 1024) { toast.error("Arquivo muito grande (máx 10MB)"); return; }
     try {
-      const text = await file.text();
-      setCsv(text);
+      const rows = isExcel
+        ? sheetToRows(await file.arrayBuffer())
+        : csvTextToRows(await file.text());
+      const { csv: normalized, adjustments } = normalizeRows(rows);
+      if (!normalized) {
+        toast.error(adjustments[0] ?? "Não foi possível ler o arquivo");
+        return;
+      }
+      setCsv(normalized);
       setFileName(file.name);
-      toast.success(`${file.name} carregado`);
+      if (adjustments.length) {
+        toast.success(`${file.name} ajustado: ${adjustments.join("; ")}`);
+      } else {
+        toast.success(`${file.name} carregado`);
+      }
     } catch (e) {
       toast.error((e as Error).message);
     }
@@ -291,7 +386,7 @@ function CampaignDetailPage() {
         <TabsList>
           <TabsTrigger value="sequence">Sequência</TabsTrigger>
           <TabsTrigger value="targets">Destinatários ({targets.length})</TabsTrigger>
-          <TabsTrigger value="import">Importar CSV</TabsTrigger>
+          <TabsTrigger value="import">Importar lista</TabsTrigger>
           <TabsTrigger value="message">Mensagem</TabsTrigger>
           <TabsTrigger value="rules">Regras de disparo</TabsTrigger>
         </TabsList>
@@ -344,7 +439,7 @@ function CampaignDetailPage() {
                       </tr>
                     ))}
                     {targets.length === 0 && (
-                      <tr><td colSpan={5} className="px-3 py-8 text-center text-xs text-muted-foreground">Nenhum destinatário ainda. Importe um CSV na próxima aba.</td></tr>
+                      <tr><td colSpan={5} className="px-3 py-8 text-center text-xs text-muted-foreground">Nenhum destinatário ainda. Importe uma lista (CSV/Excel) na próxima aba.</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -355,10 +450,10 @@ function CampaignDetailPage() {
 
         <TabsContent value="import">
           <Card>
-            <CardHeader><CardTitle className="text-base">Importar CSV</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base">Importar lista (CSV / Excel)</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               <p className="text-xs text-muted-foreground">
-                Envie um arquivo <code>.csv</code> ou cole o conteúdo abaixo. Cabeçalho obrigatório com a coluna <code>phone</code>. Opcional: <code>name</code> — qualquer outra coluna vira <code>{`{{coluna}}`}</code> no template. Aceita separador <code>,</code>, <code>;</code> ou tab, e campos entre aspas.
+                Envie <code>.csv</code>, <code>.xlsx</code> ou <code>.xls</code> — ou cole o conteúdo abaixo. Aceitamos cabeçalhos em PT/EN (ex.: <code>telefone</code>, <code>celular</code>, <code>whatsapp</code>, <code>nome</code>) e ajustamos automaticamente para o modelo (<code>phone</code>, <code>name</code>). Qualquer outra coluna vira <code>{`{{coluna}}`}</code> no template.
               </p>
 
               <div
@@ -367,7 +462,7 @@ function CampaignDetailPage() {
                 onDrop={(e) => { e.preventDefault(); handleFile(e.dataTransfer.files?.[0]); }}
               >
                 <FileUp className="mx-auto mb-2 h-6 w-6 text-muted-foreground" />
-                <div className="text-sm">Arraste um CSV aqui ou</div>
+                <div className="text-sm">Arraste um arquivo CSV / Excel aqui ou</div>
                 <div className="mt-2 flex items-center justify-center gap-2">
                   <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
                     Escolher arquivo
@@ -379,7 +474,7 @@ function CampaignDetailPage() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".csv,text/csv,text/plain"
+                  accept=".csv,.xlsx,.xls,text/csv,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                   className="hidden"
                   onChange={(e) => handleFile(e.target.files?.[0])}
                 />
