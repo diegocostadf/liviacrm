@@ -465,6 +465,14 @@ export async function tickStep(stepId: string, batch = 1) {
       sent++;
       const q = quotas.get(inst.id) ?? { perHour: 0, perDay: 0 };
       quotas.set(inst.id, { perHour: q.perHour + 1, perDay: q.perDay + 1 });
+      // CRM: marca o contato como impactado pela campanha
+      try {
+        const { data: camp } = await supabaseAdmin
+          .from("campaigns").select("name").eq("id", s.campaign_id).maybeSingle();
+        const tags = ["mensagem-enviada"];
+        if (camp?.name) tags.push(`campanha:${slugify(camp.name)}`);
+        await addContactTagsByPhone(send.phone, tags);
+      } catch (e) { console.warn("[crm-tag-send]", e); }
     } catch (e) {
       const attempts = (send.attempts ?? 0) + 1;
       const finalFail = attempts >= rules.retryMaxAttempts;
