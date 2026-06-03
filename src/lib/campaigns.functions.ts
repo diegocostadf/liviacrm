@@ -217,11 +217,7 @@ export const addCampaignTargets = createServerFn({ method: "POST" })
         seen.add(t.phone);
         return true;
       });
-      const { data: existing } = await supabaseAdmin
-        .from("campaign_targets")
-        .select("phone")
-        .eq("campaign_id", data.campaignId);
-      const existingSet = new Set((existing ?? []).map((e) => e.phone));
+      const existingSet = new Set(await fetchExistingTargetPhones(data.campaignId));
       items = items.filter((t) => !existingSet.has(t.phone));
     }
 
@@ -241,11 +237,8 @@ export const addCampaignTargets = createServerFn({ method: "POST" })
     for (const t of items) phonesByName.set(t.phone, t.name);
     const allPhones = [...phonesByName.keys()];
 
-    const { data: existingContacts } = await supabaseAdmin
-      .from("contacts")
-      .select("id, phone")
-      .in("phone", allPhones);
-    const existingByPhone = new Map((existingContacts ?? []).map((c) => [c.phone, c.id]));
+    const existingContacts = await fetchExistingContactsByPhones(allPhones);
+    const existingByPhone = new Map(existingContacts.map((c) => [c.phone, c.id]));
 
     // 1) Cria contatos novos
     const toCreate = allPhones
@@ -272,7 +265,7 @@ export const addCampaignTargets = createServerFn({ method: "POST" })
     for (const p of allPhones) {
       const id = existingByPhone.get(p);
       if (!id) continue;
-      const wasNew = !existingContacts?.some((c) => c.phone === p);
+      const wasNew = !existingContacts.some((c) => c.phone === p);
       if (wasNew || data.overwrite_intent) {
         recipientsForEvent.push({ phone: p, id });
       }
