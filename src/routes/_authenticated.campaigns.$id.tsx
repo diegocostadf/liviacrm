@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Play, Pause, Upload, Trash2, Eye, RefreshCcw, FileUp } from "lucide-react";
+import { ArrowLeft, Play, Pause, Upload, Trash2, Eye, RefreshCcw, FileUp, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -189,10 +189,12 @@ function CampaignDetailPage() {
   const previewFn = useServerFn(previewCampaignMessage);
   const updateFn = useServerFn(updateCampaign);
   const metricsFn = useServerFn(getCampaignMetrics);
+  const [targetPage, setTargetPage] = useState(1);
+  const targetPageSize = 100;
 
   const { data, isLoading } = useQuery({
-    queryKey: ["campaign", id],
-    queryFn: () => getFn({ data: { id } }),
+    queryKey: ["campaign", id, { targetPage, targetPageSize }],
+    queryFn: () => getFn({ data: { id, targetPage, targetPageSize } }),
     refetchInterval: 3000,
   });
 
@@ -204,6 +206,10 @@ function CampaignDetailPage() {
 
   const campaign = data?.campaign;
   const targets = data?.targets ?? [];
+  const targetTotal = data?.targetCount ?? campaign?.total_count ?? 0;
+  const targetTotalPages = Math.max(1, Math.ceil(targetTotal / targetPageSize));
+  const targetFrom = targetTotal === 0 ? 0 : (targetPage - 1) * targetPageSize + 1;
+  const targetTo = Math.min(targetPage * targetPageSize, targetTotal);
 
   const [csv, setCsv] = useState("phone,name\n5511999999999,Maria\n");
   const [importing, setImporting] = useState(false);
