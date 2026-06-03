@@ -291,11 +291,8 @@ export const addCampaignTargets = createServerFn({ method: "POST" })
     // se já existir uma conversa do contato. Para os demais, atualizamos last_intent diretamente.
     if (recipientsForEvent.length) {
       const contactIds = recipientsForEvent.map((r) => r.id);
-      const { data: convs } = await supabaseAdmin
-        .from("conversations")
-        .select("id, contact_id")
-        .in("contact_id", contactIds);
-      const convByContact = new Map((convs ?? []).map((c) => [c.contact_id, c.id]));
+      const convs = await fetchConversationsByContactIds(contactIds);
+      const convByContact = new Map(convs.map((c) => [c.contact_id, c.id]));
 
       const events = recipientsForEvent
         .filter((r) => convByContact.has(r.id))
