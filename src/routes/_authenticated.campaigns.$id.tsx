@@ -386,7 +386,7 @@ function CampaignDetailPage() {
         <TabsList>
           <TabsTrigger value="sequence">Sequência</TabsTrigger>
           <TabsTrigger value="targets">Destinatários ({targets.length})</TabsTrigger>
-          <TabsTrigger value="import">Importar CSV</TabsTrigger>
+          <TabsTrigger value="import">Importar lista</TabsTrigger>
           <TabsTrigger value="message">Mensagem</TabsTrigger>
           <TabsTrigger value="rules">Regras de disparo</TabsTrigger>
         </TabsList>
@@ -439,7 +439,7 @@ function CampaignDetailPage() {
                       </tr>
                     ))}
                     {targets.length === 0 && (
-                      <tr><td colSpan={5} className="px-3 py-8 text-center text-xs text-muted-foreground">Nenhum destinatário ainda. Importe um CSV na próxima aba.</td></tr>
+                      <tr><td colSpan={5} className="px-3 py-8 text-center text-xs text-muted-foreground">Nenhum destinatário ainda. Importe uma lista (CSV/Excel) na próxima aba.</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -450,7 +450,7 @@ function CampaignDetailPage() {
 
         <TabsContent value="import">
           <Card>
-            <CardHeader><CardTitle className="text-base">Importar CSV</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base">Importar lista (CSV / Excel)</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               <p className="text-xs text-muted-foreground">
                 Envie <code>.csv</code>, <code>.xlsx</code> ou <code>.xls</code> — ou cole o conteúdo abaixo. Aceitamos cabeçalhos em PT/EN (ex.: <code>telefone</code>, <code>celular</code>, <code>whatsapp</code>, <code>nome</code>) e ajustamos automaticamente para o modelo (<code>phone</code>, <code>name</code>). Qualquer outra coluna vira <code>{`{{coluna}}`}</code> no template.
