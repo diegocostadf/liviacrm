@@ -263,26 +263,29 @@ export async function materializeStep(stepId: string): Promise<number> {
     }));
 
   // Insere em chunks; UNIQUE(step_id,target_id) evita duplicatas em re-execuções
-  let inserted = 0;
   for (let i = 0; i < rows.length; i += 500) {
     const chunk = rows.slice(i, i + 500);
     const { error } = await supabaseAdmin
       .from("campaign_step_sends")
       .upsert(chunk, { onConflict: "step_id,target_id", ignoreDuplicates: true });
     if (error) throw new Error(error.message);
-    inserted += chunk.length;
   }
+
+  const { count: totalSends } = await supabaseAdmin
+    .from("campaign_step_sends")
+    .select("id", { count: "exact", head: true })
+    .eq("step_id", stepId);
 
   await supabaseAdmin
     .from("campaign_steps")
     .update({
       materialized_at: new Date().toISOString(),
-      total_count: inserted,
+      total_count: totalSends ?? rows.length,
       status: step.status === "draft" ? "scheduled" : step.status,
     })
     .eq("id", stepId);
 
-  return inserted;
+  return totalSends ?? rows.length;
 }
 
 /**
