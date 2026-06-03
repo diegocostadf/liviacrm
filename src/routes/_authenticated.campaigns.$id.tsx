@@ -453,7 +453,7 @@ function CampaignDetailPage() {
             <CardHeader><CardTitle className="text-base">Importar CSV</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               <p className="text-xs text-muted-foreground">
-                Envie um arquivo <code>.csv</code> ou cole o conteúdo abaixo. Cabeçalho obrigatório com a coluna <code>phone</code>. Opcional: <code>name</code> — qualquer outra coluna vira <code>{`{{coluna}}`}</code> no template. Aceita separador <code>,</code>, <code>;</code> ou tab, e campos entre aspas.
+                Envie <code>.csv</code>, <code>.xlsx</code> ou <code>.xls</code> — ou cole o conteúdo abaixo. Aceitamos cabeçalhos em PT/EN (ex.: <code>telefone</code>, <code>celular</code>, <code>whatsapp</code>, <code>nome</code>) e ajustamos automaticamente para o modelo (<code>phone</code>, <code>name</code>). Qualquer outra coluna vira <code>{`{{coluna}}`}</code> no template.
               </p>
 
               <div
@@ -462,7 +462,7 @@ function CampaignDetailPage() {
                 onDrop={(e) => { e.preventDefault(); handleFile(e.dataTransfer.files?.[0]); }}
               >
                 <FileUp className="mx-auto mb-2 h-6 w-6 text-muted-foreground" />
-                <div className="text-sm">Arraste um CSV aqui ou</div>
+                <div className="text-sm">Arraste um arquivo CSV / Excel aqui ou</div>
                 <div className="mt-2 flex items-center justify-center gap-2">
                   <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
                     Escolher arquivo
@@ -474,7 +474,7 @@ function CampaignDetailPage() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".csv,text/csv,text/plain"
+                  accept=".csv,.xlsx,.xls,text/csv,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                   className="hidden"
                   onChange={(e) => handleFile(e.target.files?.[0])}
                 />
