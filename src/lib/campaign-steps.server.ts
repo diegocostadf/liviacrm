@@ -228,15 +228,12 @@ export async function materializeStep(stepId: string): Promise<number> {
   // Filtro por step referenciado
   let allowedTargetIds: Set<string> | null = null;
   if ((step.audience === "not_responded_step" || step.audience === "responded_step") && step.audience_step_id) {
-    const { data: prev } = await supabaseAdmin
-      .from("campaign_step_sends")
-      .select("target_id, status, replied_at")
-      .eq("step_id", step.audience_step_id);
-    const replied = new Set((prev ?? []).filter((r) => r.replied_at || r.status === "replied").map((r) => r.target_id));
+    const prev = await fetchStepAudienceRows(step.audience_step_id);
+    const replied = new Set(prev.filter((r) => r.replied_at || r.status === "replied").map((r) => r.target_id));
     if (step.audience === "responded_step") {
       allowedTargetIds = replied;
     } else {
-      const sent = new Set((prev ?? []).filter((r) => r.status === "sent" || r.status === "replied").map((r) => r.target_id));
+      const sent = new Set(prev.filter((r) => r.status === "sent" || r.status === "replied").map((r) => r.target_id));
       allowedTargetIds = new Set([...sent].filter((id) => !replied.has(id)));
     }
   }
@@ -340,25 +337,16 @@ export async function tickStep(stepId: string, batch = 1) {
   // Pré-carrega contatos que já responderam nesta campanha (para pause_on_reply)
   let repliedPhones = new Set<string>();
   if (rules.pauseOnReply) {
-    const { data: replies } = await supabaseAdmin
-      .from("campaign_step_sends")
-      .select("phone")
-      .eq("campaign_id", s.campaign_id)
-      .not("replied_at", "is", null);
-    repliedPhones = new Set((replies ?? []).map((r) => r.phone));
+    repliedPhones = new Set(await fetchRepliedPhones(s.campaign_id));
   }
 
   // Pré-carrega telefones recém-contatados em OUTRAS campanhas (dedupe)
   let dedupedPhones = new Set<string>();
   if (rules.dedupeSkipDays > 0) {
     const cutoff = new Date(Date.now() - rules.dedupeSkipDays * 86400 * 1000).toISOString();
-    const { data: recent } = await supabaseAdmin
-      .from("campaign_step_sends")
-      .select("phone, campaign_id")
-      .eq("status", "sent")
-      .gt("sent_at", cutoff);
+    const recent = await fetchRecentSentRows(cutoff);
     dedupedPhones = new Set(
-      (recent ?? []).filter((r) => r.campaign_id !== s.campaign_id).map((r) => r.phone),
+      recent.filter((r) => r.campaign_id !== s.campaign_id).map((r) => r.phone),
     );
   }
 
