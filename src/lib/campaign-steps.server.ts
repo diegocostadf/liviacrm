@@ -6,6 +6,38 @@ function normalizePhone(raw: string): string {
   return String(raw ?? "").replace(/\D/g, "");
 }
 
+const DB_PAGE_SIZE = 1000;
+
+async function fetchCampaignTargetPool(campaignId: string) {
+  const rows: Array<{ id: string; phone: string; name: string | null; custom_fields: unknown }> = [];
+  for (let from = 0; ; from += DB_PAGE_SIZE) {
+    const { data, error } = await supabaseAdmin
+      .from("campaign_targets")
+      .select("id, phone, name, custom_fields")
+      .eq("campaign_id", campaignId)
+      .order("created_at", { ascending: true })
+      .range(from, from + DB_PAGE_SIZE - 1);
+    if (error) throw new Error(error.message);
+    rows.push(...(data ?? []));
+    if (!data || data.length < DB_PAGE_SIZE) break;
+  }
+  return rows;
+}
+
+async function fetchContactsByPhones(phones: string[]) {
+  const rows: Array<{ id: string; phone: string; opted_out: boolean; journey_completed: boolean; tags: string[] | null }> = [];
+  const uniquePhones = [...new Set(phones)];
+  for (let i = 0; i < uniquePhones.length; i += 500) {
+    const { data, error } = await supabaseAdmin
+      .from("contacts")
+      .select("id, phone, opted_out, journey_completed, tags")
+      .in("phone", uniquePhones.slice(i, i + 500));
+    if (error) throw new Error(error.message);
+    rows.push(...(data ?? []));
+  }
+  return rows;
+}
+
 /** Approx BRT (UTC-3). */
 function brtNow(now = new Date()) {
   const ms = now.getTime() - 3 * 3600 * 1000;
