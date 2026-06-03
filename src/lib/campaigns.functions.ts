@@ -13,6 +13,7 @@ async function fetchExistingTargetPhones(campaignId: string) {
       .from("campaign_targets")
       .select("phone")
       .eq("campaign_id", campaignId)
+      .order("created_at", { ascending: true })
       .range(from, from + DB_PAGE_SIZE - 1);
     if (error) throw new Error(error.message);
     phones.push(...(data ?? []).map((row) => row.phone));
