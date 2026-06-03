@@ -64,6 +64,24 @@ export const listLeads = createServerFn({ method: "POST" })
     return result;
   });
 
+export const getLeadStats = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase } = context;
+    const [total, inscritos, optouts, quentes] = await Promise.all([
+      supabase.from("contacts").select("id", { count: "exact", head: true }),
+      supabase.from("contacts").select("id", { count: "exact", head: true }).eq("lead_status", "inscrito"),
+      supabase.from("contacts").select("id", { count: "exact", head: true }).eq("opted_out", true),
+      supabase.from("contacts").select("id", { count: "exact", head: true }).eq("last_intent", "lead_quente"),
+    ]);
+    return {
+      total: total.count ?? 0,
+      inscritos: inscritos.count ?? 0,
+      opt_outs: optouts.count ?? 0,
+      quentes: quentes.count ?? 0,
+    };
+  });
+
 export const getLead = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
