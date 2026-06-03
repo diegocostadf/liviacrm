@@ -20,6 +20,7 @@ import {
   getCampaign, addCampaignTargets, removeCampaignTarget,
   setCampaignStatus, tickCampaignFn, previewCampaignMessage, updateCampaign,
 } from "@/lib/campaigns.functions";
+import * as XLSX from "xlsx";
 
 export const Route = createFileRoute("/_authenticated/campaigns/$id")({
   component: CampaignDetailPage,
@@ -92,6 +93,88 @@ function parseCsv(input: string): Array<Record<string, string>> {
       headers.forEach((h, i) => { obj[h] = (r[i] ?? "").trim(); });
       return obj;
     });
+}
+
+/**
+ * Sinônimos de cabeçalho aceitos no upload. Tudo é normalizado para snake_case
+ * minúsculo antes da comparação. As chaves alvo são as colunas do modelo de
+ * importação ("phone", "name").
+ */
+const HEADER_SYNONYMS: Record<string, string> = {
+  phone: "phone", telefone: "phone", tel: "phone", fone: "phone",
+  celular: "phone", whatsapp: "phone", whats: "phone", wpp: "phone",
+  numero: "phone", número: "phone", "n°": "phone", "nº": "phone",
+  contato: "phone", mobile: "phone", cel: "phone",
+  name: "name", nome: "name", "nome completo": "name", cliente: "name",
+  lead: "name", contato_nome: "name",
+};
+
+function slug(s: string): string {
+  return s
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .trim().toLowerCase()
+    .replace(/\s+/g, "_").replace(/[^a-z0-9_°º]/g, "");
+}
+
+function csvEscape(v: string): string {
+  if (v == null) return "";
+  const s = String(v);
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+/**
+ * Recebe uma matriz (primeira linha = cabeçalho), normaliza nomes via
+ * HEADER_SYNONYMS, remove colunas totalmente vazias e devolve CSV padrão
+ * mais a lista de ajustes feitos para feedback ao usuário.
+ */
+function normalizeRows(rows: string[][]): { csv: string; adjustments: string[] } {
+  if (!rows.length) return { csv: "", adjustments: [] };
+  const rawHeaders = rows[0].map((h) => (h ?? "").toString());
+  const adjustments: string[] = [];
+  const mapped = rawHeaders.map((h) => {
+    const key = slug(h);
+    const target = HEADER_SYNONYMS[key];
+    if (target && target !== key) adjustments.push(`"${h}" → "${target}"`);
+    return target ?? key;
+  });
+
+  // garante coluna phone como primeira
+  const phoneIdx = mapped.indexOf("phone");
+  if (phoneIdx === -1) {
+    return { csv: "", adjustments: [`Nenhuma coluna reconhecida como telefone. Renomeie para "phone".`] };
+  }
+  const order = [phoneIdx, ...mapped.map((_, i) => i).filter((i) => i !== phoneIdx)];
+  const headers = order.map((i) => mapped[i]);
+
+  // remove colunas totalmente vazias e linhas vazias
+  const body = rows.slice(1).map((r) => order.map((i) => (r[i] ?? "").toString().trim()));
+  const keepCol = headers.map((_, c) => body.some((r) => r[c] !== ""));
+  const finalHeaders = headers.filter((_, c) => keepCol[c]);
+  const finalRows = body
+    .map((r) => r.filter((_, c) => keepCol[c]))
+    .filter((r) => r.some((v) => v !== ""));
+
+  if (headers.length !== finalHeaders.length) {
+    adjustments.push(`${headers.length - finalHeaders.length} coluna(s) vazia(s) removida(s)`);
+  }
+
+  const csv = [finalHeaders, ...finalRows]
+    .map((r) => r.map(csvEscape).join(","))
+    .join("\n");
+  return { csv, adjustments };
+}
+
+function sheetToRows(file: ArrayBuffer): string[][] {
+  const wb = XLSX.read(file, { type: "array" });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  return XLSX.utils.sheet_to_json<string[]>(ws, { header: 1, blankrows: false, defval: "" }) as string[][];
+}
+
+function csvTextToRows(text: string): string[][] {
+  const parsed = parseCsv(text);
+  if (!parsed.length) return [];
+  const headers = Object.keys(parsed[0]);
+  return [headers, ...parsed.map((r) => headers.map((h) => r[h] ?? ""))];
 }
 
 function CampaignDetailPage() {
