@@ -35,6 +35,20 @@ async function fetchExistingContactsByPhones(phones: string[]) {
   return rows;
 }
 
+async function fetchConversationsByContactIds(contactIds: string[]) {
+  const rows: Array<{ id: string; contact_id: string }> = [];
+  const uniqueIds = [...new Set(contactIds)];
+  for (let i = 0; i < uniqueIds.length; i += 500) {
+    const { data, error } = await supabaseAdmin
+      .from("conversations")
+      .select("id, contact_id")
+      .in("contact_id", uniqueIds.slice(i, i + 500));
+    if (error) throw new Error(error.message);
+    rows.push(...(data ?? []));
+  }
+  return rows;
+}
+
 export const listCampaigns = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async () => {
