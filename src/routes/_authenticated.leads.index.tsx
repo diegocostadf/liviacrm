@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { listLeads, getLeadStats } from "@/lib/leads.functions";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
