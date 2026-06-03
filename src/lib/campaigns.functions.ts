@@ -238,15 +238,6 @@ export const addCampaignTargets = createServerFn({ method: "POST" })
 
     if (!items.length) return { inserted: 0 };
 
-    // Insert in chunks of 500
-    let inserted = 0;
-    for (let i = 0; i < items.length; i += 500) {
-      const chunk = items.slice(i, i + 500);
-      const { error } = await supabaseAdmin.from("campaign_targets").insert(chunk);
-      if (error) throw new Error(error.message);
-      inserted += chunk.length;
-    }
-
     // ===== CRM: upsert de contatos + classificação inicial =====
     const phonesByName = new Map<string, string | null>();
     for (const t of items) phonesByName.set(t.phone, t.name);
@@ -273,6 +264,16 @@ export const addCampaignTargets = createServerFn({ method: "POST" })
           .select("id, phone");
         for (const row of ins ?? []) existingByPhone.set(row.phone, row.id);
       }
+    }
+
+    // Insere destinatários já vinculados ao contato do CRM.
+    let inserted = 0;
+    const targetsToInsert = items.map((t) => ({ ...t, contact_id: existingByPhone.get(t.phone) ?? null }));
+    for (let i = 0; i < targetsToInsert.length; i += 500) {
+      const chunk = targetsToInsert.slice(i, i + 500);
+      const { error } = await supabaseAdmin.from("campaign_targets").insert(chunk);
+      if (error) throw new Error(error.message);
+      inserted += chunk.length;
     }
 
     // 2) Decide quem recebe novo lead_intent_event (sempre para novos; opt-in para existentes)
