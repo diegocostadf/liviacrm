@@ -84,8 +84,14 @@ export const deleteCampaign = createServerFn({ method: "POST" })
 
 export const getCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
+  .inputValidator((d) => z.object({
+    id: z.string().uuid(),
+    targetPage: z.number().int().min(1).default(1),
+    targetPageSize: z.number().int().min(1).max(200).default(100),
+  }).parse(d))
   .handler(async ({ data }) => {
+    const from = (data.targetPage - 1) * data.targetPageSize;
+    const to = from + data.targetPageSize - 1;
     const { data: campaign, error } = await supabaseAdmin
       .from("campaigns")
       .select("*")
@@ -99,13 +105,26 @@ export const getCampaign = createServerFn({ method: "POST" })
       .select("id, phone, name, status, sent_at, error, attempts, custom_fields, rendered_message")
       .eq("campaign_id", data.id)
       .order("created_at", { ascending: true })
-      .limit(500);
-    const { count: pendingCount } = await supabaseAdmin
-      .from("campaign_targets")
-      .select("id", { count: "exact", head: true })
-      .eq("campaign_id", data.id)
-      .eq("status", "pending");
-    return { campaign, targets: targets ?? [], pendingCount: pendingCount ?? 0 };
+      .range(from, to);
+    const [{ count: targetCount }, { count: pendingCount }] = await Promise.all([
+      supabaseAdmin
+        .from("campaign_targets")
+        .select("id", { count: "exact", head: true })
+        .eq("campaign_id", data.id),
+      supabaseAdmin
+        .from("campaign_targets")
+        .select("id", { count: "exact", head: true })
+        .eq("campaign_id", data.id)
+        .eq("status", "pending"),
+    ]);
+    return {
+      campaign,
+      targets: targets ?? [],
+      targetCount: targetCount ?? 0,
+      pendingCount: pendingCount ?? 0,
+      targetPage: data.targetPage,
+      targetPageSize: data.targetPageSize,
+    };
   });
 
 const targetItemSchema = z.object({
@@ -345,24 +364,26 @@ export const getCampaignMetrics = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data }) => {
-    const { data: rows, error } = await supabaseAdmin
-      .from("campaign_step_sends")
-      .select("status, delivered_at, read_at, sent_at, replied_at")
-      .eq("campaign_id", data.id);
-    if (error) throw new Error(error.message);
-
-    const m = { total: 0, pending: 0, sent: 0, delivered: 0, read: 0, replied: 0, failed: 0, skipped: 0 };
-    for (const r of rows ?? []) {
-      m.total++;
-      if (r.status === "pending") m.pending++;
-      if (r.status === "failed") m.failed++;
-      if (r.status === "skipped" || r.status === "skipped_replied" || r.status === "skipped_dedupe") m.skipped++;
-      if (r.status === "replied") m.replied++;
-      // "enviado com sucesso" = qualquer status que teve sent_at
-      if (r.sent_at) m.sent++;
-      if (r.delivered_at) m.delivered++;
-      if (r.read_at) m.read++;
-    }
+    const [targets, pendingTargets, sentTargets, failedTargets, delivered, read, replied, skipped] = await Promise.all([
+      supabaseAdmin.from("campaign_targets").select("id", { count: "exact", head: true }).eq("campaign_id", data.id),
+      supabaseAdmin.from("campaign_targets").select("id", { count: "exact", head: true }).eq("campaign_id", data.id).eq("status", "pending"),
+      supabaseAdmin.from("campaign_targets").select("id", { count: "exact", head: true }).eq("campaign_id", data.id).eq("status", "sent"),
+      supabaseAdmin.from("campaign_targets").select("id", { count: "exact", head: true }).eq("campaign_id", data.id).eq("status", "failed"),
+      supabaseAdmin.from("campaign_step_sends").select("id", { count: "exact", head: true }).eq("campaign_id", data.id).not("delivered_at", "is", null),
+      supabaseAdmin.from("campaign_step_sends").select("id", { count: "exact", head: true }).eq("campaign_id", data.id).not("read_at", "is", null),
+      supabaseAdmin.from("campaign_step_sends").select("id", { count: "exact", head: true }).eq("campaign_id", data.id).or("status.eq.replied,replied_at.not.is.null"),
+      supabaseAdmin.from("campaign_step_sends").select("id", { count: "exact", head: true }).eq("campaign_id", data.id).in("status", ["skipped", "skipped_replied", "skipped_dedupe"]),
+    ]);
+    const m = {
+      total: targets.count ?? 0,
+      pending: pendingTargets.count ?? 0,
+      sent: sentTargets.count ?? 0,
+      delivered: delivered.count ?? 0,
+      read: read.count ?? 0,
+      replied: replied.count ?? 0,
+      failed: failedTargets.count ?? 0,
+      skipped: skipped.count ?? 0,
+    };
     const pct = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 1000) / 10 : 0);
     return {
       counts: m,
