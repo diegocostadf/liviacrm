@@ -319,6 +319,7 @@ function CampaignDetailPage() {
         overwrite_intent: overwriteIntent,
       } });
       toast.success(`${inserted} contatos importados`);
+      setTargetPage(1);
       setCsv("phone,name\n");
       setFileName(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -430,7 +431,7 @@ function CampaignDetailPage() {
       <Tabs defaultValue="sequence">
         <TabsList>
           <TabsTrigger value="sequence">Sequência</TabsTrigger>
-          <TabsTrigger value="targets">Destinatários ({targets.length})</TabsTrigger>
+          <TabsTrigger value="targets">Destinatários ({targetTotal})</TabsTrigger>
           <TabsTrigger value="import">Importar lista</TabsTrigger>
           <TabsTrigger value="message">Mensagem</TabsTrigger>
           <TabsTrigger value="rules">Regras de disparo</TabsTrigger>
@@ -476,6 +477,7 @@ function CampaignDetailPage() {
                         <td className="px-3 py-2 text-right">
                           <Button variant="ghost" size="icon" onClick={async () => {
                             await rmFn({ data: { id: t.id, campaignId: id } });
+                            if (targets.length === 1 && targetPage > 1) setTargetPage((p) => p - 1);
                             qc.invalidateQueries({ queryKey: ["campaign", id] });
                           }}>
                             <Trash2 className="h-3.5 w-3.5 text-destructive" />
