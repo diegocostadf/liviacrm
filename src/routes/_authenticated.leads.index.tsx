@@ -1,14 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { listLeads, getLeadStats } from "@/lib/leads.functions";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Search, Users, Flame, Snowflake, Sun, MapPin, Mail, Phone } from "lucide-react";
+import { Search, Users, Flame, Snowflake, Sun, MapPin, Mail, Phone, ChevronLeft, ChevronRight } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -41,15 +42,23 @@ function LeadsListPage() {
   const [search, setSearch] = useState("");
   const [statusF, setStatusF] = useState<string>("all");
   const [tempF, setTempF] = useState<string>("all");
+  const [page, setPage] = useState(1);
+  const pageSize = 100;
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, statusF, tempF]);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["leads", { search, statusF, tempF }],
+    queryKey: ["leads", { search, statusF, tempF, page, pageSize }],
     queryFn: () =>
       list({
         data: {
           search: search || undefined,
           lead_status: statusF !== "all" ? (statusF as any) : undefined,
           temperature: tempF !== "all" ? (tempF as any) : undefined,
+          page,
+          pageSize,
         },
       }),
   });
@@ -59,6 +68,11 @@ function LeadsListPage() {
     queryFn: () => statsFn(),
   });
   const s = stats ?? { total: 0, quentes: 0, inscritos: 0, opt_outs: 0 };
+  const leads = data?.rows ?? [];
+  const total = data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const to = Math.min(page * pageSize, total);
 
   return (
     <div className="h-screen overflow-y-auto p-6">
@@ -119,10 +133,10 @@ function LeadsListPage() {
             {isLoading && (
               <tr><td colSpan={7} className="px-3 py-6 text-center text-muted-foreground">Carregando…</td></tr>
             )}
-            {!isLoading && (data ?? []).length === 0 && (
+            {!isLoading && leads.length === 0 && (
               <tr><td colSpan={7} className="px-3 py-10 text-center text-muted-foreground">Nenhum lead encontrado.</td></tr>
             )}
-            {(data ?? []).map((c) => (
+            {leads.map((c) => (
               <tr key={c.id} className="border-t border-border hover:bg-muted/30">
                 <td className="px-3 py-2">
                   <Link to="/leads/$id" params={{ id: c.id }} className="flex items-center gap-2">
@@ -178,6 +192,18 @@ function LeadsListPage() {
             ))}
           </tbody>
         </table>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-3 py-2 text-xs text-muted-foreground">
+          <span>{from}-{to} de {total} leads</span>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1 || isLoading}>
+              <ChevronLeft className="h-3.5 w-3.5" /> Anterior
+            </Button>
+            <span>Página {page} de {totalPages}</span>
+            <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages || isLoading}>
+              Próxima <ChevronRight className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
       </Card>
     </div>
   );
