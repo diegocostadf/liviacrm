@@ -19,8 +19,8 @@ const createSchema = z.object({
   name: z.string().trim().min(2).max(120),
   instance_id: z.string().uuid(),
   template: z.string().trim().min(2).max(4000),
-  throttle_min_seconds: z.number().int().min(2).max(600).default(8),
-  throttle_max_seconds: z.number().int().min(2).max(600).default(20),
+  throttle_min_seconds: z.number().int().min(2).max(600).default(30),
+  throttle_max_seconds: z.number().int().min(2).max(600).default(45),
   window_start_hour: z.number().int().min(0).max(23).default(8),
   window_end_hour: z.number().int().min(0).max(23).default(21),
 });
