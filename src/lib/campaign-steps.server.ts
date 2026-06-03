@@ -465,6 +465,14 @@ export async function tickStep(stepId: string, batch = 1) {
       sent++;
       const q = quotas.get(inst.id) ?? { perHour: 0, perDay: 0 };
       quotas.set(inst.id, { perHour: q.perHour + 1, perDay: q.perDay + 1 });
+      // CRM: marca o contato como impactado pela campanha
+      try {
+        const { data: camp } = await supabaseAdmin
+          .from("campaigns").select("name").eq("id", s.campaign_id).maybeSingle();
+        const tags = ["mensagem-enviada"];
+        if (camp?.name) tags.push(`campanha:${slugify(camp.name)}`);
+        await addContactTagsByPhone(send.phone, tags);
+      } catch (e) { console.warn("[crm-tag-send]", e); }
     } catch (e) {
       const attempts = (send.attempts ?? 0) + 1;
       const finalFail = attempts >= rules.retryMaxAttempts;
@@ -595,4 +603,92 @@ export async function markRepliesForPhone(phone: string): Promise<void> {
     .update({ status: "replied", replied_at: new Date().toISOString() })
     .eq("phone", phone)
     .eq("status", "sent");
+
+  // Auto-tag CRM
+  await addContactTagsByPhone(phone, ["respondeu-campanha"]);
+}
+
+/**
+ * Adiciona tags (deduplicadas) a um contato pelo telefone. Silencioso se o
+ * contato não existir. Usado para alimentar o CRM com eventos da campanha.
+ */
+export async function addContactTagsByPhone(phone: string, newTags: string[]): Promise<void> {
+  if (!phone || !newTags.length) return;
+  const { data: contact } = await supabaseAdmin
+    .from("contacts")
+    .select("id, tags")
+    .eq("phone", phone)
+    .maybeSingle();
+  if (!contact) return;
+  const current = new Set<string>((contact.tags ?? []) as string[]);
+  let changed = false;
+  for (const t of newTags) {
+    const v = String(t ?? "").trim();
+    if (!v) continue;
+    if (!current.has(v)) { current.add(v); changed = true; }
+  }
+  if (!changed) return;
+  await supabaseAdmin
+    .from("contacts")
+    .update({ tags: [...current] })
+    .eq("id", contact.id);
+}
+
+function slugify(s: string): string {
+  return String(s ?? "")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")
+    .slice(0, 40);
+}
+
+/**
+ * Casa um update de status do WhatsApp (sent/delivered/read) ao envio de
+ * campanha pelo wa_message_id e atualiza delivered_at / read_at. Também
+ * alimenta o CRM com tags ("mensagem-entregue", "mensagem-lida",
+ * "campanha:<slug>"). Idempotente.
+ */
+export async function applyWaStatusUpdate(args: {
+  waMessageId: string;
+  status: "sent" | "delivered" | "read" | "failed";
+}): Promise<void> {
+  const { waMessageId, status } = args;
+  if (!waMessageId) return;
+
+  // Atualiza mensagem direta (inbox)
+  await supabaseAdmin
+    .from("messages")
+    .update({ status })
+    .eq("wa_message_id", waMessageId);
+
+  if (status !== "delivered" && status !== "read") return;
+
+  const { data: send } = await supabaseAdmin
+    .from("campaign_step_sends")
+    .select("id, phone, campaign_id, delivered_at, read_at")
+    .eq("wa_message_id", waMessageId)
+    .maybeSingle();
+  if (!send) return;
+
+  const patch: { delivered_at?: string; read_at?: string } = {};
+  const now = new Date().toISOString();
+  if (status === "delivered" && !send.delivered_at) patch.delivered_at = now;
+  if (status === "read") {
+    if (!send.read_at) patch.read_at = now;
+    if (!send.delivered_at) patch.delivered_at = now;
+  }
+  if (Object.keys(patch).length) {
+    await supabaseAdmin.from("campaign_step_sends").update(patch).eq("id", send.id);
+  }
+
+  // CRM tags
+  const tags: string[] = [];
+  if (status === "delivered") tags.push("mensagem-entregue");
+  if (status === "read") tags.push("mensagem-entregue", "mensagem-lida");
+
+  if (send.campaign_id) {
+    const { data: camp } = await supabaseAdmin
+      .from("campaigns").select("name").eq("id", send.campaign_id).maybeSingle();
+    if (camp?.name) tags.push(`campanha:${slugify(camp.name)}`);
+  }
+  await addContactTagsByPhone(send.phone, tags);
 }

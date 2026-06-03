@@ -19,8 +19,8 @@ const createSchema = z.object({
   name: z.string().trim().min(2).max(120),
   instance_id: z.string().uuid(),
   template: z.string().trim().min(2).max(4000),
-  throttle_min_seconds: z.number().int().min(2).max(600).default(8),
-  throttle_max_seconds: z.number().int().min(2).max(600).default(20),
+  throttle_min_seconds: z.number().int().min(2).max(600).default(30),
+  throttle_max_seconds: z.number().int().min(2).max(600).default(45),
   window_start_hour: z.number().int().min(0).max(23).default(8),
   window_end_hour: z.number().int().min(0).max(23).default(21),
 });
@@ -334,4 +334,43 @@ export const previewCampaignMessage = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     return { preview: renderTemplate(data.template, data.fields) };
+  });
+
+/**
+ * Métricas consolidadas da campanha agregando todos os envios de step:
+ * total / enviados / entregues / lidos / respondidos / falhados / pulados /
+ * pendentes, com taxas de entrega, abertura e conclusão.
+ */
+export const getCampaignMetrics = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data }) => {
+    const { data: rows, error } = await supabaseAdmin
+      .from("campaign_step_sends")
+      .select("status, delivered_at, read_at, sent_at, replied_at")
+      .eq("campaign_id", data.id);
+    if (error) throw new Error(error.message);
+
+    const m = { total: 0, pending: 0, sent: 0, delivered: 0, read: 0, replied: 0, failed: 0, skipped: 0 };
+    for (const r of rows ?? []) {
+      m.total++;
+      if (r.status === "pending") m.pending++;
+      if (r.status === "failed") m.failed++;
+      if (r.status === "skipped" || r.status === "skipped_replied" || r.status === "skipped_dedupe") m.skipped++;
+      if (r.status === "replied") m.replied++;
+      // "enviado com sucesso" = qualquer status que teve sent_at
+      if (r.sent_at) m.sent++;
+      if (r.delivered_at) m.delivered++;
+      if (r.read_at) m.read++;
+    }
+    const pct = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 1000) / 10 : 0);
+    return {
+      counts: m,
+      rates: {
+        delivery: pct(m.delivered, m.sent),
+        read: pct(m.read, m.sent),
+        reply: pct(m.replied, m.sent),
+        completion: pct(m.sent + m.failed + m.skipped, m.total),
+      },
+    };
   });

@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { loadEvolutionSettings } from "@/lib/evolution.server";
 import { handleBotReply, handleHandoffCommand, handleResetCommand } from "@/lib/ai-bot.server";
-import { handleOptOut, markRepliesForPhone } from "@/lib/campaign-steps.server";
+import { handleOptOut, markRepliesForPhone, applyWaStatusUpdate } from "@/lib/campaign-steps.server";
 
 export const Route = createFileRoute("/api/public/webhooks/evolution")({
   server: {
@@ -32,6 +32,8 @@ export const Route = createFileRoute("/api/public/webhooks/evolution")({
               .eq("evolution_instance_name", instanceName);
           } else if (event === "MESSAGES_UPSERT" && data) {
             await handleIncomingMessage(instanceName, data);
+          } else if ((event === "MESSAGES_UPDATE" || event === "SEND_MESSAGE_UPDATE" || event === "MESSAGE_STATUS_UPDATE") && data) {
+            await handleStatusUpdate(data);
           }
         } catch (e) {
           console.error("[evolution-webhook]", e);
@@ -233,4 +235,29 @@ async function handleIncomingMessage(instanceName: string, data: Record<string, 
     await handleBotReply(conversationId);
   }
   void isNewConversation;
+}
+
+/**
+ * MESSAGES_UPDATE da Evolution traz status do WhatsApp (DELIVERY_ACK, READ).
+ * Atualiza messages.status e campaign_step_sends.delivered_at/read_at, e
+ * adiciona tags no CRM.
+ */
+async function handleStatusUpdate(data: Record<string, unknown>) {
+  const items: Array<Record<string, unknown>> = Array.isArray(data)
+    ? (data as Array<Record<string, unknown>>)
+    : [data];
+  for (const item of items) {
+    const key = (item.key as { id?: string } | undefined) ?? undefined;
+    const waMessageId = key?.id ?? (item.keyId as string | undefined) ?? (item.messageId as string | undefined) ?? null;
+    if (!waMessageId) continue;
+    const raw = String(item.status ?? (item.update as { status?: string } | undefined)?.status ?? "").toUpperCase();
+    let status: "sent" | "delivered" | "read" | "failed" | null = null;
+    if (raw.includes("READ") || raw === "PLAYED") status = "read";
+    else if (raw.includes("DELIVERY") || raw === "DELIVERED" || raw === "DELIVERY_ACK") status = "delivered";
+    else if (raw === "SERVER_ACK" || raw === "SENT" || raw === "PENDING") status = "sent";
+    else if (raw.includes("FAIL") || raw === "ERROR") status = "failed";
+    if (!status) continue;
+    try { await applyWaStatusUpdate({ waMessageId, status }); }
+    catch (e) { console.warn("[status-update]", e); }
+  }
 }

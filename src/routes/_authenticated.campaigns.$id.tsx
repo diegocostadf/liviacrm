@@ -19,6 +19,7 @@ import { CampaignRulesCard } from "@/components/campaign-rules";
 import {
   getCampaign, addCampaignTargets, removeCampaignTarget,
   setCampaignStatus, tickCampaignFn, previewCampaignMessage, updateCampaign,
+  getCampaignMetrics,
 } from "@/lib/campaigns.functions";
 import * as XLSX from "xlsx";
 
@@ -187,11 +188,18 @@ function CampaignDetailPage() {
   const tickFn = useServerFn(tickCampaignFn);
   const previewFn = useServerFn(previewCampaignMessage);
   const updateFn = useServerFn(updateCampaign);
+  const metricsFn = useServerFn(getCampaignMetrics);
 
   const { data, isLoading } = useQuery({
     queryKey: ["campaign", id],
     queryFn: () => getFn({ data: { id } }),
     refetchInterval: 3000,
+  });
+
+  const { data: metrics } = useQuery({
+    queryKey: ["campaign-metrics", id],
+    queryFn: () => metricsFn({ data: { id } }),
+    refetchInterval: 5000,
   });
 
   const campaign = data?.campaign;
@@ -353,7 +361,7 @@ function CampaignDetailPage() {
           <div>
             <h1 className="text-xl font-semibold">{campaign.name}</h1>
             <div className="text-xs text-muted-foreground">
-              Throttle {campaign.throttle_min_seconds}-{campaign.throttle_max_seconds}s · Janela {campaign.window_start_hour}h–{campaign.window_end_hour}h
+              Cadência {campaign.throttle_min_seconds}-{campaign.throttle_max_seconds}s · Janela {campaign.window_start_hour}h–{campaign.window_end_hour}h · Limite/hora distribuído (regras)
             </div>
           </div>
           <Badge className={s.tone}>{s.label}</Badge>
@@ -372,11 +380,42 @@ function CampaignDetailPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-4 gap-3">
-        <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Total</div><div className="text-2xl font-semibold">{campaign.total_count}</div></CardContent></Card>
-        <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Enviadas</div><div className="text-2xl font-semibold text-emerald-600">{campaign.sent_count}</div></CardContent></Card>
-        <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Pendentes</div><div className="text-2xl font-semibold">{data?.pendingCount ?? 0}</div></CardContent></Card>
-        <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Falhas</div><div className="text-2xl font-semibold text-rose-600">{campaign.failed_count}</div></CardContent></Card>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Total</div><div className="text-2xl font-semibold">{metrics?.counts.total ?? campaign.total_count}</div></CardContent></Card>
+        <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Enviadas</div><div className="text-2xl font-semibold text-emerald-600">{metrics?.counts.sent ?? campaign.sent_count}</div></CardContent></Card>
+        <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Pendentes</div><div className="text-2xl font-semibold">{metrics?.counts.pending ?? data?.pendingCount ?? 0}</div></CardContent></Card>
+        <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Falhas</div><div className="text-2xl font-semibold text-rose-600">{metrics?.counts.failed ?? campaign.failed_count}</div></CardContent></Card>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="text-xs text-muted-foreground">Taxa de entrega</div>
+            <div className="text-2xl font-semibold text-blue-600">{metrics?.rates.delivery ?? 0}%</div>
+            <div className="text-[11px] text-muted-foreground">{metrics?.counts.delivered ?? 0} entregues</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="text-xs text-muted-foreground">Taxa de abertura</div>
+            <div className="text-2xl font-semibold text-violet-600">{metrics?.rates.read ?? 0}%</div>
+            <div className="text-[11px] text-muted-foreground">{metrics?.counts.read ?? 0} lidas</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="text-xs text-muted-foreground">Respostas</div>
+            <div className="text-2xl font-semibold text-amber-600">{metrics?.rates.reply ?? 0}%</div>
+            <div className="text-[11px] text-muted-foreground">{metrics?.counts.replied ?? 0} responderam</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="text-xs text-muted-foreground">Conclusão</div>
+            <div className="text-2xl font-semibold">{metrics?.rates.completion ?? 0}%</div>
+            <div className="text-[11px] text-muted-foreground">{(metrics?.counts.sent ?? 0) + (metrics?.counts.failed ?? 0) + (metrics?.counts.skipped ?? 0)} de {metrics?.counts.total ?? 0}</div>
+          </CardContent>
+        </Card>
       </div>
       <div className="h-1.5 overflow-hidden rounded-full bg-muted">
         <div className="h-full bg-primary transition-all" style={{ width: `${pct}%` }} />
