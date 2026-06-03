@@ -162,12 +162,9 @@ export async function materializeStep(stepId: string): Promise<number> {
   if (!step) return 0;
   if (step.materialized_at) return 0;
 
-  // Pool de contatos da campanha
-  const { data: pool } = await supabaseAdmin
-    .from("campaign_targets")
-    .select("id, phone, name, custom_fields")
-    .eq("campaign_id", step.campaign_id);
-  if (!pool?.length) {
+  // Pool de contatos da campanha — paginado para listas grandes.
+  const pool = await fetchCampaignTargetPool(step.campaign_id);
+  if (!pool.length) {
     await supabaseAdmin
       .from("campaign_steps")
       .update({ materialized_at: new Date().toISOString(), total_count: 0 })
@@ -178,11 +175,8 @@ export async function materializeStep(stepId: string): Promise<number> {
   const phones = pool.map((p) => p.phone);
 
   // Mapa de contatos para opt-out / journey / tags
-  const { data: contacts } = await supabaseAdmin
-    .from("contacts")
-    .select("id, phone, opted_out, journey_completed, tags")
-    .in("phone", phones);
-  const cByPhone = new Map((contacts ?? []).map((c) => [c.phone, c]));
+  const contacts = await fetchContactsByPhones(phones);
+  const cByPhone = new Map(contacts.map((c) => [c.phone, c]));
 
   // Filtro por step referenciado
   let allowedTargetIds: Set<string> | null = null;
