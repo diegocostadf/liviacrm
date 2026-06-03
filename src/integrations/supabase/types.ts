@@ -127,11 +127,13 @@ export type Database = {
           campaign_id: string
           contact_id: string | null
           created_at: string
+          delivered_at: string | null
           error: string | null
           id: string
           instance_id_used: string | null
           locked_until: string | null
           phone: string
+          read_at: string | null
           rendered_message: string | null
           replied_at: string | null
           sent_at: string | null
@@ -146,11 +148,13 @@ export type Database = {
           campaign_id: string
           contact_id?: string | null
           created_at?: string
+          delivered_at?: string | null
           error?: string | null
           id?: string
           instance_id_used?: string | null
           locked_until?: string | null
           phone: string
+          read_at?: string | null
           rendered_message?: string | null
           replied_at?: string | null
           sent_at?: string | null
@@ -165,11 +169,13 @@ export type Database = {
           campaign_id?: string
           contact_id?: string | null
           created_at?: string
+          delivered_at?: string | null
           error?: string | null
           id?: string
           instance_id_used?: string | null
           locked_until?: string | null
           phone?: string
+          read_at?: string | null
           rendered_message?: string | null
           replied_at?: string | null
           sent_at?: string | null
