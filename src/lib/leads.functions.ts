@@ -9,35 +9,55 @@ const listSchema = z.object({
   tag: z.string().max(60).optional(),
   opted_out: z.boolean().optional(),
   mine: z.boolean().optional(),
-  limit: z.number().int().min(1).max(500).default(200),
+  page: z.number().int().min(1).default(1),
+  pageSize: z.number().int().min(1).max(200).default(100),
+  limit: z.number().int().min(1).max(500).optional(),
 }).partial();
+
+const INTENTS_BY_TEMPERATURE = {
+  quente: ["lead_quente", "interessado"],
+  morno: ["inscrito", "objecao"],
+  frio: ["silencio", "sem_interesse", "fora_escopo"],
+} as const;
+
+function temperatureFromIntent(intent: string | null | undefined) {
+  if (!intent) return null;
+  if ((INTENTS_BY_TEMPERATURE.quente as readonly string[]).includes(intent)) return "quente";
+  if ((INTENTS_BY_TEMPERATURE.morno as readonly string[]).includes(intent)) return "morno";
+  return "frio";
+}
 
 export const listLeads = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => listSchema.parse(d ?? {}))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    const page = data.page ?? 1;
+    const pageSize = data.pageSize ?? data.limit ?? 100;
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
     let q = supabase
       .from("contacts")
       .select(`
         id, name, phone, email, city, state, company, job_title, source,
         tags, lead_status, opted_out, assigned_to, profile_pic_url,
         landing_link_sent_count, landing_link_sent_at, journey_completed,
-        last_score_at, created_at, updated_at
-      `)
-      .order("updated_at", { ascending: false })
-      .limit(data.limit ?? 200);
+        last_intent, last_intent_at, last_score_at, created_at, updated_at
+      `, { count: "exact" });
     if (data.lead_status) q = q.eq("lead_status", data.lead_status);
     if (typeof data.opted_out === "boolean") q = q.eq("opted_out", data.opted_out);
     if (data.mine) q = q.eq("assigned_to", userId);
+    if (data.tag) q = q.contains("tags", [data.tag]);
+    if (data.temperature) q = q.in("last_intent", [...INTENTS_BY_TEMPERATURE[data.temperature]]);
     if (data.search) {
       const s = data.search.replace(/[%_]/g, "");
       q = q.or(`name.ilike.%${s}%,phone.ilike.%${s}%,email.ilike.%${s}%,company.ilike.%${s}%,city.ilike.%${s}%`);
     }
-    const { data: rows, error } = await q;
+    const { data: rows, error, count } = await q
+      .order("updated_at", { ascending: false })
+      .range(from, to);
     if (error) throw new Error(error.message);
     let list = rows ?? [];
-    if (data.tag) list = list.filter((r) => (r.tags ?? []).includes(data.tag!));
 
     // get last intent per contact
     const ids = list.map((r) => r.id);
@@ -59,9 +79,19 @@ export const listLeads = createServerFn({ method: "POST" })
         }
       }
     }
-    let result = list.map((r) => ({ ...r, latest_intent: intentByContact.get(r.id) ?? null }));
-    if (data.temperature) result = result.filter((r) => r.latest_intent?.temperature === data.temperature);
-    return result;
+    const result = list.map((r) => {
+      const eventIntent = intentByContact.get(r.id);
+      return {
+        ...r,
+        latest_intent: eventIntent ?? (r.last_intent ? {
+          intent: r.last_intent as string,
+          temperature: temperatureFromIntent(r.last_intent) ?? "frio",
+          score: r.last_intent === "lead_quente" ? 80 : 0,
+          created_at: r.last_intent_at ?? r.updated_at,
+        } : null),
+      };
+    });
+    return { rows: result, total: count ?? 0, page, pageSize };
   });
 
 export const getLeadStats = createServerFn({ method: "GET" })
