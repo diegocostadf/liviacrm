@@ -146,12 +146,13 @@ export const getCampaign = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     if (!campaign) throw new Error("Campanha não encontrada");
 
-    const { data: targets } = await supabaseAdmin
+    const { data: targets, error: targetsError } = await supabaseAdmin
       .from("campaign_targets")
       .select("id, phone, name, status, sent_at, error, attempts, custom_fields, rendered_message")
       .eq("campaign_id", data.id)
       .order("created_at", { ascending: true })
       .range(from, to);
+    if (targetsError) throw new Error(targetsError.message);
     const [{ count: targetCount }, { count: pendingCount }] = await Promise.all([
       supabaseAdmin
         .from("campaign_targets")
@@ -415,6 +416,10 @@ export const getCampaignMetrics = createServerFn({ method: "POST" })
       supabaseAdmin.from("campaign_step_sends").select("id", { count: "exact", head: true }).eq("campaign_id", data.id).eq("status", "replied"),
       supabaseAdmin.from("campaign_step_sends").select("id", { count: "exact", head: true }).eq("campaign_id", data.id).in("status", ["skipped", "skipped_replied", "skipped_dedupe"]),
     ]);
+    const countErrors = [targets, pendingTargets, sentTargets, failedTargets, stepTotal, stepPending, stepSent, stepFailed, delivered, read, replied, skipped]
+      .map((r) => r.error?.message)
+      .filter(Boolean);
+    if (countErrors.length) throw new Error(countErrors[0]);
     const hasStepSends = (stepTotal.count ?? 0) > 0;
     const m = {
       total: targets.count ?? 0,
