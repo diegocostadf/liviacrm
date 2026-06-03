@@ -490,6 +490,18 @@ function CampaignDetailPage() {
                     )}
                   </tbody>
                 </table>
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-3 py-2 text-xs text-muted-foreground">
+                  <span>{targetFrom}-{targetTo} de {targetTotal} destinatários</span>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setTargetPage((p) => Math.max(1, p - 1))} disabled={targetPage <= 1 || isLoading}>
+                      <ChevronLeft className="h-3.5 w-3.5" /> Anterior
+                    </Button>
+                    <span>Página {targetPage} de {targetTotalPages}</span>
+                    <Button variant="outline" size="sm" onClick={() => setTargetPage((p) => Math.min(targetTotalPages, p + 1))} disabled={targetPage >= targetTotalPages || isLoading}>
+                      Próxima <ChevronRight className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
