@@ -19,6 +19,7 @@ import { CampaignRulesCard } from "@/components/campaign-rules";
 import {
   getCampaign, addCampaignTargets, removeCampaignTarget,
   setCampaignStatus, tickCampaignFn, previewCampaignMessage, updateCampaign,
+  getCampaignMetrics,
 } from "@/lib/campaigns.functions";
 import * as XLSX from "xlsx";
 
@@ -187,11 +188,18 @@ function CampaignDetailPage() {
   const tickFn = useServerFn(tickCampaignFn);
   const previewFn = useServerFn(previewCampaignMessage);
   const updateFn = useServerFn(updateCampaign);
+  const metricsFn = useServerFn(getCampaignMetrics);
 
   const { data, isLoading } = useQuery({
     queryKey: ["campaign", id],
     queryFn: () => getFn({ data: { id } }),
     refetchInterval: 3000,
+  });
+
+  const { data: metrics } = useQuery({
+    queryKey: ["campaign-metrics", id],
+    queryFn: () => metricsFn({ data: { id } }),
+    refetchInterval: 5000,
   });
 
   const campaign = data?.campaign;
