@@ -1,8 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useMemo, useState } from "react";
-import { listLeads } from "@/lib/leads.functions";
+import { useState } from "react";
+import { listLeads, getLeadStats } from "@/lib/leads.functions";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -37,6 +37,7 @@ const TEMP_COLORS: Record<string, string> = {
 
 function LeadsListPage() {
   const list = useServerFn(listLeads);
+  const statsFn = useServerFn(getLeadStats);
   const [search, setSearch] = useState("");
   const [statusF, setStatusF] = useState<string>("all");
   const [tempF, setTempF] = useState<string>("all");
@@ -53,15 +54,11 @@ function LeadsListPage() {
       }),
   });
 
-  const stats = useMemo(() => {
-    const rows = data ?? [];
-    return {
-      total: rows.length,
-      quentes: rows.filter((r) => r.latest_intent?.temperature === "quente").length,
-      inscritos: rows.filter((r) => r.lead_status === "inscrito").length,
-      opt_outs: rows.filter((r) => r.opted_out).length,
-    };
-  }, [data]);
+  const { data: stats } = useQuery({
+    queryKey: ["leads-stats"],
+    queryFn: () => statsFn(),
+  });
+  const s = stats ?? { total: 0, quentes: 0, inscritos: 0, opt_outs: 0 };
 
   return (
     <div className="h-screen overflow-y-auto p-6">
@@ -73,10 +70,10 @@ function LeadsListPage() {
       </div>
 
       <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Total" value={stats.total} icon={<Users className="h-4 w-4" />} />
-        <StatCard label="Quentes" value={stats.quentes} icon={<Flame className="h-4 w-4 text-red-500" />} />
-        <StatCard label="Inscritos" value={stats.inscritos} icon={<Badge className="h-4">✓</Badge>} />
-        <StatCard label="Opt-outs" value={stats.opt_outs} icon={<span className="text-xs">🚫</span>} />
+        <StatCard label="Total" value={s.total} icon={<Users className="h-4 w-4" />} />
+        <StatCard label="Quentes" value={s.quentes} icon={<Flame className="h-4 w-4 text-red-500" />} />
+        <StatCard label="Inscritos" value={s.inscritos} icon={<Badge className="h-4">✓</Badge>} />
+        <StatCard label="Opt-outs" value={s.opt_outs} icon={<span className="text-xs">🚫</span>} />
       </div>
 
       <Card className="mb-4 flex flex-wrap items-center gap-2 p-3">
