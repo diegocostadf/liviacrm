@@ -4,6 +4,37 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { tickCampaign, renderTemplate } from "./campaigns.server";
 
+const DB_PAGE_SIZE = 1000;
+
+async function fetchExistingTargetPhones(campaignId: string) {
+  const phones: string[] = [];
+  for (let from = 0; ; from += DB_PAGE_SIZE) {
+    const { data, error } = await supabaseAdmin
+      .from("campaign_targets")
+      .select("phone")
+      .eq("campaign_id", campaignId)
+      .range(from, from + DB_PAGE_SIZE - 1);
+    if (error) throw new Error(error.message);
+    phones.push(...(data ?? []).map((row) => row.phone));
+    if (!data || data.length < DB_PAGE_SIZE) break;
+  }
+  return phones;
+}
+
+async function fetchExistingContactsByPhones(phones: string[]) {
+  const rows: Array<{ id: string; phone: string }> = [];
+  const uniquePhones = [...new Set(phones)];
+  for (let i = 0; i < uniquePhones.length; i += 500) {
+    const { data, error } = await supabaseAdmin
+      .from("contacts")
+      .select("id, phone")
+      .in("phone", uniquePhones.slice(i, i + 500));
+    if (error) throw new Error(error.message);
+    rows.push(...(data ?? []));
+  }
+  return rows;
+}
+
 export const listCampaigns = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async () => {
