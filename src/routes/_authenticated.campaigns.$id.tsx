@@ -271,7 +271,7 @@ function CampaignDetailPage() {
     const isExcel = /\.(xlsx|xls)$/i.test(file.name);
     const isCsv = /\.(csv|txt)$/i.test(file.name) || file.type.includes("csv") || file.type.includes("text");
     if (!isExcel && !isCsv) { toast.error("Envie um arquivo .csv, .xlsx ou .xls"); return; }
-    if (file.size > 10 * 1024 * 1024) { toast.error("Arquivo muito grande (máx 10MB)"); return; }
+    if (file.size > 25 * 1024 * 1024) { toast.error("Arquivo muito grande (máx 25MB)"); return; }
     try {
       const rows = isExcel
         ? sheetToRows(await file.arrayBuffer())
@@ -311,13 +311,17 @@ function CampaignDetailPage() {
         const { phone, name, ...rest } = r;
         return { phone, name: name || undefined, custom_fields: rest };
       });
-      const { inserted } = await addFn({ data: {
-        campaignId: id,
-        targets: items,
-        dedupe: true,
-        initial_intent: initialIntent,
-        overwrite_intent: overwriteIntent,
-      } });
+      let inserted = 0;
+      for (let i = 0; i < items.length; i += 4000) {
+        const res = await addFn({ data: {
+          campaignId: id,
+          targets: items.slice(i, i + 4000),
+          dedupe: true,
+          initial_intent: initialIntent,
+          overwrite_intent: overwriteIntent,
+        } });
+        inserted += res.inserted;
+      }
       toast.success(`${inserted} contatos importados`);
       setTargetPage(1);
       setCsv("phone,name\n");
