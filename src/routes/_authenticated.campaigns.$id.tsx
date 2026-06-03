@@ -254,14 +254,26 @@ function CampaignDetailPage() {
 
   async function handleFile(file: File | null | undefined) {
     if (!file) return;
-    const okType = /\.csv$|\.txt$/i.test(file.name) || file.type.includes("csv") || file.type.includes("text");
-    if (!okType) { toast.error("Envie um arquivo .csv"); return; }
-    if (file.size > 5 * 1024 * 1024) { toast.error("Arquivo muito grande (máx 5MB)"); return; }
+    const isExcel = /\.(xlsx|xls)$/i.test(file.name);
+    const isCsv = /\.(csv|txt)$/i.test(file.name) || file.type.includes("csv") || file.type.includes("text");
+    if (!isExcel && !isCsv) { toast.error("Envie um arquivo .csv, .xlsx ou .xls"); return; }
+    if (file.size > 10 * 1024 * 1024) { toast.error("Arquivo muito grande (máx 10MB)"); return; }
     try {
-      const text = await file.text();
-      setCsv(text);
+      const rows = isExcel
+        ? sheetToRows(await file.arrayBuffer())
+        : csvTextToRows(await file.text());
+      const { csv: normalized, adjustments } = normalizeRows(rows);
+      if (!normalized) {
+        toast.error(adjustments[0] ?? "Não foi possível ler o arquivo");
+        return;
+      }
+      setCsv(normalized);
       setFileName(file.name);
-      toast.success(`${file.name} carregado`);
+      if (adjustments.length) {
+        toast.success(`${file.name} ajustado: ${adjustments.join("; ")}`);
+      } else {
+        toast.success(`${file.name} carregado`);
+      }
     } catch (e) {
       toast.error((e as Error).message);
     }
