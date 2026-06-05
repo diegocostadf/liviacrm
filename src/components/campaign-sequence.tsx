@@ -364,6 +364,8 @@ function StepDialog({
     audience: Step["audience"];
     audience_step_id: string | null;
     audience_tags: string[];
+    audience_states: string[];
+    audience_cities: string[];
     ord: number;
     allowed_weekdays?: number[] | null;
     max_per_hour?: number | null;
@@ -384,6 +386,23 @@ function StepDialog({
   const [audience, setAudience] = useState<Step["audience"]>(initial?.audience ?? "all");
   const [audienceStepId, setAudienceStepId] = useState<string>(initial?.audience_step_id ?? "");
   const [audienceTags, setAudienceTags] = useState((initial?.audience_tags ?? []).join(", "));
+  const [audienceStates, setAudienceStates] = useState<string[]>((initial?.audience_states ?? []) as string[]);
+  const [audienceCities, setAudienceCities] = useState<string[]>((initial?.audience_cities ?? []) as string[]);
+  const locFn = useServerFn(listCampaignLocations);
+  const { data: locs } = useQuery({
+    queryKey: ["campaign-locations", campaignId],
+    queryFn: () => locFn({ data: { campaignId } }),
+    staleTime: 60_000,
+  });
+  const stateOptions = locs?.states ?? [];
+  const cityOptions = (locs?.cities ?? []).filter((c) =>
+    audienceStates.length === 0 || (c.uf && audienceStates.includes(c.uf)),
+  );
+  function toggleInList(list: string[], value: string, setter: (v: string[]) => void) {
+    const i = list.indexOf(value);
+    if (i >= 0) setter(list.filter((_, idx) => idx !== i));
+    else setter([...list, value]);
+  }
   const [ord, setOrd] = useState(initial?.ord ?? nextOrd);
   const [saving, setSaving] = useState(false);
 
