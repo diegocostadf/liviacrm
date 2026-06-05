@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated.index'
+import { Route as ApiTwilioSettingsRouteImport } from './routes/api/twilio-settings'
 import { Route as ApiSettingsRouteImport } from './routes/api/settings'
 import { Route as ApiConnectionsRouteImport } from './routes/api/connections'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated.settings'
@@ -25,6 +26,7 @@ import { Route as AuthenticatedLeadsIndexRouteImport } from './routes/_authentic
 import { Route as AuthenticatedCampaignsIndexRouteImport } from './routes/_authenticated.campaigns.index'
 import { Route as AuthenticatedSettingsWebhooksRouteImport } from './routes/_authenticated.settings.webhooks'
 import { Route as AuthenticatedSettingsUsersRouteImport } from './routes/_authenticated.settings.users'
+import { Route as AuthenticatedSettingsTwilioRouteImport } from './routes/_authenticated.settings.twilio'
 import { Route as AuthenticatedSettingsKnowledgeRouteImport } from './routes/_authenticated.settings.knowledge'
 import { Route as AuthenticatedSettingsEvolutionRouteImport } from './routes/_authenticated.settings.evolution'
 import { Route as AuthenticatedSettingsConnectionsRouteImport } from './routes/_authenticated.settings.connections'
@@ -48,6 +50,11 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AuthenticatedRoute,
+} as any)
+const ApiTwilioSettingsRoute = ApiTwilioSettingsRouteImport.update({
+  id: '/api/twilio-settings',
+  path: '/api/twilio-settings',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiSettingsRoute = ApiSettingsRouteImport.update({
   id: '/api/settings',
@@ -118,6 +125,12 @@ const AuthenticatedSettingsUsersRoute =
     path: '/users',
     getParentRoute: () => AuthenticatedSettingsRoute,
   } as any)
+const AuthenticatedSettingsTwilioRoute =
+  AuthenticatedSettingsTwilioRouteImport.update({
+    id: '/twilio',
+    path: '/twilio',
+    getParentRoute: () => AuthenticatedSettingsRoute,
+  } as any)
 const AuthenticatedSettingsKnowledgeRoute =
   AuthenticatedSettingsKnowledgeRouteImport.update({
     id: '/knowledge',
@@ -183,6 +196,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AuthenticatedSettingsRouteWithChildren
   '/api/connections': typeof ApiConnectionsRoute
   '/api/settings': typeof ApiSettingsRoute
+  '/api/twilio-settings': typeof ApiTwilioSettingsRoute
   '/campaigns/$id': typeof AuthenticatedCampaignsIdRoute
   '/leads/$id': typeof AuthenticatedLeadsIdRoute
   '/settings/ai-providers': typeof AuthenticatedSettingsAiProvidersRoute
@@ -190,6 +204,7 @@ export interface FileRoutesByFullPath {
   '/settings/connections': typeof AuthenticatedSettingsConnectionsRoute
   '/settings/evolution': typeof AuthenticatedSettingsEvolutionRoute
   '/settings/knowledge': typeof AuthenticatedSettingsKnowledgeRoute
+  '/settings/twilio': typeof AuthenticatedSettingsTwilioRoute
   '/settings/users': typeof AuthenticatedSettingsUsersRoute
   '/settings/webhooks': typeof AuthenticatedSettingsWebhooksRoute
   '/campaigns/': typeof AuthenticatedCampaignsIndexRoute
@@ -206,6 +221,7 @@ export interface FileRoutesByTo {
   '/settings': typeof AuthenticatedSettingsRouteWithChildren
   '/api/connections': typeof ApiConnectionsRoute
   '/api/settings': typeof ApiSettingsRoute
+  '/api/twilio-settings': typeof ApiTwilioSettingsRoute
   '/': typeof AuthenticatedIndexRoute
   '/campaigns/$id': typeof AuthenticatedCampaignsIdRoute
   '/leads/$id': typeof AuthenticatedLeadsIdRoute
@@ -214,6 +230,7 @@ export interface FileRoutesByTo {
   '/settings/connections': typeof AuthenticatedSettingsConnectionsRoute
   '/settings/evolution': typeof AuthenticatedSettingsEvolutionRoute
   '/settings/knowledge': typeof AuthenticatedSettingsKnowledgeRoute
+  '/settings/twilio': typeof AuthenticatedSettingsTwilioRoute
   '/settings/users': typeof AuthenticatedSettingsUsersRoute
   '/settings/webhooks': typeof AuthenticatedSettingsWebhooksRoute
   '/campaigns': typeof AuthenticatedCampaignsIndexRoute
@@ -234,6 +251,7 @@ export interface FileRoutesById {
   '/_authenticated/settings': typeof AuthenticatedSettingsRouteWithChildren
   '/api/connections': typeof ApiConnectionsRoute
   '/api/settings': typeof ApiSettingsRoute
+  '/api/twilio-settings': typeof ApiTwilioSettingsRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/campaigns/$id': typeof AuthenticatedCampaignsIdRoute
   '/_authenticated/leads/$id': typeof AuthenticatedLeadsIdRoute
@@ -242,6 +260,7 @@ export interface FileRoutesById {
   '/_authenticated/settings/connections': typeof AuthenticatedSettingsConnectionsRoute
   '/_authenticated/settings/evolution': typeof AuthenticatedSettingsEvolutionRoute
   '/_authenticated/settings/knowledge': typeof AuthenticatedSettingsKnowledgeRoute
+  '/_authenticated/settings/twilio': typeof AuthenticatedSettingsTwilioRoute
   '/_authenticated/settings/users': typeof AuthenticatedSettingsUsersRoute
   '/_authenticated/settings/webhooks': typeof AuthenticatedSettingsWebhooksRoute
   '/_authenticated/campaigns/': typeof AuthenticatedCampaignsIndexRoute
@@ -263,6 +282,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/api/connections'
     | '/api/settings'
+    | '/api/twilio-settings'
     | '/campaigns/$id'
     | '/leads/$id'
     | '/settings/ai-providers'
@@ -270,6 +290,7 @@ export interface FileRouteTypes {
     | '/settings/connections'
     | '/settings/evolution'
     | '/settings/knowledge'
+    | '/settings/twilio'
     | '/settings/users'
     | '/settings/webhooks'
     | '/campaigns/'
@@ -286,6 +307,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/api/connections'
     | '/api/settings'
+    | '/api/twilio-settings'
     | '/'
     | '/campaigns/$id'
     | '/leads/$id'
@@ -294,6 +316,7 @@ export interface FileRouteTypes {
     | '/settings/connections'
     | '/settings/evolution'
     | '/settings/knowledge'
+    | '/settings/twilio'
     | '/settings/users'
     | '/settings/webhooks'
     | '/campaigns'
@@ -313,6 +336,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings'
     | '/api/connections'
     | '/api/settings'
+    | '/api/twilio-settings'
     | '/_authenticated/'
     | '/_authenticated/campaigns/$id'
     | '/_authenticated/leads/$id'
@@ -321,6 +345,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/connections'
     | '/_authenticated/settings/evolution'
     | '/_authenticated/settings/knowledge'
+    | '/_authenticated/settings/twilio'
     | '/_authenticated/settings/users'
     | '/_authenticated/settings/webhooks'
     | '/_authenticated/campaigns/'
@@ -334,6 +359,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   ApiConnectionsRoute: typeof ApiConnectionsRoute
   ApiSettingsRoute: typeof ApiSettingsRoute
+  ApiTwilioSettingsRoute: typeof ApiTwilioSettingsRoute
   ApiPublicCampaignsTickRoute: typeof ApiPublicCampaignsTickRoute
   ApiPublicWebhooksEvolutionRoute: typeof ApiPublicWebhooksEvolutionRoute
 }
@@ -360,6 +386,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
+    }
+    '/api/twilio-settings': {
+      id: '/api/twilio-settings'
+      path: '/api/twilio-settings'
+      fullPath: '/api/twilio-settings'
+      preLoaderRoute: typeof ApiTwilioSettingsRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/settings': {
       id: '/api/settings'
@@ -450,6 +483,13 @@ declare module '@tanstack/react-router' {
       path: '/users'
       fullPath: '/settings/users'
       preLoaderRoute: typeof AuthenticatedSettingsUsersRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
+    }
+    '/_authenticated/settings/twilio': {
+      id: '/_authenticated/settings/twilio'
+      path: '/twilio'
+      fullPath: '/settings/twilio'
+      preLoaderRoute: typeof AuthenticatedSettingsTwilioRouteImport
       parentRoute: typeof AuthenticatedSettingsRoute
     }
     '/_authenticated/settings/knowledge': {
@@ -553,6 +593,7 @@ interface AuthenticatedSettingsRouteChildren {
   AuthenticatedSettingsConnectionsRoute: typeof AuthenticatedSettingsConnectionsRoute
   AuthenticatedSettingsEvolutionRoute: typeof AuthenticatedSettingsEvolutionRoute
   AuthenticatedSettingsKnowledgeRoute: typeof AuthenticatedSettingsKnowledgeRoute
+  AuthenticatedSettingsTwilioRoute: typeof AuthenticatedSettingsTwilioRoute
   AuthenticatedSettingsUsersRoute: typeof AuthenticatedSettingsUsersRoute
   AuthenticatedSettingsWebhooksRoute: typeof AuthenticatedSettingsWebhooksRoute
 }
@@ -563,6 +604,7 @@ const AuthenticatedSettingsRouteChildren: AuthenticatedSettingsRouteChildren = {
   AuthenticatedSettingsConnectionsRoute: AuthenticatedSettingsConnectionsRoute,
   AuthenticatedSettingsEvolutionRoute: AuthenticatedSettingsEvolutionRoute,
   AuthenticatedSettingsKnowledgeRoute: AuthenticatedSettingsKnowledgeRoute,
+  AuthenticatedSettingsTwilioRoute: AuthenticatedSettingsTwilioRoute,
   AuthenticatedSettingsUsersRoute: AuthenticatedSettingsUsersRoute,
   AuthenticatedSettingsWebhooksRoute: AuthenticatedSettingsWebhooksRoute,
 }
@@ -603,6 +645,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   ApiConnectionsRoute: ApiConnectionsRoute,
   ApiSettingsRoute: ApiSettingsRoute,
+  ApiTwilioSettingsRoute: ApiTwilioSettingsRoute,
   ApiPublicCampaignsTickRoute: ApiPublicCampaignsTickRoute,
   ApiPublicWebhooksEvolutionRoute: ApiPublicWebhooksEvolutionRoute,
 }
