@@ -649,6 +649,8 @@ function StepDialog({
                     audience === "tag_any"
                       ? audienceTags.split(",").map((t) => t.trim()).filter(Boolean)
                       : [],
+                  audience_states: audienceStates,
+                  audience_cities: audienceCities,
                   ord,
                   allowed_weekdays: ovWeekdays,
                   max_per_hour: ovMaxHour.trim() ? Number(ovMaxHour) : null,
