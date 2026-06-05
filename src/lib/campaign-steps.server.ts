@@ -239,6 +239,8 @@ export async function materializeStep(stepId: string): Promise<number> {
   }
 
   const tagsLower = (step.audience_tags ?? []).map((t: string) => t.toLowerCase());
+  const statesUpper = ((step.audience_states ?? []) as string[]).map((s) => s.trim().toUpperCase()).filter(Boolean);
+  const citiesLower = ((step.audience_cities ?? []) as string[]).map((s) => s.trim().toLowerCase()).filter(Boolean);
 
   const rows = pool
     .filter((t) => {
@@ -250,6 +252,14 @@ export async function materializeStep(stepId: string): Promise<number> {
       if (step.audience === "tag_any") {
         const ctags = (c?.tags ?? []).map((x: string) => x.toLowerCase());
         if (!tagsLower.some((t2) => ctags.includes(t2))) return false;
+      }
+      if (statesUpper.length) {
+        const st = (c?.state ?? "").trim().toUpperCase();
+        if (!st || !statesUpper.includes(st)) return false;
+      }
+      if (citiesLower.length) {
+        const ci = (c?.city ?? "").trim().toLowerCase();
+        if (!ci || !citiesLower.includes(ci)) return false;
       }
       return true;
     })
