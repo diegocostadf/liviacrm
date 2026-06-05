@@ -288,7 +288,7 @@ export function CampaignCrmPicker({ campaignId }: { campaignId: string }) {
           {!!preview?.sample?.length && (
             <div className="mt-3 grid gap-1.5 text-xs">
               <div className="text-[10px] uppercase text-muted-foreground">Amostra</div>
-              {preview.sample.map((c) => (
+              {preview.sample.map((c: { id: string; name: string | null; phone: string; city: string | null; state: string | null; tags: string[] | null; lead_status: string }) => (
                 <div key={c.id} className="flex items-center justify-between gap-2 rounded border border-border bg-muted/20 px-2 py-1">
                   <div className="min-w-0">
                     <div className="truncate">{c.name ?? "—"} <span className="text-muted-foreground">· {c.phone}</span></div>
