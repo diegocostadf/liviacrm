@@ -1,7 +1,6 @@
 import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,15 +40,6 @@ function LoginPage() {
     }
   }
 
-  async function handleGoogle() {
-    setLoading(true);
-    const result = await lovable.auth.signInWithOAuth("google", { redirect_uri: window.location.origin });
-    if (result.error) {
-      toast.error(result.error.message);
-      setLoading(false);
-    }
-  }
-
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-md space-y-6">
@@ -72,12 +62,6 @@ function LoginPage() {
               {loading ? "Aguarde…" : "Entrar"}
             </Button>
           </form>
-          <div className="my-4 flex items-center gap-3 text-xs text-muted-foreground">
-            <div className="h-px flex-1 bg-border" /> ou <div className="h-px flex-1 bg-border" />
-          </div>
-          <Button type="button" variant="outline" className="w-full" onClick={handleGoogle} disabled={loading}>
-            Entrar com Google
-          </Button>
           <p className="mt-4 text-center text-xs text-muted-foreground">
             O cadastro de novos usuários é feito por um administrador.
           </p>
