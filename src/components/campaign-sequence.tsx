@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/select";
 import {
   listSteps, createStep, updateStep, deleteStep, setStepStatus,
-  materializeStepFn, tickStepFn, updateCampaignOptOut,
+  materializeStepFn, tickStepFn, updateCampaignOptOut, listCampaignLocations,
 } from "@/lib/campaign-steps.functions";
 
 type Step = {
@@ -35,6 +35,8 @@ type Step = {
   audience: "all" | "not_responded_step" | "responded_step" | "not_subscribed" | "subscribed" | "tag_any";
   audience_step_id: string | null;
   audience_tags: string[] | null;
+  audience_states?: string[] | null;
+  audience_cities?: string[] | null;
   status: "draft" | "scheduled" | "sending" | "completed" | "paused" | "failed";
   total_count: number;
   sent_count: number;
@@ -362,6 +364,8 @@ function StepDialog({
     audience: Step["audience"];
     audience_step_id: string | null;
     audience_tags: string[];
+    audience_states: string[];
+    audience_cities: string[];
     ord: number;
     allowed_weekdays?: number[] | null;
     max_per_hour?: number | null;
@@ -382,6 +386,23 @@ function StepDialog({
   const [audience, setAudience] = useState<Step["audience"]>(initial?.audience ?? "all");
   const [audienceStepId, setAudienceStepId] = useState<string>(initial?.audience_step_id ?? "");
   const [audienceTags, setAudienceTags] = useState((initial?.audience_tags ?? []).join(", "));
+  const [audienceStates, setAudienceStates] = useState<string[]>((initial?.audience_states ?? []) as string[]);
+  const [audienceCities, setAudienceCities] = useState<string[]>((initial?.audience_cities ?? []) as string[]);
+  const locFn = useServerFn(listCampaignLocations);
+  const { data: locs } = useQuery({
+    queryKey: ["campaign-locations", campaignId],
+    queryFn: () => locFn({ data: { campaignId } }),
+    staleTime: 60_000,
+  });
+  const stateOptions = locs?.states ?? [];
+  const cityOptions = (locs?.cities ?? []).filter((c) =>
+    audienceStates.length === 0 || (c.uf && audienceStates.includes(c.uf)),
+  );
+  function toggleInList(list: string[], value: string, setter: (v: string[]) => void) {
+    const i = list.indexOf(value);
+    if (i >= 0) setter(list.filter((_, idx) => idx !== i));
+    else setter([...list, value]);
+  }
   const [ord, setOrd] = useState(initial?.ord ?? nextOrd);
   const [saving, setSaving] = useState(false);
 
@@ -518,6 +539,84 @@ function StepDialog({
             </div>
           )}
 
+          <div className="rounded-md border border-border bg-muted/20 p-3">
+            <div className="mb-2 text-xs font-medium">
+              Localidade (opcional) — filtra além do público acima
+            </div>
+            <div className="mb-3">
+              <Label className="text-[11px] text-muted-foreground">
+                Estados {stateOptions.length > 0 && `(${stateOptions.length} disponíveis)`}
+              </Label>
+              <div className="mt-1 flex max-h-28 flex-wrap gap-1.5 overflow-y-auto">
+                {stateOptions.length === 0 && (
+                  <span className="text-[11px] text-muted-foreground">Sem dados de UF nos contatos desta campanha.</span>
+                )}
+                {stateOptions.map((s) => {
+                  const active = audienceStates.includes(s.uf);
+                  return (
+                    <button
+                      type="button"
+                      key={s.uf}
+                      onClick={() => toggleInList(audienceStates, s.uf, setAudienceStates)}
+                      className={`rounded-md border px-2 py-0.5 text-[11px] ${
+                        active
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-border bg-background text-muted-foreground"
+                      }`}
+                    >
+                      {s.uf} <span className="opacity-70">· {s.count}</span>
+                    </button>
+                  );
+                })}
+                {audienceStates.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setAudienceStates([])}
+                    className="text-[10px] text-muted-foreground underline"
+                  >
+                    limpar
+                  </button>
+                )}
+              </div>
+            </div>
+            <div>
+              <Label className="text-[11px] text-muted-foreground">
+                Cidades {audienceStates.length > 0 && "(restritas às UF selecionadas)"}
+              </Label>
+              <div className="mt-1 flex max-h-32 flex-wrap gap-1.5 overflow-y-auto">
+                {cityOptions.length === 0 && (
+                  <span className="text-[11px] text-muted-foreground">Sem dados de cidade.</span>
+                )}
+                {cityOptions.slice(0, 300).map((c) => {
+                  const active = audienceCities.includes(c.name);
+                  return (
+                    <button
+                      type="button"
+                      key={`${c.uf ?? "_"}-${c.name}`}
+                      onClick={() => toggleInList(audienceCities, c.name, setAudienceCities)}
+                      className={`rounded-md border px-2 py-0.5 text-[11px] capitalize ${
+                        active
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-border bg-background text-muted-foreground"
+                      }`}
+                    >
+                      {c.name}{c.uf ? `/${c.uf}` : ""} <span className="opacity-70">· {c.count}</span>
+                    </button>
+                  );
+                })}
+                {audienceCities.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setAudienceCities([])}
+                    className="text-[10px] text-muted-foreground underline"
+                  >
+                    limpar
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
           <div>
             <Label className="text-xs">Mensagem (suporta {`{{name}}`}, {`{{phone}}`} e colunas do CSV)</Label>
             <Textarea
@@ -628,6 +727,8 @@ function StepDialog({
                     audience === "tag_any"
                       ? audienceTags.split(",").map((t) => t.trim()).filter(Boolean)
                       : [],
+                  audience_states: audienceStates,
+                  audience_cities: audienceCities,
                   ord,
                   allowed_weekdays: ovWeekdays,
                   max_per_hour: ovMaxHour.trim() ? Number(ovMaxHour) : null,

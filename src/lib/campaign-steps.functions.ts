@@ -24,6 +24,8 @@ const baseStepSchema = z.object({
   audience: audienceEnum.default("all"),
   audience_step_id: z.string().uuid().optional().nullable(),
   audience_tags: z.array(z.string().trim().min(1).max(60)).max(20).default([]),
+  audience_states: z.array(z.string().trim().min(1).max(40)).max(50).default([]),
+  audience_cities: z.array(z.string().trim().min(1).max(80)).max(200).default([]),
   ord: z.number().int().min(0).max(999).default(1),
   // Overrides (null = herda da campanha)
   allowed_weekdays: z.array(z.number().int().min(0).max(6)).max(7).optional().nullable(),
@@ -65,6 +67,8 @@ export const createStep = createServerFn({ method: "POST" })
         audience: data.audience,
         audience_step_id: data.audience_step_id ?? null,
         audience_tags: data.audience_tags,
+      audience_states: data.audience_states,
+      audience_cities: data.audience_cities,
         ord: data.ord,
         allowed_weekdays: data.allowed_weekdays ?? null,
         max_per_hour: data.max_per_hour ?? null,
@@ -146,4 +150,52 @@ export const updateCampaignOptOut = createServerFn({ method: "POST" })
     const { error } = await supabaseAdmin.from("campaigns").update(patch).eq("id", id);
     if (error) throw new Error(error.message);
     return { ok: true };
+  });
+
+export const listCampaignLocations = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ campaignId: z.string().uuid() }).parse(d))
+  .handler(async ({ data }) => {
+    // Pega telefones da campanha em páginas
+    const phones: string[] = [];
+    const PAGE = 1000;
+    for (let from = 0; ; from += PAGE) {
+      const { data: rows, error } = await supabaseAdmin
+        .from("campaign_targets")
+        .select("phone")
+        .eq("campaign_id", data.campaignId)
+        .range(from, from + PAGE - 1);
+      if (error) throw new Error(error.message);
+      phones.push(...(rows ?? []).map((r) => r.phone));
+      if (!rows || rows.length < PAGE) break;
+    }
+    const unique = [...new Set(phones)];
+    const states = new Map<string, number>();
+    const cities = new Map<string, { uf: string | null; count: number }>();
+    for (let i = 0; i < unique.length; i += 500) {
+      const slice = unique.slice(i, i + 500);
+      const { data: cs, error } = await supabaseAdmin
+        .from("contacts")
+        .select("state, city")
+        .in("phone", slice);
+      if (error) throw new Error(error.message);
+      for (const c of cs ?? []) {
+        const uf = (c.state ?? "").trim().toUpperCase();
+        const ci = (c.city ?? "").trim();
+        if (uf) states.set(uf, (states.get(uf) ?? 0) + 1);
+        if (ci) {
+          const key = ci.toLowerCase();
+          const prev = cities.get(key) ?? { uf: uf || null, count: 0 };
+          cities.set(key, { uf: prev.uf ?? (uf || null), count: prev.count + 1 });
+        }
+      }
+    }
+    return {
+      states: [...states.entries()]
+        .map(([uf, count]) => ({ uf, count }))
+        .sort((a, b) => b.count - a.count),
+      cities: [...cities.entries()]
+        .map(([name, v]) => ({ name, uf: v.uf, count: v.count }))
+        .sort((a, b) => b.count - a.count),
+    };
   });
