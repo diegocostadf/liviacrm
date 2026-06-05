@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Outlet, useRouterState, redirect } from "@tanstack/react-router";
-import { PlugZap, Bot, Sparkles, BookOpen, Webhook, Smartphone, Users } from "lucide-react";
+import { PlugZap, Bot, Sparkles, BookOpen, Webhook, Smartphone, Users, MessageSquare } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "Configurações — Lívia CRM" }] }),
@@ -13,6 +13,7 @@ export const Route = createFileRoute("/_authenticated/settings")({
 
 const items = [
   { to: "/settings/evolution", label: "Evolution API", icon: PlugZap, desc: "Credenciais e instâncias do WhatsApp" },
+  { to: "/settings/twilio", label: "Twilio", icon: MessageSquare, desc: "SMS e WhatsApp Business via Twilio" },
   { to: "/settings/connections", label: "Conexões", icon: Smartphone, desc: "Instâncias do WhatsApp e QR Code" },
   { to: "/settings/ai-providers", label: "Provedores de IA", icon: Sparkles, desc: "Lovable AI, Claude, OpenAI, Google" },
   { to: "/settings/bot", label: "Bot Júlia", icon: Bot, desc: "Persona, modelo e regras por instância" },
