@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/select";
 import {
   listSteps, createStep, updateStep, deleteStep, setStepStatus,
-  materializeStepFn, tickStepFn, updateCampaignOptOut,
+  materializeStepFn, tickStepFn, updateCampaignOptOut, listCampaignLocations,
 } from "@/lib/campaign-steps.functions";
 
 type Step = {
@@ -35,6 +35,8 @@ type Step = {
   audience: "all" | "not_responded_step" | "responded_step" | "not_subscribed" | "subscribed" | "tag_any";
   audience_step_id: string | null;
   audience_tags: string[] | null;
+  audience_states?: string[] | null;
+  audience_cities?: string[] | null;
   status: "draft" | "scheduled" | "sending" | "completed" | "paused" | "failed";
   total_count: number;
   sent_count: number;
