@@ -151,3 +151,51 @@ export const updateCampaignOptOut = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+export const listCampaignLocations = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ campaignId: z.string().uuid() }).parse(d))
+  .handler(async ({ data }) => {
+    // Pega telefones da campanha em páginas
+    const phones: string[] = [];
+    const PAGE = 1000;
+    for (let from = 0; ; from += PAGE) {
+      const { data: rows, error } = await supabaseAdmin
+        .from("campaign_targets")
+        .select("phone")
+        .eq("campaign_id", data.campaignId)
+        .range(from, from + PAGE - 1);
+      if (error) throw new Error(error.message);
+      phones.push(...(rows ?? []).map((r) => r.phone));
+      if (!rows || rows.length < PAGE) break;
+    }
+    const unique = [...new Set(phones)];
+    const states = new Map<string, number>();
+    const cities = new Map<string, { uf: string | null; count: number }>();
+    for (let i = 0; i < unique.length; i += 500) {
+      const slice = unique.slice(i, i + 500);
+      const { data: cs, error } = await supabaseAdmin
+        .from("contacts")
+        .select("state, city")
+        .in("phone", slice);
+      if (error) throw new Error(error.message);
+      for (const c of cs ?? []) {
+        const uf = (c.state ?? "").trim().toUpperCase();
+        const ci = (c.city ?? "").trim();
+        if (uf) states.set(uf, (states.get(uf) ?? 0) + 1);
+        if (ci) {
+          const key = ci.toLowerCase();
+          const prev = cities.get(key) ?? { uf: uf || null, count: 0 };
+          cities.set(key, { uf: prev.uf ?? (uf || null), count: prev.count + 1 });
+        }
+      }
+    }
+    return {
+      states: [...states.entries()]
+        .map(([uf, count]) => ({ uf, count }))
+        .sort((a, b) => b.count - a.count),
+      cities: [...cities.entries()]
+        .map(([name, v]) => ({ name, uf: v.uf, count: v.count }))
+        .sort((a, b) => b.count - a.count),
+    };
+  });
