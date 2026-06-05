@@ -25,12 +25,12 @@ async function fetchCampaignTargetPool(campaignId: string) {
 }
 
 async function fetchContactsByPhones(phones: string[]) {
-  const rows: Array<{ id: string; phone: string; opted_out: boolean; journey_completed: boolean; tags: string[] | null }> = [];
+  const rows: Array<{ id: string; phone: string; opted_out: boolean; journey_completed: boolean; tags: string[] | null; state: string | null; city: string | null }> = [];
   const uniquePhones = [...new Set(phones)];
   for (let i = 0; i < uniquePhones.length; i += 500) {
     const { data, error } = await supabaseAdmin
       .from("contacts")
-      .select("id, phone, opted_out, journey_completed, tags")
+      .select("id, phone, opted_out, journey_completed, tags, state, city")
       .in("phone", uniquePhones.slice(i, i + 500));
     if (error) throw new Error(error.message);
     rows.push(...(data ?? []));
