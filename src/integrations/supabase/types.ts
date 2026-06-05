@@ -192,6 +192,8 @@ export type Database = {
           allowed_instance_ids: string[] | null
           allowed_weekdays: number[] | null
           audience: Database["public"]["Enums"]["campaign_step_audience"]
+          audience_cities: string[]
+          audience_states: string[]
           audience_step_id: string | null
           audience_tags: string[]
           campaign_id: string
@@ -220,6 +222,8 @@ export type Database = {
           allowed_instance_ids?: string[] | null
           allowed_weekdays?: number[] | null
           audience?: Database["public"]["Enums"]["campaign_step_audience"]
+          audience_cities?: string[]
+          audience_states?: string[]
           audience_step_id?: string | null
           audience_tags?: string[]
           campaign_id: string
@@ -248,6 +252,8 @@ export type Database = {
           allowed_instance_ids?: string[] | null
           allowed_weekdays?: number[] | null
           audience?: Database["public"]["Enums"]["campaign_step_audience"]
+          audience_cities?: string[]
+          audience_states?: string[]
           audience_step_id?: string | null
           audience_tags?: string[]
           campaign_id?: string
