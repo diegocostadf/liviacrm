@@ -539,6 +539,84 @@ function StepDialog({
             </div>
           )}
 
+          <div className="rounded-md border border-border bg-muted/20 p-3">
+            <div className="mb-2 text-xs font-medium">
+              Localidade (opcional) — filtra além do público acima
+            </div>
+            <div className="mb-3">
+              <Label className="text-[11px] text-muted-foreground">
+                Estados {stateOptions.length > 0 && `(${stateOptions.length} disponíveis)`}
+              </Label>
+              <div className="mt-1 flex max-h-28 flex-wrap gap-1.5 overflow-y-auto">
+                {stateOptions.length === 0 && (
+                  <span className="text-[11px] text-muted-foreground">Sem dados de UF nos contatos desta campanha.</span>
+                )}
+                {stateOptions.map((s) => {
+                  const active = audienceStates.includes(s.uf);
+                  return (
+                    <button
+                      type="button"
+                      key={s.uf}
+                      onClick={() => toggleInList(audienceStates, s.uf, setAudienceStates)}
+                      className={`rounded-md border px-2 py-0.5 text-[11px] ${
+                        active
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-border bg-background text-muted-foreground"
+                      }`}
+                    >
+                      {s.uf} <span className="opacity-70">· {s.count}</span>
+                    </button>
+                  );
+                })}
+                {audienceStates.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setAudienceStates([])}
+                    className="text-[10px] text-muted-foreground underline"
+                  >
+                    limpar
+                  </button>
+                )}
+              </div>
+            </div>
+            <div>
+              <Label className="text-[11px] text-muted-foreground">
+                Cidades {audienceStates.length > 0 && "(restritas às UF selecionadas)"}
+              </Label>
+              <div className="mt-1 flex max-h-32 flex-wrap gap-1.5 overflow-y-auto">
+                {cityOptions.length === 0 && (
+                  <span className="text-[11px] text-muted-foreground">Sem dados de cidade.</span>
+                )}
+                {cityOptions.slice(0, 300).map((c) => {
+                  const active = audienceCities.includes(c.name);
+                  return (
+                    <button
+                      type="button"
+                      key={`${c.uf ?? "_"}-${c.name}`}
+                      onClick={() => toggleInList(audienceCities, c.name, setAudienceCities)}
+                      className={`rounded-md border px-2 py-0.5 text-[11px] capitalize ${
+                        active
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-border bg-background text-muted-foreground"
+                      }`}
+                    >
+                      {c.name}{c.uf ? `/${c.uf}` : ""} <span className="opacity-70">· {c.count}</span>
+                    </button>
+                  );
+                })}
+                {audienceCities.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setAudienceCities([])}
+                    className="text-[10px] text-muted-foreground underline"
+                  >
+                    limpar
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
           <div>
             <Label className="text-xs">Mensagem (suporta {`{{name}}`}, {`{{phone}}`} e colunas do CSV)</Label>
             <Textarea
