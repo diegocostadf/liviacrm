@@ -24,6 +24,8 @@ const baseStepSchema = z.object({
   audience: audienceEnum.default("all"),
   audience_step_id: z.string().uuid().optional().nullable(),
   audience_tags: z.array(z.string().trim().min(1).max(60)).max(20).default([]),
+  audience_states: z.array(z.string().trim().min(1).max(40)).max(50).default([]),
+  audience_cities: z.array(z.string().trim().min(1).max(80)).max(200).default([]),
   ord: z.number().int().min(0).max(999).default(1),
   // Overrides (null = herda da campanha)
   allowed_weekdays: z.array(z.number().int().min(0).max(6)).max(7).optional().nullable(),
@@ -65,6 +67,8 @@ export const createStep = createServerFn({ method: "POST" })
         audience: data.audience,
         audience_step_id: data.audience_step_id ?? null,
         audience_tags: data.audience_tags,
+      audience_states: data.audience_states,
+      audience_cities: data.audience_cities,
         ord: data.ord,
         allowed_weekdays: data.allowed_weekdays ?? null,
         max_per_hour: data.max_per_hour ?? null,
