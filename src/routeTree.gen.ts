@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated.index'
 import { Route as ApiTwilioSettingsRouteImport } from './routes/api/twilio-settings'
 import { Route as ApiSettingsRouteImport } from './routes/api/settings'
+import { Route as ApiMessagingProviderRouteImport } from './routes/api/messaging-provider'
 import { Route as ApiConnectionsRouteImport } from './routes/api/connections'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated.settings'
 import { Route as AuthenticatedLeadsRouteImport } from './routes/_authenticated.leads'
@@ -24,6 +25,7 @@ import { Route as AuthenticatedConnectionsRouteImport } from './routes/_authenti
 import { Route as AuthenticatedCampaignsRouteImport } from './routes/_authenticated.campaigns'
 import { Route as AuthenticatedLeadsIndexRouteImport } from './routes/_authenticated.leads.index'
 import { Route as AuthenticatedCampaignsIndexRouteImport } from './routes/_authenticated.campaigns.index'
+import { Route as AuthenticatedSettingsWhatsappRouteImport } from './routes/_authenticated.settings.whatsapp'
 import { Route as AuthenticatedSettingsWebhooksRouteImport } from './routes/_authenticated.settings.webhooks'
 import { Route as AuthenticatedSettingsUsersRouteImport } from './routes/_authenticated.settings.users'
 import { Route as AuthenticatedSettingsTwilioRouteImport } from './routes/_authenticated.settings.twilio'
@@ -59,6 +61,11 @@ const ApiTwilioSettingsRoute = ApiTwilioSettingsRouteImport.update({
 const ApiSettingsRoute = ApiSettingsRouteImport.update({
   id: '/api/settings',
   path: '/api/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMessagingProviderRoute = ApiMessagingProviderRouteImport.update({
+  id: '/api/messaging-provider',
+  path: '/api/messaging-provider',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiConnectionsRoute = ApiConnectionsRouteImport.update({
@@ -112,6 +119,12 @@ const AuthenticatedCampaignsIndexRoute =
     id: '/',
     path: '/',
     getParentRoute: () => AuthenticatedCampaignsRoute,
+  } as any)
+const AuthenticatedSettingsWhatsappRoute =
+  AuthenticatedSettingsWhatsappRouteImport.update({
+    id: '/whatsapp',
+    path: '/whatsapp',
+    getParentRoute: () => AuthenticatedSettingsRoute,
   } as any)
 const AuthenticatedSettingsWebhooksRoute =
   AuthenticatedSettingsWebhooksRouteImport.update({
@@ -195,6 +208,7 @@ export interface FileRoutesByFullPath {
   '/leads': typeof AuthenticatedLeadsRouteWithChildren
   '/settings': typeof AuthenticatedSettingsRouteWithChildren
   '/api/connections': typeof ApiConnectionsRoute
+  '/api/messaging-provider': typeof ApiMessagingProviderRoute
   '/api/settings': typeof ApiSettingsRoute
   '/api/twilio-settings': typeof ApiTwilioSettingsRoute
   '/campaigns/$id': typeof AuthenticatedCampaignsIdRoute
@@ -207,6 +221,7 @@ export interface FileRoutesByFullPath {
   '/settings/twilio': typeof AuthenticatedSettingsTwilioRoute
   '/settings/users': typeof AuthenticatedSettingsUsersRoute
   '/settings/webhooks': typeof AuthenticatedSettingsWebhooksRoute
+  '/settings/whatsapp': typeof AuthenticatedSettingsWhatsappRoute
   '/campaigns/': typeof AuthenticatedCampaignsIndexRoute
   '/leads/': typeof AuthenticatedLeadsIndexRoute
   '/api/public/campaigns/tick': typeof ApiPublicCampaignsTickRoute
@@ -220,6 +235,7 @@ export interface FileRoutesByTo {
   '/knowledge': typeof AuthenticatedKnowledgeRoute
   '/settings': typeof AuthenticatedSettingsRouteWithChildren
   '/api/connections': typeof ApiConnectionsRoute
+  '/api/messaging-provider': typeof ApiMessagingProviderRoute
   '/api/settings': typeof ApiSettingsRoute
   '/api/twilio-settings': typeof ApiTwilioSettingsRoute
   '/': typeof AuthenticatedIndexRoute
@@ -233,6 +249,7 @@ export interface FileRoutesByTo {
   '/settings/twilio': typeof AuthenticatedSettingsTwilioRoute
   '/settings/users': typeof AuthenticatedSettingsUsersRoute
   '/settings/webhooks': typeof AuthenticatedSettingsWebhooksRoute
+  '/settings/whatsapp': typeof AuthenticatedSettingsWhatsappRoute
   '/campaigns': typeof AuthenticatedCampaignsIndexRoute
   '/leads': typeof AuthenticatedLeadsIndexRoute
   '/api/public/campaigns/tick': typeof ApiPublicCampaignsTickRoute
@@ -250,6 +267,7 @@ export interface FileRoutesById {
   '/_authenticated/leads': typeof AuthenticatedLeadsRouteWithChildren
   '/_authenticated/settings': typeof AuthenticatedSettingsRouteWithChildren
   '/api/connections': typeof ApiConnectionsRoute
+  '/api/messaging-provider': typeof ApiMessagingProviderRoute
   '/api/settings': typeof ApiSettingsRoute
   '/api/twilio-settings': typeof ApiTwilioSettingsRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
@@ -263,6 +281,7 @@ export interface FileRoutesById {
   '/_authenticated/settings/twilio': typeof AuthenticatedSettingsTwilioRoute
   '/_authenticated/settings/users': typeof AuthenticatedSettingsUsersRoute
   '/_authenticated/settings/webhooks': typeof AuthenticatedSettingsWebhooksRoute
+  '/_authenticated/settings/whatsapp': typeof AuthenticatedSettingsWhatsappRoute
   '/_authenticated/campaigns/': typeof AuthenticatedCampaignsIndexRoute
   '/_authenticated/leads/': typeof AuthenticatedLeadsIndexRoute
   '/api/public/campaigns/tick': typeof ApiPublicCampaignsTickRoute
@@ -281,6 +300,7 @@ export interface FileRouteTypes {
     | '/leads'
     | '/settings'
     | '/api/connections'
+    | '/api/messaging-provider'
     | '/api/settings'
     | '/api/twilio-settings'
     | '/campaigns/$id'
@@ -293,6 +313,7 @@ export interface FileRouteTypes {
     | '/settings/twilio'
     | '/settings/users'
     | '/settings/webhooks'
+    | '/settings/whatsapp'
     | '/campaigns/'
     | '/leads/'
     | '/api/public/campaigns/tick'
@@ -306,6 +327,7 @@ export interface FileRouteTypes {
     | '/knowledge'
     | '/settings'
     | '/api/connections'
+    | '/api/messaging-provider'
     | '/api/settings'
     | '/api/twilio-settings'
     | '/'
@@ -319,6 +341,7 @@ export interface FileRouteTypes {
     | '/settings/twilio'
     | '/settings/users'
     | '/settings/webhooks'
+    | '/settings/whatsapp'
     | '/campaigns'
     | '/leads'
     | '/api/public/campaigns/tick'
@@ -335,6 +358,7 @@ export interface FileRouteTypes {
     | '/_authenticated/leads'
     | '/_authenticated/settings'
     | '/api/connections'
+    | '/api/messaging-provider'
     | '/api/settings'
     | '/api/twilio-settings'
     | '/_authenticated/'
@@ -348,6 +372,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/twilio'
     | '/_authenticated/settings/users'
     | '/_authenticated/settings/webhooks'
+    | '/_authenticated/settings/whatsapp'
     | '/_authenticated/campaigns/'
     | '/_authenticated/leads/'
     | '/api/public/campaigns/tick'
@@ -358,6 +383,7 @@ export interface RootRouteChildren {
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   LoginRoute: typeof LoginRoute
   ApiConnectionsRoute: typeof ApiConnectionsRoute
+  ApiMessagingProviderRoute: typeof ApiMessagingProviderRoute
   ApiSettingsRoute: typeof ApiSettingsRoute
   ApiTwilioSettingsRoute: typeof ApiTwilioSettingsRoute
   ApiPublicCampaignsTickRoute: typeof ApiPublicCampaignsTickRoute
@@ -399,6 +425,13 @@ declare module '@tanstack/react-router' {
       path: '/api/settings'
       fullPath: '/api/settings'
       preLoaderRoute: typeof ApiSettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/messaging-provider': {
+      id: '/api/messaging-provider'
+      path: '/api/messaging-provider'
+      fullPath: '/api/messaging-provider'
+      preLoaderRoute: typeof ApiMessagingProviderRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/connections': {
@@ -470,6 +503,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/campaigns/'
       preLoaderRoute: typeof AuthenticatedCampaignsIndexRouteImport
       parentRoute: typeof AuthenticatedCampaignsRoute
+    }
+    '/_authenticated/settings/whatsapp': {
+      id: '/_authenticated/settings/whatsapp'
+      path: '/whatsapp'
+      fullPath: '/settings/whatsapp'
+      preLoaderRoute: typeof AuthenticatedSettingsWhatsappRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
     }
     '/_authenticated/settings/webhooks': {
       id: '/_authenticated/settings/webhooks'
@@ -596,6 +636,7 @@ interface AuthenticatedSettingsRouteChildren {
   AuthenticatedSettingsTwilioRoute: typeof AuthenticatedSettingsTwilioRoute
   AuthenticatedSettingsUsersRoute: typeof AuthenticatedSettingsUsersRoute
   AuthenticatedSettingsWebhooksRoute: typeof AuthenticatedSettingsWebhooksRoute
+  AuthenticatedSettingsWhatsappRoute: typeof AuthenticatedSettingsWhatsappRoute
 }
 
 const AuthenticatedSettingsRouteChildren: AuthenticatedSettingsRouteChildren = {
@@ -607,6 +648,7 @@ const AuthenticatedSettingsRouteChildren: AuthenticatedSettingsRouteChildren = {
   AuthenticatedSettingsTwilioRoute: AuthenticatedSettingsTwilioRoute,
   AuthenticatedSettingsUsersRoute: AuthenticatedSettingsUsersRoute,
   AuthenticatedSettingsWebhooksRoute: AuthenticatedSettingsWebhooksRoute,
+  AuthenticatedSettingsWhatsappRoute: AuthenticatedSettingsWhatsappRoute,
 }
 
 const AuthenticatedSettingsRouteWithChildren =
@@ -644,6 +686,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   LoginRoute: LoginRoute,
   ApiConnectionsRoute: ApiConnectionsRoute,
+  ApiMessagingProviderRoute: ApiMessagingProviderRoute,
   ApiSettingsRoute: ApiSettingsRoute,
   ApiTwilioSettingsRoute: ApiTwilioSettingsRoute,
   ApiPublicCampaignsTickRoute: ApiPublicCampaignsTickRoute,
@@ -652,3 +695,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
