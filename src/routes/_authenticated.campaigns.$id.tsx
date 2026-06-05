@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { CampaignSequence } from "@/components/campaign-sequence";
 import { CampaignRulesCard } from "@/components/campaign-rules";
+import { CampaignCrmPicker } from "@/components/campaign-crm-picker";
 import {
   getCampaign, addCampaignTargets, removeCampaignTarget,
   setCampaignStatus, tickCampaignFn, previewCampaignMessage, updateCampaign,
@@ -436,6 +437,7 @@ function CampaignDetailPage() {
         <TabsList>
           <TabsTrigger value="sequence">Sequência</TabsTrigger>
           <TabsTrigger value="targets">Destinatários ({targetTotal})</TabsTrigger>
+          <TabsTrigger value="crm">Selecionar do CRM</TabsTrigger>
           <TabsTrigger value="import">Importar lista</TabsTrigger>
           <TabsTrigger value="message">Mensagem</TabsTrigger>
           <TabsTrigger value="rules">Regras de disparo</TabsTrigger>
@@ -509,6 +511,10 @@ function CampaignDetailPage() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="crm">
+          <CampaignCrmPicker campaignId={id} />
         </TabsContent>
 
         <TabsContent value="import">

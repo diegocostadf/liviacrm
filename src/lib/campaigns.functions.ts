@@ -349,6 +349,209 @@ export const removeCampaignTarget = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+/* ============================================================
+ * Seleção de leads existentes (CRM) para virar destinatários
+ * ============================================================ */
+
+const TEMPERATURE_TO_INTENTS: Record<"frio" | "morno" | "quente", string[]> = {
+  quente: ["lead_quente", "interessado"],
+  morno: ["inscrito", "objecao"],
+  frio: ["silencio", "sem_interesse", "fora_escopo"],
+};
+
+const crmFilterSchema = z.object({
+  search: z.string().trim().max(120).optional(),
+  lead_status: z.enum(["novo", "engajado", "inscrito", "perdido"]).optional(),
+  temperature: z.enum(["frio", "morno", "quente"]).optional(),
+  tags_any: z.array(z.string().trim().min(1).max(60)).max(20).optional(),
+  states: z.array(z.string().trim().min(1).max(40)).max(50).optional(),
+  cities: z.array(z.string().trim().min(1).max(120)).max(300).optional(),
+  source: z.string().trim().max(120).optional(),
+  assigned_to: z.string().uuid().nullable().optional(),
+  exclude_opted_out: z.boolean().default(true),
+  exclude_journey_completed: z.boolean().default(false),
+  has_email: z.boolean().optional(),
+  created_after: z.string().datetime().optional(),
+  created_before: z.string().datetime().optional(),
+});
+
+type CrmFilter = z.infer<typeof crmFilterSchema>;
+
+function applyCrmFilter<T extends { eq: any; in: any; or: any; contains: any; overlaps: any; not: any; gte: any; lte: any }>(q: T, f: CrmFilter): T {
+  let r: any = q;
+  if (f.lead_status) r = r.eq("lead_status", f.lead_status);
+  if (f.temperature) r = r.in("last_intent", TEMPERATURE_TO_INTENTS[f.temperature]);
+  if (f.tags_any?.length) r = r.overlaps("tags", f.tags_any);
+  if (f.states?.length) r = r.in("state", f.states);
+  if (f.cities?.length) r = r.in("city", f.cities);
+  if (f.source) r = r.eq("source", f.source);
+  if (f.assigned_to === null) r = r.is("assigned_to", null);
+  else if (f.assigned_to) r = r.eq("assigned_to", f.assigned_to);
+  if (f.exclude_opted_out) r = r.eq("opted_out", false);
+  if (f.exclude_journey_completed) r = r.eq("journey_completed", false);
+  if (f.has_email === true) r = r.not("email", "is", null);
+  if (f.has_email === false) r = r.is("email", null);
+  if (f.created_after) r = r.gte("created_at", f.created_after);
+  if (f.created_before) r = r.lte("created_at", f.created_before);
+  if (f.search) {
+    const s = f.search.replace(/[%_]/g, "");
+    r = r.or(`name.ilike.%${s}%,phone.ilike.%${s}%,email.ilike.%${s}%,company.ilike.%${s}%,city.ilike.%${s}%`);
+  }
+  return r as T;
+}
+
+export const previewCrmFilter = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({
+    campaignId: z.string().uuid(),
+    filter: crmFilterSchema,
+  }).parse(d))
+  .handler(async ({ data }) => {
+    const base = supabaseAdmin
+      .from("contacts")
+      .select("id", { count: "exact", head: true });
+    const q = applyCrmFilter(base as any, data.filter);
+    const { count, error } = await q;
+    if (error) throw new Error(error.message);
+
+    // Sample (max 8) p/ visual
+    const sampleBase = supabaseAdmin
+      .from("contacts")
+      .select("id, name, phone, city, state, tags, lead_status, last_intent")
+      .order("updated_at", { ascending: false })
+      .limit(8);
+    const sampleQ = applyCrmFilter(sampleBase as any, data.filter);
+    const { data: sample } = await sampleQ;
+
+    // Existentes já na campanha → estimativa de "novos"
+    const existing = new Set(await fetchExistingTargetPhones(data.campaignId));
+    return {
+      total: count ?? 0,
+      sample: sample ?? [],
+      alreadyInCampaign: existing.size,
+    };
+  });
+
+export const addCampaignTargetsFromCrm = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({
+    campaignId: z.string().uuid(),
+    filter: crmFilterSchema,
+    initial_intent: initialIntentSchema.default("silencio"),
+    overwrite_intent: z.boolean().default(false),
+    max: z.number().int().min(1).max(200000).optional(),
+  }).parse(d))
+  .handler(async ({ data }) => {
+    // Já cadastrados na campanha
+    const existing = new Set(await fetchExistingTargetPhones(data.campaignId));
+    const cap = data.max ?? 200000;
+
+    // Pagina contacts em blocos de 1000
+    const collected: Array<{ id: string; phone: string; name: string | null }> = [];
+    const PAGE = 1000;
+    for (let from = 0; collected.length < cap; from += PAGE) {
+      const base = supabaseAdmin
+        .from("contacts")
+        .select("id, phone, name")
+        .order("created_at", { ascending: true })
+        .range(from, from + PAGE - 1);
+      const q = applyCrmFilter(base as any, data.filter);
+      const { data: rows, error } = await q;
+      if (error) throw new Error(error.message);
+      const batch = rows ?? [];
+      for (const r of batch) {
+        if (!r.phone) continue;
+        if (existing.has(r.phone)) continue;
+        existing.add(r.phone);
+        collected.push({ id: r.id, phone: r.phone, name: r.name ?? null });
+        if (collected.length >= cap) break;
+      }
+      if (batch.length < PAGE) break;
+    }
+
+    if (!collected.length) return { inserted: 0, matched: 0 };
+
+    // Insere campaign_targets já com contact_id resolvido
+    const targets = collected.map((c) => ({
+      campaign_id: data.campaignId,
+      contact_id: c.id,
+      phone: c.phone,
+      name: c.name,
+      custom_fields: {},
+      status: "pending" as const,
+    }));
+    let inserted = 0;
+    for (let i = 0; i < targets.length; i += 500) {
+      const chunk = targets.slice(i, i + 500);
+      const { error } = await supabaseAdmin.from("campaign_targets").insert(chunk);
+      if (error) throw new Error(error.message);
+      inserted += chunk.length;
+    }
+
+    // Atualiza classificação se solicitado
+    if (data.overwrite_intent) {
+      const ids = collected.map((c) => c.id);
+      for (let i = 0; i < ids.length; i += 500) {
+        await supabaseAdmin
+          .from("contacts")
+          .update({
+            last_intent: data.initial_intent,
+            last_intent_at: new Date().toISOString(),
+            lead_status: intentToStatus(data.initial_intent),
+          })
+          .in("id", ids.slice(i, i + 500));
+      }
+    }
+
+    // Atualiza total da campanha
+    const { count } = await supabaseAdmin
+      .from("campaign_targets")
+      .select("id", { count: "exact", head: true })
+      .eq("campaign_id", data.campaignId);
+    await supabaseAdmin.from("campaigns").update({ total_count: count ?? 0 }).eq("id", data.campaignId);
+
+    return { inserted, matched: collected.length };
+  });
+
+/** Lista facets (states/cities/tags) disponíveis nos contatos do CRM. */
+export const listCrmFacets = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async () => {
+    // Lê em páginas para evitar limite de 1000 do PostgREST
+    const PAGE = 1000;
+    const states = new Map<string, number>();
+    const cities = new Map<string, { uf: string | null; count: number }>();
+    const tags = new Map<string, number>();
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await supabaseAdmin
+        .from("contacts")
+        .select("state, city, tags")
+        .range(from, from + PAGE - 1);
+      if (error) throw new Error(error.message);
+      const rows = data ?? [];
+      for (const r of rows) {
+        const uf = (r.state ?? "").trim().toUpperCase();
+        const ci = (r.city ?? "").trim();
+        if (uf) states.set(uf, (states.get(uf) ?? 0) + 1);
+        if (ci) {
+          const key = ci;
+          const prev = cities.get(key) ?? { uf: uf || null, count: 0 };
+          cities.set(key, { uf: prev.uf ?? (uf || null), count: prev.count + 1 });
+        }
+        for (const t of (r.tags ?? []) as string[]) {
+          if (!t) continue;
+          tags.set(t, (tags.get(t) ?? 0) + 1);
+        }
+      }
+      if (rows.length < PAGE) break;
+    }
+    return {
+      states: [...states.entries()].map(([uf, count]) => ({ uf, count })).sort((a, b) => b.count - a.count),
+      cities: [...cities.entries()].map(([name, v]) => ({ name, uf: v.uf, count: v.count })).sort((a, b) => b.count - a.count),
+      tags: [...tags.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count),
+    };
+  });
+
 export const setCampaignStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) =>
