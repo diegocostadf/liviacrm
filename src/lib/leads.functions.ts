@@ -240,3 +240,38 @@ export const addLeadNote = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+/**
+ * Retorna todos os telefones+nomes que combinam com o filtro de busca usado na
+ * listagem de leads. Limite alto para permitir "selecionar todos os X" em ações
+ * em lote (ex.: adicionar à campanha).
+ */
+export const listLeadsMatching = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) =>
+    z.object({
+      search: z.string().trim().max(120).optional(),
+      lead_status: z.enum(["novo", "engajado", "inscrito", "perdido"]).optional(),
+      temperature: z.enum(["frio", "morno", "quente"]).optional(),
+      opted_out: z.boolean().optional(),
+      max: z.number().int().min(1).max(50000).default(20000),
+    }).parse(d ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    let q = supabase
+      .from("contacts")
+      .select("id, phone, name", { count: "exact" });
+    if (data.lead_status) q = q.eq("lead_status", data.lead_status);
+    if (typeof data.opted_out === "boolean") q = q.eq("opted_out", data.opted_out);
+    if (data.temperature) q = q.in("last_intent", [...INTENTS_BY_TEMPERATURE[data.temperature]]);
+    if (data.search) {
+      const s = data.search.replace(/[%_]/g, "");
+      q = q.or(`name.ilike.%${s}%,phone.ilike.%${s}%,email.ilike.%${s}%,company.ilike.%${s}%,city.ilike.%${s}%`);
+    }
+    const { data: rows, error, count } = await q
+      .order("updated_at", { ascending: false })
+      .range(0, data.max - 1);
+    if (error) throw new Error(error.message);
+    return { rows: rows ?? [], total: count ?? (rows?.length ?? 0) };
+  });
