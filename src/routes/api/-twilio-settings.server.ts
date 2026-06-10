@@ -219,10 +219,8 @@ async function sendTwilioTest(
   prev: Record<string, unknown>,
   payload: { toPhone: string; text: string; useTemplate?: boolean },
 ) {
-  const { brokerSendText, invalidateMessagingCache } = await import("@/lib/messaging-broker.server");
+  const { invalidateMessagingCache } = await import("@/lib/messaging-broker.server");
   invalidateMessagingCache();
-  // Force provider=twilio via app_settings? No — assume caller already saved twilio. Bypass cache and call twilio directly via broker forcing twilio path through settings update.
-  // Simpler: read twilio settings ourselves and call the same code path.
   const sid = String(prev.accountSid ?? "");
   if (!sid) throw new Error("Salve as configurações antes de testar.");
 
@@ -233,7 +231,6 @@ async function sendTwilioTest(
   } catch (e) {
     return { ok: false as const, error: e instanceof Error ? e.message : String(e), latencyMs: Date.now() - t0 };
   }
-  void brokerSendText;
 }
 
 async function brokerSendTextForTwilio(
