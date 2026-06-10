@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { evolutionFetch } from "./evolution.server";
+import { brokerSendText, getActiveProvider } from "./messaging-broker.server";
 
 const MAX_ATTEMPTS = 3;
 
@@ -30,7 +30,7 @@ function normalizePhone(raw: string): string {
 type Campaign = {
   id: string;
   status: string;
-  instance_id: string;
+  instance_id: string | null;
   template: string;
   throttle_min_seconds: number;
   throttle_max_seconds: number;
@@ -55,13 +55,21 @@ export async function tickCampaign(campaignId: string, batch = 1) {
     return { processed: 0, sent: 0, failed: 0, reason: "out_of_window" as const };
   }
 
-  const { data: inst } = await supabaseAdmin
-    .from("whatsapp_instances")
-    .select("evolution_instance_name, status")
-    .eq("id", campaign.instance_id)
-    .maybeSingle();
-  if (!inst?.evolution_instance_name) {
-    return { processed: 0, sent: 0, failed: 0, reason: "no_instance" as const };
+  const provider = await getActiveProvider();
+  let evolutionInstanceName: string | null = null;
+  if (provider === "evolution") {
+    if (!campaign.instance_id) {
+      return { processed: 0, sent: 0, failed: 0, reason: "no_instance" as const };
+    }
+    const { data: inst } = await supabaseAdmin
+      .from("whatsapp_instances")
+      .select("evolution_instance_name, status")
+      .eq("id", campaign.instance_id)
+      .maybeSingle();
+    if (!inst?.evolution_instance_name) {
+      return { processed: 0, sent: 0, failed: 0, reason: "no_instance" as const };
+    }
+    evolutionInstanceName = inst.evolution_instance_name;
   }
 
   const nowIso = new Date().toISOString();
@@ -131,17 +139,18 @@ export async function tickCampaign(campaignId: string, batch = 1) {
     }
 
     try {
-      const res = (await evolutionFetch(`/message/sendText/${inst.evolution_instance_name}`, {
-        method: "POST",
-        json: { number: phone, text: rendered },
-      })) as { key?: { id?: string } };
+      const res = await brokerSendText({
+        toPhone: phone,
+        text: rendered,
+        evolutionInstanceName,
+      });
       await supabaseAdmin
         .from("campaign_targets")
         .update({
           status: "sent",
           sent_at: new Date().toISOString(),
           rendered_message: rendered.slice(0, 2000),
-          wa_message_id: res?.key?.id ?? null,
+          wa_message_id: res.id,
           attempts: (target.attempts ?? 0) + 1,
           locked_until: null,
           error: null,
