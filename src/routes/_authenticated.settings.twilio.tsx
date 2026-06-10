@@ -34,6 +34,7 @@ type DiscoverResult = {
   latencyMs: number;
   account: { sid: string; friendlyName: string | null; status: string | null; type: string | null };
   numbers: Array<{ sid: string; phoneNumber: string; friendlyName: string; capabilities: Record<string, boolean> }>;
+  whatsappSenders: Array<{ sid: string; phoneNumber: string; status: string; profileName: string }>;
   services: Array<{ sid: string; friendlyName: string }>;
   contents: Array<{ sid: string; friendlyName: string; language: string; variables: Record<string, string> }>;
   warnings: string[];
