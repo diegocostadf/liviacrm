@@ -170,6 +170,39 @@ async function discoverTwilio(
     safe(twilioGet(`https://content.twilio.com/v1/Content?PageSize=50`, user, pass)),
   ]);
 
+  // WhatsApp senders (self-serve v1 + multi-channel v2). Either may 404 by region/plan.
+  const [waV1R, waV2R] = await Promise.all([
+    safe(twilioGet(`https://messaging.twilio.com/v1/whatsapp/Senders?PageSize=50`, user, pass)),
+    safe(twilioGet(`https://messaging.twilio.com/v2/Channels/Senders?PageSize=50`, user, pass)),
+  ]);
+  const waSenders: Array<{ sid: string; phoneNumber: string; status: string; profileName: string }> = [];
+  if (waV1R.ok) {
+    for (const s of ((waV1R.data.senders ?? []) as Array<Record<string, unknown>>)) {
+      const phone = String(s.phone_number ?? s.sender_id ?? "").replace(/^whatsapp:/, "");
+      if (!phone) continue;
+      waSenders.push({
+        sid: String(s.sid ?? ""),
+        phoneNumber: phone,
+        status: String(s.status ?? ""),
+        profileName: String(((s.profile ?? {}) as Record<string, unknown>).name ?? ""),
+      });
+    }
+  }
+  if (waV2R.ok) {
+    for (const s of ((waV2R.data.senders ?? []) as Array<Record<string, unknown>>)) {
+      const senderId = String(s.sender_id ?? "");
+      if (!senderId.startsWith("whatsapp:")) continue;
+      const phone = senderId.replace(/^whatsapp:/, "");
+      if (waSenders.some((x) => x.phoneNumber === phone)) continue;
+      waSenders.push({
+        sid: String(s.sid ?? ""),
+        phoneNumber: phone,
+        status: String(s.status ?? ""),
+        profileName: String(((s.profile ?? {}) as Record<string, unknown>).name ?? ""),
+      });
+    }
+  }
+
   const numbers = numbersR.ok
     ? (((numbersR.data.incoming_phone_numbers ?? []) as Array<Record<string, unknown>>)).map((n) => ({
         sid: String(n.sid ?? ""),
@@ -205,12 +238,16 @@ async function discoverTwilio(
       type: (account.type as string) ?? null,
     },
     numbers,
+    whatsappSenders: waSenders,
     services,
     contents,
     warnings: [
       !numbersR.ok ? `Números: ${numbersR.error}` : null,
       !servicesR.ok ? `Messaging Services: ${servicesR.error}` : null,
       !contentR.ok ? `Templates: ${contentR.error}` : null,
+      waSenders.length === 0
+        ? "Nenhum remetente WhatsApp registrado nesta conta. Para WhatsApp você precisa: (a) usar o Sandbox 'whatsapp:+14155238886' em testes, ou (b) cadastrar um WhatsApp Sender em Messaging → Senders no console Twilio."
+        : null,
     ].filter((x): x is string => Boolean(x)),
   };
 }
