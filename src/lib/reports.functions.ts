@@ -291,7 +291,7 @@ export const exportCampaignSends = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({
     campaign_id: z.string().uuid().optional(),
-    status: z.array(z.enum(["pending", "sent", "delivered", "read", "failed", "skipped"])).optional(),
+    status: z.array(z.enum(["pending", "sent", "failed", "skipped", "replied", "skipped_dedupe", "skipped_replied"])).optional(),
     format: exportFormat,
     days: z.number().int().min(1).max(365).default(90),
   }).parse(d))
