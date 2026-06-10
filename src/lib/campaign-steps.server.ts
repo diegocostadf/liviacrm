@@ -338,12 +338,21 @@ export async function tickStep(stepId: string, batch = 1) {
   }
 
   // Carrega TODAS as instâncias permitidas
-  const { data: instRows } = await supabaseAdmin
-    .from("whatsapp_instances")
-    .select("id, evolution_instance_name")
-    .in("id", rules.instanceIds);
-  const instances = (instRows ?? []).filter((i) => i.evolution_instance_name);
-  if (!instances.length) return { sent: 0, failed: 0, reason: "no_instance" as const };
+  const provider = await getActiveProvider();
+  type Inst = { id: string; evolution_instance_name: string };
+  let instances: Inst[];
+  if (provider === "twilio") {
+    // Twilio não usa instância; usamos um "slot" sintético para reaproveitar
+    // a lógica de round-robin / quota.
+    instances = [{ id: "__twilio__", evolution_instance_name: "" }];
+  } else {
+    const { data: instRows } = await supabaseAdmin
+      .from("whatsapp_instances")
+      .select("id, evolution_instance_name")
+      .in("id", rules.instanceIds);
+    instances = ((instRows ?? []).filter((i) => i.evolution_instance_name)) as Inst[];
+    if (!instances.length) return { sent: 0, failed: 0, reason: "no_instance" as const };
+  }
 
   await supabaseAdmin.from("campaign_steps").update({ status: "sending" }).eq("id", stepId);
 
@@ -519,21 +528,22 @@ export async function tickStep(stepId: string, batch = 1) {
     }
 
     try {
-      const res = (await evolutionFetch(`/message/sendText/${inst.evolution_instance_name}`, {
-        method: "POST",
-        json: { number: phone, text: rendered },
-      })) as { key?: { id?: string } };
+      const res = await brokerSendText({
+        toPhone: phone,
+        text: rendered,
+        evolutionInstanceName: provider === "evolution" ? inst.evolution_instance_name : null,
+      });
       await supabaseAdmin
         .from("campaign_step_sends")
         .update({
           status: "sent",
           sent_at: new Date().toISOString(),
           rendered_message: rendered.slice(0, 2000),
-          wa_message_id: res?.key?.id ?? null,
+          wa_message_id: res.id,
           attempts: (send.attempts ?? 0) + 1,
           locked_until: null,
           error: null,
-          instance_id_used: inst.id,
+          instance_id_used: provider === "twilio" ? null : inst.id,
         })
         .eq("id", send.id);
       sent++;
@@ -562,7 +572,7 @@ export async function tickStep(stepId: string, batch = 1) {
           error: (e as Error).message?.slice(0, 500) ?? "send error",
           locked_until: finalFail ? null : new Date(Date.now() + backoffSec * 1000).toISOString(),
           rendered_message: rendered.slice(0, 2000),
-          instance_id_used: inst.id,
+          instance_id_used: provider === "twilio" ? null : inst.id,
         })
         .eq("id", send.id);
       if (finalFail) failed++;
@@ -585,7 +595,7 @@ export async function tickStep(stepId: string, batch = 1) {
   }
 
   // Persiste último índice de round-robin para a próxima tick
-  if (instances.length > 1) {
+  if (provider === "evolution" && instances.length > 1) {
     await supabaseAdmin
       .from("campaigns")
       .update({ last_instance_idx: rrIdx })
