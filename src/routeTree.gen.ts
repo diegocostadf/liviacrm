@@ -17,6 +17,7 @@ import { Route as ApiSettingsRouteImport } from './routes/api/settings'
 import { Route as ApiMessagingProviderRouteImport } from './routes/api/messaging-provider'
 import { Route as ApiConnectionsRouteImport } from './routes/api/connections'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated.settings'
+import { Route as AuthenticatedReportsRouteImport } from './routes/_authenticated.reports'
 import { Route as AuthenticatedLeadsRouteImport } from './routes/_authenticated.leads'
 import { Route as AuthenticatedKnowledgeRouteImport } from './routes/_authenticated.knowledge'
 import { Route as AuthenticatedInboxRouteImport } from './routes/_authenticated.inbox'
@@ -34,6 +35,9 @@ import { Route as AuthenticatedSettingsEvolutionRouteImport } from './routes/_au
 import { Route as AuthenticatedSettingsConnectionsRouteImport } from './routes/_authenticated.settings.connections'
 import { Route as AuthenticatedSettingsBotRouteImport } from './routes/_authenticated.settings.bot'
 import { Route as AuthenticatedSettingsAiProvidersRouteImport } from './routes/_authenticated.settings.ai-providers'
+import { Route as AuthenticatedReportsOverviewRouteImport } from './routes/_authenticated.reports.overview'
+import { Route as AuthenticatedReportsListsRouteImport } from './routes/_authenticated.reports.lists'
+import { Route as AuthenticatedReportsExportsRouteImport } from './routes/_authenticated.reports.exports'
 import { Route as AuthenticatedLeadsIdRouteImport } from './routes/_authenticated.leads.$id'
 import { Route as AuthenticatedCampaignsIdRouteImport } from './routes/_authenticated.campaigns.$id'
 import { Route as ApiPublicWebhooksEvolutionRouteImport } from './routes/api/public/webhooks/evolution'
@@ -76,6 +80,11 @@ const ApiConnectionsRoute = ApiConnectionsRouteImport.update({
 const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedReportsRoute = AuthenticatedReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedLeadsRoute = AuthenticatedLeadsRouteImport.update({
@@ -174,6 +183,24 @@ const AuthenticatedSettingsAiProvidersRoute =
     path: '/ai-providers',
     getParentRoute: () => AuthenticatedSettingsRoute,
   } as any)
+const AuthenticatedReportsOverviewRoute =
+  AuthenticatedReportsOverviewRouteImport.update({
+    id: '/overview',
+    path: '/overview',
+    getParentRoute: () => AuthenticatedReportsRoute,
+  } as any)
+const AuthenticatedReportsListsRoute =
+  AuthenticatedReportsListsRouteImport.update({
+    id: '/lists',
+    path: '/lists',
+    getParentRoute: () => AuthenticatedReportsRoute,
+  } as any)
+const AuthenticatedReportsExportsRoute =
+  AuthenticatedReportsExportsRouteImport.update({
+    id: '/exports',
+    path: '/exports',
+    getParentRoute: () => AuthenticatedReportsRoute,
+  } as any)
 const AuthenticatedLeadsIdRoute = AuthenticatedLeadsIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -206,6 +233,7 @@ export interface FileRoutesByFullPath {
   '/inbox': typeof AuthenticatedInboxRoute
   '/knowledge': typeof AuthenticatedKnowledgeRoute
   '/leads': typeof AuthenticatedLeadsRouteWithChildren
+  '/reports': typeof AuthenticatedReportsRouteWithChildren
   '/settings': typeof AuthenticatedSettingsRouteWithChildren
   '/api/connections': typeof ApiConnectionsRoute
   '/api/messaging-provider': typeof ApiMessagingProviderRoute
@@ -213,6 +241,9 @@ export interface FileRoutesByFullPath {
   '/api/twilio-settings': typeof ApiTwilioSettingsRoute
   '/campaigns/$id': typeof AuthenticatedCampaignsIdRoute
   '/leads/$id': typeof AuthenticatedLeadsIdRoute
+  '/reports/exports': typeof AuthenticatedReportsExportsRoute
+  '/reports/lists': typeof AuthenticatedReportsListsRoute
+  '/reports/overview': typeof AuthenticatedReportsOverviewRoute
   '/settings/ai-providers': typeof AuthenticatedSettingsAiProvidersRoute
   '/settings/bot': typeof AuthenticatedSettingsBotRoute
   '/settings/connections': typeof AuthenticatedSettingsConnectionsRoute
@@ -233,6 +264,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/inbox': typeof AuthenticatedInboxRoute
   '/knowledge': typeof AuthenticatedKnowledgeRoute
+  '/reports': typeof AuthenticatedReportsRouteWithChildren
   '/settings': typeof AuthenticatedSettingsRouteWithChildren
   '/api/connections': typeof ApiConnectionsRoute
   '/api/messaging-provider': typeof ApiMessagingProviderRoute
@@ -241,6 +273,9 @@ export interface FileRoutesByTo {
   '/': typeof AuthenticatedIndexRoute
   '/campaigns/$id': typeof AuthenticatedCampaignsIdRoute
   '/leads/$id': typeof AuthenticatedLeadsIdRoute
+  '/reports/exports': typeof AuthenticatedReportsExportsRoute
+  '/reports/lists': typeof AuthenticatedReportsListsRoute
+  '/reports/overview': typeof AuthenticatedReportsOverviewRoute
   '/settings/ai-providers': typeof AuthenticatedSettingsAiProvidersRoute
   '/settings/bot': typeof AuthenticatedSettingsBotRoute
   '/settings/connections': typeof AuthenticatedSettingsConnectionsRoute
@@ -265,6 +300,7 @@ export interface FileRoutesById {
   '/_authenticated/inbox': typeof AuthenticatedInboxRoute
   '/_authenticated/knowledge': typeof AuthenticatedKnowledgeRoute
   '/_authenticated/leads': typeof AuthenticatedLeadsRouteWithChildren
+  '/_authenticated/reports': typeof AuthenticatedReportsRouteWithChildren
   '/_authenticated/settings': typeof AuthenticatedSettingsRouteWithChildren
   '/api/connections': typeof ApiConnectionsRoute
   '/api/messaging-provider': typeof ApiMessagingProviderRoute
@@ -273,6 +309,9 @@ export interface FileRoutesById {
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/campaigns/$id': typeof AuthenticatedCampaignsIdRoute
   '/_authenticated/leads/$id': typeof AuthenticatedLeadsIdRoute
+  '/_authenticated/reports/exports': typeof AuthenticatedReportsExportsRoute
+  '/_authenticated/reports/lists': typeof AuthenticatedReportsListsRoute
+  '/_authenticated/reports/overview': typeof AuthenticatedReportsOverviewRoute
   '/_authenticated/settings/ai-providers': typeof AuthenticatedSettingsAiProvidersRoute
   '/_authenticated/settings/bot': typeof AuthenticatedSettingsBotRoute
   '/_authenticated/settings/connections': typeof AuthenticatedSettingsConnectionsRoute
@@ -298,6 +337,7 @@ export interface FileRouteTypes {
     | '/inbox'
     | '/knowledge'
     | '/leads'
+    | '/reports'
     | '/settings'
     | '/api/connections'
     | '/api/messaging-provider'
@@ -305,6 +345,9 @@ export interface FileRouteTypes {
     | '/api/twilio-settings'
     | '/campaigns/$id'
     | '/leads/$id'
+    | '/reports/exports'
+    | '/reports/lists'
+    | '/reports/overview'
     | '/settings/ai-providers'
     | '/settings/bot'
     | '/settings/connections'
@@ -325,6 +368,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/inbox'
     | '/knowledge'
+    | '/reports'
     | '/settings'
     | '/api/connections'
     | '/api/messaging-provider'
@@ -333,6 +377,9 @@ export interface FileRouteTypes {
     | '/'
     | '/campaigns/$id'
     | '/leads/$id'
+    | '/reports/exports'
+    | '/reports/lists'
+    | '/reports/overview'
     | '/settings/ai-providers'
     | '/settings/bot'
     | '/settings/connections'
@@ -356,6 +403,7 @@ export interface FileRouteTypes {
     | '/_authenticated/inbox'
     | '/_authenticated/knowledge'
     | '/_authenticated/leads'
+    | '/_authenticated/reports'
     | '/_authenticated/settings'
     | '/api/connections'
     | '/api/messaging-provider'
@@ -364,6 +412,9 @@ export interface FileRouteTypes {
     | '/_authenticated/'
     | '/_authenticated/campaigns/$id'
     | '/_authenticated/leads/$id'
+    | '/_authenticated/reports/exports'
+    | '/_authenticated/reports/lists'
+    | '/_authenticated/reports/overview'
     | '/_authenticated/settings/ai-providers'
     | '/_authenticated/settings/bot'
     | '/_authenticated/settings/connections'
@@ -446,6 +497,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof AuthenticatedSettingsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/reports': {
+      id: '/_authenticated/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof AuthenticatedReportsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/leads': {
@@ -567,6 +625,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsAiProvidersRouteImport
       parentRoute: typeof AuthenticatedSettingsRoute
     }
+    '/_authenticated/reports/overview': {
+      id: '/_authenticated/reports/overview'
+      path: '/overview'
+      fullPath: '/reports/overview'
+      preLoaderRoute: typeof AuthenticatedReportsOverviewRouteImport
+      parentRoute: typeof AuthenticatedReportsRoute
+    }
+    '/_authenticated/reports/lists': {
+      id: '/_authenticated/reports/lists'
+      path: '/lists'
+      fullPath: '/reports/lists'
+      preLoaderRoute: typeof AuthenticatedReportsListsRouteImport
+      parentRoute: typeof AuthenticatedReportsRoute
+    }
+    '/_authenticated/reports/exports': {
+      id: '/_authenticated/reports/exports'
+      path: '/exports'
+      fullPath: '/reports/exports'
+      preLoaderRoute: typeof AuthenticatedReportsExportsRouteImport
+      parentRoute: typeof AuthenticatedReportsRoute
+    }
     '/_authenticated/leads/$id': {
       id: '/_authenticated/leads/$id'
       path: '/$id'
@@ -627,6 +706,21 @@ const AuthenticatedLeadsRouteChildren: AuthenticatedLeadsRouteChildren = {
 const AuthenticatedLeadsRouteWithChildren =
   AuthenticatedLeadsRoute._addFileChildren(AuthenticatedLeadsRouteChildren)
 
+interface AuthenticatedReportsRouteChildren {
+  AuthenticatedReportsExportsRoute: typeof AuthenticatedReportsExportsRoute
+  AuthenticatedReportsListsRoute: typeof AuthenticatedReportsListsRoute
+  AuthenticatedReportsOverviewRoute: typeof AuthenticatedReportsOverviewRoute
+}
+
+const AuthenticatedReportsRouteChildren: AuthenticatedReportsRouteChildren = {
+  AuthenticatedReportsExportsRoute: AuthenticatedReportsExportsRoute,
+  AuthenticatedReportsListsRoute: AuthenticatedReportsListsRoute,
+  AuthenticatedReportsOverviewRoute: AuthenticatedReportsOverviewRoute,
+}
+
+const AuthenticatedReportsRouteWithChildren =
+  AuthenticatedReportsRoute._addFileChildren(AuthenticatedReportsRouteChildren)
+
 interface AuthenticatedSettingsRouteChildren {
   AuthenticatedSettingsAiProvidersRoute: typeof AuthenticatedSettingsAiProvidersRoute
   AuthenticatedSettingsBotRoute: typeof AuthenticatedSettingsBotRoute
@@ -663,6 +757,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedInboxRoute: typeof AuthenticatedInboxRoute
   AuthenticatedKnowledgeRoute: typeof AuthenticatedKnowledgeRoute
   AuthenticatedLeadsRoute: typeof AuthenticatedLeadsRouteWithChildren
+  AuthenticatedReportsRoute: typeof AuthenticatedReportsRouteWithChildren
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRouteWithChildren
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
 }
@@ -674,6 +769,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedInboxRoute: AuthenticatedInboxRoute,
   AuthenticatedKnowledgeRoute: AuthenticatedKnowledgeRoute,
   AuthenticatedLeadsRoute: AuthenticatedLeadsRouteWithChildren,
+  AuthenticatedReportsRoute: AuthenticatedReportsRouteWithChildren,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRouteWithChildren,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
 }
