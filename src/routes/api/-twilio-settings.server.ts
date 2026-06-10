@@ -316,7 +316,16 @@ async function brokerSendTextForTwilio(
     body: params.toString(),
   });
   const body = (await res.json().catch(() => ({}))) as { sid?: string; status?: string; message?: string };
-  if (!res.ok) throw new Error(body.message ?? `Twilio ${res.status}`);
+  if (!res.ok) {
+    let msg = body.message ?? `Twilio ${res.status}`;
+    if (/Channel with the specified From/i.test(msg) || /63007/.test(msg)) {
+      msg +=
+        " — O número informado em 'WhatsApp From' não é um WhatsApp Sender registrado nesta conta Twilio. " +
+        "Use o Sandbox 'whatsapp:+14155238886' (com o destinatário previamente conectado via 'join <code>'), " +
+        "ou cadastre um WhatsApp Sender em Messaging → Senders no console Twilio.";
+    }
+    throw new Error(msg);
+  }
   return { sid: body.sid ?? null, status: body.status ?? null };
 }
 
