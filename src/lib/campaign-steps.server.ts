@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { evolutionFetch } from "./evolution.server";
+import { brokerSendText, getActiveProvider } from "./messaging-broker.server";
 import { renderTemplate } from "./campaigns.server";
 
 function normalizePhone(raw: string): string {
