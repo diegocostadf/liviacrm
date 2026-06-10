@@ -262,6 +262,9 @@ function TwilioWizardPage() {
                   <Stat label="Messaging Services" value={discovery.services.length} />
                   <Stat label="Templates (Content)" value={discovery.contents.length} />
                 </div>
+                <div>
+                  <Stat label="WhatsApp Senders" value={discovery.whatsappSenders?.length ?? 0} />
+                </div>
                 {discovery.warnings.length > 0 && (
                   <Card className="border-warning/40 p-3 text-xs">
                     {discovery.warnings.map((w, i) => <div key={i} className="text-muted-foreground">⚠ {w}</div>)}
