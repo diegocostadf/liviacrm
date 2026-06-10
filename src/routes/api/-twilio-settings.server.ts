@@ -18,7 +18,21 @@ const updateSchema = z.object({
   webhookToken: z.string().trim().max(500).optional().or(z.literal("")),
 });
 const testSchema = z.object({ action: z.literal("test") });
-const postSchema = z.union([updateSchema, testSchema]);
+const discoverSchema = z.object({
+  action: z.literal("discover"),
+  accountSid: z.string().trim().regex(/^AC[a-zA-Z0-9]+$/).optional().or(z.literal("")),
+  authToken: z.string().trim().max(200).optional().or(z.literal("")),
+  apiKeySid: z.string().trim().max(80).optional().or(z.literal("")),
+  apiKeySecret: z.string().trim().max(200).optional().or(z.literal("")),
+});
+const sendTestSchema = z.object({
+  action: z.literal("send-test"),
+  toPhone: z.string().trim().min(5).max(40),
+  text: z.string().trim().min(1).max(1000),
+  useTemplate: z.boolean().optional(),
+});
+const crmTestSchema = z.object({ action: z.literal("crm-test") });
+const postSchema = z.union([updateSchema, testSchema, discoverSchema, sendTestSchema, crmTestSchema]);
 
 function json(data: unknown, status = 200) {
   return Response.json(data, { status });
@@ -107,6 +121,194 @@ async function pingTwilio(prev: Record<string, unknown>) {
   };
 }
 
+function pickCreds(
+  prev: Record<string, unknown>,
+  incoming: { accountSid?: string; authToken?: string; apiKeySid?: string; apiKeySecret?: string },
+) {
+  const sid = (incoming.accountSid && incoming.accountSid.trim()) || String(prev.accountSid ?? "");
+  const keySid = (incoming.apiKeySid && incoming.apiKeySid.trim()) || (prev.apiKeySid as string) || "";
+  const incSecret = incoming.apiKeySecret && incoming.apiKeySecret !== "••••••••" ? incoming.apiKeySecret : "";
+  const keySecret = incSecret || (prev.apiKeySecret as string) || "";
+  const incToken = incoming.authToken && incoming.authToken !== "••••••••" ? incoming.authToken : "";
+  const authToken = incToken || (prev.authToken as string) || "";
+  if (!sid) throw new Error("Informe o Account SID.");
+  let user: string, pass: string;
+  if (keySid && keySecret) { user = keySid; pass = keySecret; }
+  else if (authToken) { user = sid; pass = authToken; }
+  else throw new Error("Informe um Auth Token ou um par API Key SID/Secret.");
+  return { sid, user, pass };
+}
+
+async function twilioGet(url: string, user: string, pass: string) {
+  const auth = Buffer.from(`${user}:${pass}`).toString("base64");
+  const res = await fetch(url, { headers: { Authorization: `Basic ${auth}` } });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = (body as { message?: string }).message ?? `Twilio ${res.status}`;
+    throw new Error(msg);
+  }
+  return body as Record<string, unknown>;
+}
+
+async function discoverTwilio(
+  prev: Record<string, unknown>,
+  incoming: { accountSid?: string; authToken?: string; apiKeySid?: string; apiKeySecret?: string },
+) {
+  const { sid, user, pass } = pickCreds(prev, incoming);
+  const started = Date.now();
+  const account = await twilioGet(`https://api.twilio.com/2010-04-01/Accounts/${sid}.json`, user, pass);
+
+  // run discovery requests in parallel, tolerate per-endpoint failures
+  const safe = async <T,>(p: Promise<T>): Promise<{ ok: true; data: T } | { ok: false; error: string }> => {
+    try { return { ok: true, data: await p }; }
+    catch (e) { return { ok: false, error: e instanceof Error ? e.message : String(e) }; }
+  };
+
+  const [numbersR, servicesR, contentR] = await Promise.all([
+    safe(twilioGet(`https://api.twilio.com/2010-04-01/Accounts/${sid}/IncomingPhoneNumbers.json?PageSize=50`, user, pass)),
+    safe(twilioGet(`https://messaging.twilio.com/v1/Services?PageSize=50`, user, pass)),
+    safe(twilioGet(`https://content.twilio.com/v1/Content?PageSize=50`, user, pass)),
+  ]);
+
+  const numbers = numbersR.ok
+    ? (((numbersR.data.incoming_phone_numbers ?? []) as Array<Record<string, unknown>>)).map((n) => ({
+        sid: String(n.sid ?? ""),
+        phoneNumber: String(n.phone_number ?? ""),
+        friendlyName: String(n.friendly_name ?? ""),
+        capabilities: (n.capabilities ?? {}) as Record<string, boolean>,
+      }))
+    : [];
+
+  const services = servicesR.ok
+    ? (((servicesR.data.services ?? []) as Array<Record<string, unknown>>)).map((s) => ({
+        sid: String(s.sid ?? ""),
+        friendlyName: String(s.friendly_name ?? ""),
+      }))
+    : [];
+
+  const contents = contentR.ok
+    ? (((contentR.data.contents ?? []) as Array<Record<string, unknown>>)).map((c) => ({
+        sid: String(c.sid ?? ""),
+        friendlyName: String(c.friendly_name ?? ""),
+        language: String(c.language ?? ""),
+        variables: (c.variables ?? {}) as Record<string, string>,
+      }))
+    : [];
+
+  return {
+    ok: true as const,
+    latencyMs: Date.now() - started,
+    account: {
+      sid,
+      friendlyName: (account.friendly_name as string) ?? null,
+      status: (account.status as string) ?? null,
+      type: (account.type as string) ?? null,
+    },
+    numbers,
+    services,
+    contents,
+    warnings: [
+      !numbersR.ok ? `Números: ${numbersR.error}` : null,
+      !servicesR.ok ? `Messaging Services: ${servicesR.error}` : null,
+      !contentR.ok ? `Templates: ${contentR.error}` : null,
+    ].filter((x): x is string => Boolean(x)),
+  };
+}
+
+async function sendTwilioTest(
+  prev: Record<string, unknown>,
+  payload: { toPhone: string; text: string; useTemplate?: boolean },
+) {
+  const { brokerSendText, invalidateMessagingCache } = await import("@/lib/messaging-broker.server");
+  invalidateMessagingCache();
+  // Force provider=twilio via app_settings? No — assume caller already saved twilio. Bypass cache and call twilio directly via broker forcing twilio path through settings update.
+  // Simpler: read twilio settings ourselves and call the same code path.
+  const sid = String(prev.accountSid ?? "");
+  if (!sid) throw new Error("Salve as configurações antes de testar.");
+
+  const t0 = Date.now();
+  try {
+    const r = await brokerSendTextForTwilio(prev, payload);
+    return { ok: true as const, sid: r.sid, status: r.status, latencyMs: Date.now() - t0 };
+  } catch (e) {
+    return { ok: false as const, error: e instanceof Error ? e.message : String(e), latencyMs: Date.now() - t0 };
+  }
+  void brokerSendText;
+}
+
+async function brokerSendTextForTwilio(
+  s: Record<string, unknown>,
+  payload: { toPhone: string; text: string; useTemplate?: boolean },
+) {
+  const sid = String(s.accountSid ?? "");
+  const user = s.apiKeySid && s.apiKeySecret ? String(s.apiKeySid) : sid;
+  const pass = s.apiKeySid && s.apiKeySecret ? String(s.apiKeySecret) : String(s.authToken ?? "");
+  if (!pass) throw new Error("Credenciais incompletas.");
+
+  const digits = String(payload.toPhone).replace(/\D/g, "");
+  if (!digits) throw new Error("Telefone destino inválido.");
+  const toE = `+${digits}`;
+
+  const useWhatsApp = Boolean(s.whatsappFrom);
+  const to = useWhatsApp ? `whatsapp:${toE}` : toE;
+  const params = new URLSearchParams({ To: to });
+
+  const contentSid = payload.useTemplate ? String(s.contentSid ?? "") : "";
+  if (contentSid) {
+    params.set("ContentSid", contentSid);
+    const varKey = (String(s.contentVariableKey ?? "1").trim() || "1");
+    params.set("ContentVariables", JSON.stringify({ [varKey]: payload.text }));
+  } else {
+    params.set("Body", payload.text);
+  }
+
+  if (useWhatsApp) {
+    const fromRaw = String(s.whatsappFrom).trim();
+    const from = fromRaw.startsWith("whatsapp:") ? fromRaw : `whatsapp:+${fromRaw.replace(/\D/g, "")}`;
+    params.set("From", from);
+  } else if (s.messagingServiceSid) {
+    params.set("MessagingServiceSid", String(s.messagingServiceSid));
+  } else if (s.fromNumber) {
+    params.set("From", `+${String(s.fromNumber).replace(/\D/g, "")}`);
+  } else {
+    throw new Error("Defina WhatsApp From, Número SMS ou Messaging Service SID antes de enviar.");
+  }
+
+  const url = `https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`;
+  const auth = Buffer.from(`${user}:${pass}`).toString("base64");
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { Authorization: `Basic ${auth}`, "Content-Type": "application/x-www-form-urlencoded" },
+    body: params.toString(),
+  });
+  const body = (await res.json().catch(() => ({}))) as { sid?: string; status?: string; message?: string };
+  if (!res.ok) throw new Error(body.message ?? `Twilio ${res.status}`);
+  return { sid: body.sid ?? null, status: body.status ?? null };
+}
+
+async function crmHealthCheck() {
+  const checks: Array<{ name: string; ok: boolean; detail?: string }> = [];
+  const start = Date.now();
+  try {
+    const { error } = await supabaseAdmin.from("app_settings").select("key").limit(1);
+    checks.push({ name: "Banco de dados (app_settings)", ok: !error, detail: error?.message });
+  } catch (e) { checks.push({ name: "Banco de dados (app_settings)", ok: false, detail: (e as Error).message }); }
+  try {
+    const { count, error } = await supabaseAdmin.from("contacts").select("*", { count: "exact", head: true });
+    checks.push({ name: "Tabela de contatos", ok: !error, detail: error?.message ?? `${count ?? 0} contatos` });
+  } catch (e) { checks.push({ name: "Tabela de contatos", ok: false, detail: (e as Error).message }); }
+  try {
+    const { count, error } = await supabaseAdmin.from("campaigns").select("*", { count: "exact", head: true });
+    checks.push({ name: "Tabela de campanhas", ok: !error, detail: error?.message ?? `${count ?? 0} campanhas` });
+  } catch (e) { checks.push({ name: "Tabela de campanhas", ok: false, detail: (e as Error).message }); }
+  try {
+    const { data, error } = await supabaseAdmin.from("app_settings").select("value").eq("key", "messaging_provider").maybeSingle();
+    const v = (data?.value ?? {}) as { provider?: string };
+    checks.push({ name: "Provedor de mensageria ativo", ok: !error, detail: error?.message ?? (v.provider ?? "evolution (padrão)") });
+  } catch (e) { checks.push({ name: "Provedor de mensageria ativo", ok: false, detail: (e as Error).message }); }
+  return { ok: checks.every((c) => c.ok), latencyMs: Date.now() - start, checks };
+}
+
 export async function handleGet(request: Request) {
   try {
     await requireAdmin(request);
@@ -126,6 +328,9 @@ export async function handlePost(request: Request) {
     const prev = (existing?.value ?? {}) as Record<string, unknown>;
 
     if (payload.action === "test") return json(await pingTwilio(prev));
+    if (payload.action === "discover") return json(await discoverTwilio(prev, payload));
+    if (payload.action === "send-test") return json(await sendTwilioTest(prev, payload));
+    if (payload.action === "crm-test") return json(await crmHealthCheck());
 
     const keepSecret = (incoming: string | undefined, prevKey: string) =>
       incoming && incoming !== "••••••••" ? incoming : ((prev[prevKey] as string | undefined) ?? "");
