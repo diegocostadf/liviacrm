@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { updateCampaign } from "@/lib/campaigns.functions";
 import { listInstances } from "@/lib/evolution.functions";
+import { getMessagingProvider } from "@/lib/messaging.functions";
 
 export type CampaignRules = {
   id: string;
@@ -25,7 +26,7 @@ export type CampaignRules = {
   throttle_max_seconds: number;
   window_start_hour: number;
   window_end_hour: number;
-  instance_id: string;
+  instance_id: string | null;
 };
 
 const WEEKDAYS = [
