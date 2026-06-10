@@ -20,6 +20,8 @@ type Settings = {
   fromNumber: string;
   messagingServiceSid: string;
   whatsappFrom: string;
+  contentSid: string;
+  contentVariableKey: string;
   webhookUrl: string;
   webhookToken: string;
   hasWebhookToken: boolean;
@@ -71,6 +73,8 @@ function TwilioSettingsPage() {
         fromNumber: form?.fromNumber ?? "",
         messagingServiceSid: form?.messagingServiceSid ?? "",
         whatsappFrom: form?.whatsappFrom ?? "",
+        contentSid: form?.contentSid ?? "",
+        contentVariableKey: form?.contentVariableKey ?? "",
         webhookUrl: form?.webhookUrl ?? "",
         webhookToken: form?.webhookToken ?? "",
       }),
@@ -221,6 +225,42 @@ function TwilioSettingsPage() {
             />
             <p className="text-xs text-muted-foreground">Use o prefixo <span className="font-mono">whatsapp:</span> seguido do número aprovado.</p>
           </div>
+        </Card>
+
+        <Card className="space-y-4 p-5">
+          <div>
+            <h2 className="text-base font-semibold">Template aprovado (Content API)</h2>
+            <p className="text-xs text-muted-foreground">
+              Necessário para iniciar conversas no WhatsApp fora da janela de 24h. Crie o template em
+              Twilio → Content Editor e copie o <span className="font-mono">Content SID</span> (começa com <span className="font-mono">HX…</span>).
+              Se preenchido, o texto da campanha é injetado na variável definida abaixo.
+            </p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-[2fr_1fr]">
+            <div className="space-y-2">
+              <Label htmlFor="contentSid">Content SID padrão</Label>
+              <Input
+                id="contentSid"
+                placeholder="HXxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                value={form.contentSid}
+                onChange={(e) => setForm({ ...form, contentSid: e.target.value.trim() })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="contentVariableKey">Variável p/ texto</Label>
+              <Input
+                id="contentVariableKey"
+                placeholder="1"
+                value={form.contentVariableKey}
+                onChange={(e) => setForm({ ...form, contentVariableKey: e.target.value.trim() })}
+              />
+              <p className="text-xs text-muted-foreground">Padrão: <span className="font-mono">1</span></p>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Equivalente ao SDK: <span className="font-mono">{`contentSid: 'HX…', contentVariables: '{"1":"<texto>"}'`}</span>.
+            Deixe em branco para enviar como mensagem livre (<span className="font-mono">Body</span>).
+          </p>
         </Card>
 
         <Card className="space-y-4 p-5">

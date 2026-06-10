@@ -12,6 +12,8 @@ const updateSchema = z.object({
   fromNumber: z.string().trim().max(40).optional().or(z.literal("")),
   messagingServiceSid: z.string().trim().max(80).optional().or(z.literal("")),
   whatsappFrom: z.string().trim().max(60).optional().or(z.literal("")),
+  contentSid: z.string().trim().max(80).optional().or(z.literal("")),
+  contentVariableKey: z.string().trim().max(20).optional().or(z.literal("")),
   webhookUrl: z.string().trim().url().max(500).optional().or(z.literal("")),
   webhookToken: z.string().trim().max(500).optional().or(z.literal("")),
 });
@@ -66,6 +68,8 @@ async function getSettings() {
       fromNumber: typeof value.fromNumber === "string" ? value.fromNumber : "",
       messagingServiceSid: typeof value.messagingServiceSid === "string" ? value.messagingServiceSid : "",
       whatsappFrom: typeof value.whatsappFrom === "string" ? value.whatsappFrom : "",
+      contentSid: typeof value.contentSid === "string" ? value.contentSid : "",
+      contentVariableKey: typeof value.contentVariableKey === "string" ? value.contentVariableKey : "",
       webhookUrl: typeof value.webhookUrl === "string" ? value.webhookUrl : "",
       webhookToken: has("webhookToken") ? "••••••••" : "",
       hasWebhookToken: has("webhookToken"),
@@ -134,6 +138,8 @@ export async function handlePost(request: Request) {
       fromNumber: payload.fromNumber || undefined,
       messagingServiceSid: payload.messagingServiceSid || undefined,
       whatsappFrom: payload.whatsappFrom || undefined,
+      contentSid: payload.contentSid || undefined,
+      contentVariableKey: payload.contentVariableKey || undefined,
       webhookUrl: payload.webhookUrl || undefined,
       webhookToken: keepSecret(payload.webhookToken, "webhookToken"),
     };

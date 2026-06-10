@@ -11,6 +11,8 @@ type TwilioSettings = {
   fromNumber?: string;
   messagingServiceSid?: string;
   whatsappFrom?: string;
+  contentSid?: string;
+  contentVariableKey?: string;
 };
 
 let cachedProvider: { value: MessagingProvider; at: number } | null = null;
@@ -53,7 +55,11 @@ function toE164(raw: string): string {
   return `+${digits}`;
 }
 
-async function twilioSendText(toPhone: string, text: string): Promise<{ id: string | null }> {
+async function twilioSendText(
+  toPhone: string,
+  text: string,
+  opts?: { contentSid?: string; contentVariables?: Record<string, string> },
+): Promise<{ id: string | null }> {
   const s = await loadTwilioSettings();
   if (!s.accountSid) throw new Error("Twilio Account SID não configurado.");
   const user = s.apiKeySid && s.apiKeySecret ? s.apiKeySid : s.accountSid;
@@ -66,7 +72,20 @@ async function twilioSendText(toPhone: string, text: string): Promise<{ id: stri
   const useWhatsApp = Boolean(s.whatsappFrom);
   const to = useWhatsApp ? `whatsapp:${toE}` : toE;
 
-  const params = new URLSearchParams({ To: to, Body: text });
+  const params = new URLSearchParams({ To: to });
+
+  // Template (ContentSid) tem prioridade sobre Body livre. Aceita override por
+  // chamada; caso contrário usa o ContentSid padrão das configurações.
+  const contentSid = opts?.contentSid ?? s.contentSid ?? "";
+  if (contentSid) {
+    params.set("ContentSid", contentSid);
+    const varKey = (s.contentVariableKey ?? "1").trim() || "1";
+    const vars = opts?.contentVariables ?? { [varKey]: text };
+    params.set("ContentVariables", JSON.stringify(vars));
+  } else {
+    params.set("Body", text);
+  }
+
   if (useWhatsApp) {
     const fromRaw = s.whatsappFrom!.trim();
     const from = fromRaw.startsWith("whatsapp:") ? fromRaw : `whatsapp:${toE164(fromRaw)}`;
@@ -105,10 +124,11 @@ export async function brokerSendText(args: {
   toPhone: string;
   text: string;
   evolutionInstanceName?: string | null;
+  twilio?: { contentSid?: string; contentVariables?: Record<string, string> };
 }): Promise<{ id: string | null; provider: MessagingProvider }> {
   const provider = await getActiveProvider();
   if (provider === "twilio") {
-    const r = await twilioSendText(args.toPhone, args.text);
+    const r = await twilioSendText(args.toPhone, args.text, args.twilio);
     return { id: r.id, provider };
   }
   if (!args.evolutionInstanceName) {
