@@ -1,0 +1,2 @@
+DROP POLICY IF EXISTS messages_insert_own ON public.messages;
+CREATE POLICY messages_insert_own ON public.messages FOR INSERT TO authenticated WITH CHECK (sender_id IS NOT NULL AND sender_id = auth.uid());
