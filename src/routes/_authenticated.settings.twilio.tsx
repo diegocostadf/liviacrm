@@ -34,6 +34,7 @@ type DiscoverResult = {
   latencyMs: number;
   account: { sid: string; friendlyName: string | null; status: string | null; type: string | null };
   numbers: Array<{ sid: string; phoneNumber: string; friendlyName: string; capabilities: Record<string, boolean> }>;
+  whatsappSenders: Array<{ sid: string; phoneNumber: string; status: string; profileName: string }>;
   services: Array<{ sid: string; friendlyName: string }>;
   contents: Array<{ sid: string; friendlyName: string; language: string; variables: Record<string, string> }>;
   warnings: string[];
@@ -261,6 +262,9 @@ function TwilioWizardPage() {
                   <Stat label="Messaging Services" value={discovery.services.length} />
                   <Stat label="Templates (Content)" value={discovery.contents.length} />
                 </div>
+                <div>
+                  <Stat label="WhatsApp Senders" value={discovery.whatsappSenders?.length ?? 0} />
+                </div>
                 {discovery.warnings.length > 0 && (
                   <Card className="border-warning/40 p-3 text-xs">
                     {discovery.warnings.map((w, i) => <div key={i} className="text-muted-foreground">⚠ {w}</div>)}
@@ -280,11 +284,23 @@ function TwilioWizardPage() {
 
             <div className="space-y-2">
               <Label>WhatsApp From</Label>
-              {discovery && discovery.numbers.length > 0 && (
+              {discovery && (discovery.whatsappSenders?.length ?? 0) > 0 && (
                 <select className="h-9 w-full rounded-md border bg-background px-2 text-sm"
                   value={form.whatsappFrom}
                   onChange={(e) => setForm({ ...form, whatsappFrom: e.target.value })}>
-                  <option value="">— escolha um número —</option>
+                  <option value="">— escolha um WhatsApp Sender —</option>
+                  {discovery.whatsappSenders.map((n) => (
+                    <option key={n.sid || n.phoneNumber} value={`whatsapp:${n.phoneNumber}`}>
+                      {n.phoneNumber} · {n.profileName || "—"} · {n.status || "—"}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {discovery && discovery.numbers.length > 0 && (discovery.whatsappSenders?.length ?? 0) === 0 && (
+                <select className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+                  value={form.whatsappFrom}
+                  onChange={(e) => setForm({ ...form, whatsappFrom: e.target.value })}>
+                  <option value="">— número (precisa estar aprovado para WhatsApp) —</option>
                   {discovery.numbers.map((n) => (
                     <option key={n.sid} value={`whatsapp:${n.phoneNumber}`}>{n.phoneNumber} · {n.friendlyName}</option>
                   ))}
@@ -292,7 +308,16 @@ function TwilioWizardPage() {
               )}
               <Input placeholder="whatsapp:+14155238886" value={form.whatsappFrom}
                 onChange={(e) => setForm({ ...form, whatsappFrom: e.target.value })} />
-              <p className="text-xs text-muted-foreground">Use prefixo <span className="font-mono">whatsapp:</span> + número aprovado.</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button type="button" variant="outline" size="sm"
+                  onClick={() => setForm({ ...form, whatsappFrom: "whatsapp:+14155238886" })}>
+                  Usar Sandbox Twilio
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Prefixo <span className="font-mono">whatsapp:</span> + número cadastrado como WhatsApp Sender.
+                  No Sandbox o destinatário precisa enviar <span className="font-mono">join &lt;código&gt;</span> antes.
+                </p>
+              </div>
             </div>
 
             <Separator />
