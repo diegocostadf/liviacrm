@@ -50,6 +50,14 @@ export function CampaignRulesCard({ campaign }: { campaign: CampaignRules }) {
   });
   const instances = (instData ?? []) as Array<{ id: string; name: string; status?: string | null }>;
 
+  const providerFn = useServerFn(getMessagingProvider);
+  const { data: providerData } = useQuery({
+    queryKey: ["messaging-provider"],
+    queryFn: () => providerFn(),
+  });
+  const provider = providerData?.provider ?? "evolution";
+  const isTwilio = provider === "twilio";
+
   const [weekdays, setWeekdays] = useState<number[]>(campaign.allowed_weekdays ?? [1, 2, 3, 4, 5]);
   const [winStart, setWinStart] = useState(campaign.window_start_hour);
   const [winEnd, setWinEnd] = useState(campaign.window_end_hour);
@@ -62,7 +70,11 @@ export function CampaignRulesCard({ campaign }: { campaign: CampaignRules }) {
   const [retryMax, setRetryMax] = useState(campaign.retry_max_attempts);
   const [retryBackoff, setRetryBackoff] = useState(campaign.retry_backoff_seconds);
   const [instanceIds, setInstanceIds] = useState<string[]>(
-    (campaign.allowed_instance_ids?.length ? campaign.allowed_instance_ids : [campaign.instance_id]) ?? [],
+    campaign.allowed_instance_ids?.length
+      ? campaign.allowed_instance_ids
+      : campaign.instance_id
+        ? [campaign.instance_id]
+        : [],
   );
   const [saving, setSaving] = useState(false);
 
@@ -79,7 +91,11 @@ export function CampaignRulesCard({ campaign }: { campaign: CampaignRules }) {
     setRetryMax(campaign.retry_max_attempts);
     setRetryBackoff(campaign.retry_backoff_seconds);
     setInstanceIds(
-      campaign.allowed_instance_ids?.length ? campaign.allowed_instance_ids : [campaign.instance_id],
+      campaign.allowed_instance_ids?.length
+        ? campaign.allowed_instance_ids
+        : campaign.instance_id
+          ? [campaign.instance_id]
+          : [],
     );
   }, [campaign.id]);
 
@@ -96,7 +112,7 @@ export function CampaignRulesCard({ campaign }: { campaign: CampaignRules }) {
       toast.error("Selecione pelo menos um dia da semana");
       return;
     }
-    if (!instanceIds.length) {
+    if (!isTwilio && !instanceIds.length) {
       toast.error("Selecione pelo menos uma instância");
       return;
     }
