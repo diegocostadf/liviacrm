@@ -36,6 +36,7 @@ import { Route as AuthenticatedSettingsConnectionsRouteImport } from './routes/_
 import { Route as AuthenticatedSettingsBotRouteImport } from './routes/_authenticated.settings.bot'
 import { Route as AuthenticatedSettingsAiProvidersRouteImport } from './routes/_authenticated.settings.ai-providers'
 import { Route as AuthenticatedReportsOverviewRouteImport } from './routes/_authenticated.reports.overview'
+import { Route as AuthenticatedReportsListsRouteImport } from './routes/_authenticated.reports.lists'
 import { Route as AuthenticatedLeadsIdRouteImport } from './routes/_authenticated.leads.$id'
 import { Route as AuthenticatedCampaignsIdRouteImport } from './routes/_authenticated.campaigns.$id'
 import { Route as ApiPublicWebhooksEvolutionRouteImport } from './routes/api/public/webhooks/evolution'
@@ -187,6 +188,12 @@ const AuthenticatedReportsOverviewRoute =
     path: '/overview',
     getParentRoute: () => AuthenticatedReportsRoute,
   } as any)
+const AuthenticatedReportsListsRoute =
+  AuthenticatedReportsListsRouteImport.update({
+    id: '/lists',
+    path: '/lists',
+    getParentRoute: () => AuthenticatedReportsRoute,
+  } as any)
 const AuthenticatedLeadsIdRoute = AuthenticatedLeadsIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -227,6 +234,7 @@ export interface FileRoutesByFullPath {
   '/api/twilio-settings': typeof ApiTwilioSettingsRoute
   '/campaigns/$id': typeof AuthenticatedCampaignsIdRoute
   '/leads/$id': typeof AuthenticatedLeadsIdRoute
+  '/reports/lists': typeof AuthenticatedReportsListsRoute
   '/reports/overview': typeof AuthenticatedReportsOverviewRoute
   '/settings/ai-providers': typeof AuthenticatedSettingsAiProvidersRoute
   '/settings/bot': typeof AuthenticatedSettingsBotRoute
@@ -257,6 +265,7 @@ export interface FileRoutesByTo {
   '/': typeof AuthenticatedIndexRoute
   '/campaigns/$id': typeof AuthenticatedCampaignsIdRoute
   '/leads/$id': typeof AuthenticatedLeadsIdRoute
+  '/reports/lists': typeof AuthenticatedReportsListsRoute
   '/reports/overview': typeof AuthenticatedReportsOverviewRoute
   '/settings/ai-providers': typeof AuthenticatedSettingsAiProvidersRoute
   '/settings/bot': typeof AuthenticatedSettingsBotRoute
@@ -291,6 +300,7 @@ export interface FileRoutesById {
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/campaigns/$id': typeof AuthenticatedCampaignsIdRoute
   '/_authenticated/leads/$id': typeof AuthenticatedLeadsIdRoute
+  '/_authenticated/reports/lists': typeof AuthenticatedReportsListsRoute
   '/_authenticated/reports/overview': typeof AuthenticatedReportsOverviewRoute
   '/_authenticated/settings/ai-providers': typeof AuthenticatedSettingsAiProvidersRoute
   '/_authenticated/settings/bot': typeof AuthenticatedSettingsBotRoute
@@ -325,6 +335,7 @@ export interface FileRouteTypes {
     | '/api/twilio-settings'
     | '/campaigns/$id'
     | '/leads/$id'
+    | '/reports/lists'
     | '/reports/overview'
     | '/settings/ai-providers'
     | '/settings/bot'
@@ -355,6 +366,7 @@ export interface FileRouteTypes {
     | '/'
     | '/campaigns/$id'
     | '/leads/$id'
+    | '/reports/lists'
     | '/reports/overview'
     | '/settings/ai-providers'
     | '/settings/bot'
@@ -388,6 +400,7 @@ export interface FileRouteTypes {
     | '/_authenticated/'
     | '/_authenticated/campaigns/$id'
     | '/_authenticated/leads/$id'
+    | '/_authenticated/reports/lists'
     | '/_authenticated/reports/overview'
     | '/_authenticated/settings/ai-providers'
     | '/_authenticated/settings/bot'
@@ -606,6 +619,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedReportsOverviewRouteImport
       parentRoute: typeof AuthenticatedReportsRoute
     }
+    '/_authenticated/reports/lists': {
+      id: '/_authenticated/reports/lists'
+      path: '/lists'
+      fullPath: '/reports/lists'
+      preLoaderRoute: typeof AuthenticatedReportsListsRouteImport
+      parentRoute: typeof AuthenticatedReportsRoute
+    }
     '/_authenticated/leads/$id': {
       id: '/_authenticated/leads/$id'
       path: '/$id'
@@ -667,10 +687,12 @@ const AuthenticatedLeadsRouteWithChildren =
   AuthenticatedLeadsRoute._addFileChildren(AuthenticatedLeadsRouteChildren)
 
 interface AuthenticatedReportsRouteChildren {
+  AuthenticatedReportsListsRoute: typeof AuthenticatedReportsListsRoute
   AuthenticatedReportsOverviewRoute: typeof AuthenticatedReportsOverviewRoute
 }
 
 const AuthenticatedReportsRouteChildren: AuthenticatedReportsRouteChildren = {
+  AuthenticatedReportsListsRoute: AuthenticatedReportsListsRoute,
   AuthenticatedReportsOverviewRoute: AuthenticatedReportsOverviewRoute,
 }
 
