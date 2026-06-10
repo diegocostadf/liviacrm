@@ -258,6 +258,7 @@ export function CampaignRulesCard({ campaign }: { campaign: CampaignRules }) {
         </CardContent>
       </Card>
 
+      {!isTwilio && (
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
@@ -298,6 +299,7 @@ export function CampaignRulesCard({ campaign }: { campaign: CampaignRules }) {
           </p>
         </CardContent>
       </Card>
+      )}
 
       <Card>
         <CardHeader className="pb-3">
