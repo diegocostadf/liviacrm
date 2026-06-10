@@ -281,11 +281,23 @@ function TwilioWizardPage() {
 
             <div className="space-y-2">
               <Label>WhatsApp From</Label>
-              {discovery && discovery.numbers.length > 0 && (
+              {discovery && (discovery.whatsappSenders?.length ?? 0) > 0 && (
                 <select className="h-9 w-full rounded-md border bg-background px-2 text-sm"
                   value={form.whatsappFrom}
                   onChange={(e) => setForm({ ...form, whatsappFrom: e.target.value })}>
-                  <option value="">— escolha um número —</option>
+                  <option value="">— escolha um WhatsApp Sender —</option>
+                  {discovery.whatsappSenders.map((n) => (
+                    <option key={n.sid || n.phoneNumber} value={`whatsapp:${n.phoneNumber}`}>
+                      {n.phoneNumber} · {n.profileName || "—"} · {n.status || "—"}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {discovery && discovery.numbers.length > 0 && (discovery.whatsappSenders?.length ?? 0) === 0 && (
+                <select className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+                  value={form.whatsappFrom}
+                  onChange={(e) => setForm({ ...form, whatsappFrom: e.target.value })}>
+                  <option value="">— número (precisa estar aprovado para WhatsApp) —</option>
                   {discovery.numbers.map((n) => (
                     <option key={n.sid} value={`whatsapp:${n.phoneNumber}`}>{n.phoneNumber} · {n.friendlyName}</option>
                   ))}
@@ -293,7 +305,16 @@ function TwilioWizardPage() {
               )}
               <Input placeholder="whatsapp:+14155238886" value={form.whatsappFrom}
                 onChange={(e) => setForm({ ...form, whatsappFrom: e.target.value })} />
-              <p className="text-xs text-muted-foreground">Use prefixo <span className="font-mono">whatsapp:</span> + número aprovado.</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button type="button" variant="outline" size="sm"
+                  onClick={() => setForm({ ...form, whatsappFrom: "whatsapp:+14155238886" })}>
+                  Usar Sandbox Twilio
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Prefixo <span className="font-mono">whatsapp:</span> + número cadastrado como WhatsApp Sender.
+                  No Sandbox o destinatário precisa enviar <span className="font-mono">join &lt;código&gt;</span> antes.
+                </p>
+              </div>
             </div>
 
             <Separator />
