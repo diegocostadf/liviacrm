@@ -63,7 +63,7 @@ export const listCampaigns = createServerFn({ method: "GET" })
 
 const createSchema = z.object({
   name: z.string().trim().min(2).max(120),
-  instance_id: z.string().uuid(),
+  instance_id: z.string().uuid().nullable().optional(),
   template: z.string().trim().min(2).max(4000),
   throttle_min_seconds: z.number().int().min(2).max(600).default(30),
   throttle_max_seconds: z.number().int().min(2).max(600).default(45),
@@ -91,7 +91,7 @@ export const createCampaign = createServerFn({ method: "POST" })
       .from("campaigns")
       .insert({
         name: data.name,
-        instance_id: data.instance_id,
+        instance_id: data.instance_id ?? null,
         template: data.template,
         throttle_min_seconds: data.throttle_min_seconds,
         throttle_max_seconds: Math.max(data.throttle_min_seconds, data.throttle_max_seconds),

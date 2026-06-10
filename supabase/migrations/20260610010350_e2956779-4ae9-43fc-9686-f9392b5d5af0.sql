@@ -1,0 +1,1 @@
+ALTER TABLE public.campaigns ALTER COLUMN instance_id DROP NOT NULL;

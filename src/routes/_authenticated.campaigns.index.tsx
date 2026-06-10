@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { listCampaigns, createCampaign, deleteCampaign } from "@/lib/campaigns.functions";
 import { listInstances } from "@/lib/evolution.functions";
+import { getMessagingProvider } from "@/lib/messaging.functions";
 import { format } from "date-fns";
 
 export const Route = createFileRoute("/_authenticated/campaigns/")({
@@ -36,6 +37,7 @@ function CampaignsPage() {
   const createFn = useServerFn(createCampaign);
   const delFn = useServerFn(deleteCampaign);
   const instancesFn = useServerFn(listInstances);
+  const providerFn = useServerFn(getMessagingProvider);
 
   const { data: campaigns = [], isLoading } = useQuery({
     queryKey: ["campaigns"],
@@ -45,6 +47,12 @@ function CampaignsPage() {
     queryKey: ["instances"],
     queryFn: () => instancesFn(),
   });
+  const { data: providerData } = useQuery({
+    queryKey: ["messaging-provider"],
+    queryFn: () => providerFn(),
+  });
+  const provider = providerData?.provider ?? "evolution";
+  const isTwilio = provider === "twilio";
 
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -57,11 +65,11 @@ function CampaignsPage() {
   const [creating, setCreating] = useState(false);
 
   async function handleCreate() {
-    if (!instanceId) { toast.error("Selecione uma instância"); return; }
+    if (!isTwilio && !instanceId) { toast.error("Selecione uma instância"); return; }
     setCreating(true);
     try {
       const { id } = await createFn({ data: {
-        name, instance_id: instanceId, template,
+        name, instance_id: isTwilio ? null : instanceId, template,
         throttle_min_seconds: minS, throttle_max_seconds: Math.max(minS, maxS),
         window_start_hour: startH, window_end_hour: endH,
       }});
@@ -105,19 +113,25 @@ function CampaignsPage() {
                 <Label>Nome</Label>
                 <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Lançamento turma 2026" />
               </div>
-              <div>
-                <Label>Instância WhatsApp</Label>
-                <Select value={instanceId} onValueChange={setInstanceId}>
-                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                  <SelectContent>
-                    {instances.map((i) => (
-                      <SelectItem key={i.id} value={i.id}>
-                        {i.name} {i.status === "connected" ? "🟢" : "⚪"}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {isTwilio ? (
+                <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                  Provedor atual: <span className="font-medium text-foreground">Twilio</span>. Os envios usarão o número configurado em Configurações → WhatsApp — não é necessário selecionar uma instância.
+                </div>
+              ) : (
+                <div>
+                  <Label>Instância WhatsApp</Label>
+                  <Select value={instanceId} onValueChange={setInstanceId}>
+                    <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectContent>
+                      {instances.map((i) => (
+                        <SelectItem key={i.id} value={i.id}>
+                          {i.name} {i.status === "connected" ? "🟢" : "⚪"}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div>
                 <Label>Mensagem (use {`{{name}}`}, {`{{phone}}`} ou colunas do CSV)</Label>
                 <Textarea rows={5} value={template} onChange={(e) => setTemplate(e.target.value)} />
