@@ -665,9 +665,10 @@ export async function handleOptOut(args: {
     (camps ?? []).map((c) => c.opt_out_reply).find((r) => r && String(r).trim().length > 0) ??
     "Tudo bem! Você não receberá mais mensagens deste número. 🙏";
   try {
-    await evolutionFetch(`/message/sendText/${args.instanceName}`, {
-      method: "POST",
-      json: { number: args.phone, text: String(reply) },
+    await brokerSendText({
+      toPhone: args.phone,
+      text: String(reply),
+      evolutionInstanceName: args.instanceName,
     });
   } catch (e) {
     console.warn("[opt-out] falha ao enviar reply", e);
