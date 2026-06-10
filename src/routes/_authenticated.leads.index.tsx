@@ -47,8 +47,6 @@ function LeadsListPage() {
   const list = useServerFn(listLeads);
   const statsFn = useServerFn(getLeadStats);
   const matchingFn = useServerFn(listLeadsMatching);
-  const campaignsFn = useServerFn(listCampaigns);
-  const addTargetsFn = useServerFn(addCampaignTargets);
   const qc = useQueryClient();
 
   const [search, setSearch] = useState("");
