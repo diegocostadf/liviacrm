@@ -361,7 +361,7 @@ export type Database = {
           event_date: string | null
           failed_count: number
           id: string
-          instance_id: string
+          instance_id: string | null
           last_instance_idx: number
           max_per_day: number
           max_per_hour: number
@@ -395,7 +395,7 @@ export type Database = {
           event_date?: string | null
           failed_count?: number
           id?: string
-          instance_id: string
+          instance_id?: string | null
           last_instance_idx?: number
           max_per_day?: number
           max_per_hour?: number
@@ -429,7 +429,7 @@ export type Database = {
           event_date?: string | null
           failed_count?: number
           id?: string
-          instance_id?: string
+          instance_id?: string | null
           last_instance_idx?: number
           max_per_day?: number
           max_per_hour?: number
