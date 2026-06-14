@@ -197,6 +197,8 @@ export type Database = {
           audience_step_id: string | null
           audience_tags: string[]
           campaign_id: string
+          cloud_template_id: string | null
+          cloud_template_variables: Json
           completed_at: string | null
           created_at: string
           dedupe_skip_days: number | null
@@ -227,6 +229,8 @@ export type Database = {
           audience_step_id?: string | null
           audience_tags?: string[]
           campaign_id: string
+          cloud_template_id?: string | null
+          cloud_template_variables?: Json
           completed_at?: string | null
           created_at?: string
           dedupe_skip_days?: number | null
@@ -257,6 +261,8 @@ export type Database = {
           audience_step_id?: string | null
           audience_tags?: string[]
           campaign_id?: string
+          cloud_template_id?: string | null
+          cloud_template_variables?: Json
           completed_at?: string | null
           created_at?: string
           dedupe_skip_days?: number | null
@@ -278,7 +284,15 @@ export type Database = {
           total_count?: number
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "campaign_steps_cloud_template_id_fkey"
+            columns: ["cloud_template_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_cloud_templates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       campaign_targets: {
         Row: {
@@ -354,6 +368,8 @@ export type Database = {
           ai_personalize: boolean
           allowed_instance_ids: string[]
           allowed_weekdays: number[]
+          cloud_template_id: string | null
+          cloud_template_variables: Json
           completed_at: string | null
           created_at: string
           created_by: string | null
@@ -388,6 +404,8 @@ export type Database = {
           ai_personalize?: boolean
           allowed_instance_ids?: string[]
           allowed_weekdays?: number[]
+          cloud_template_id?: string | null
+          cloud_template_variables?: Json
           completed_at?: string | null
           created_at?: string
           created_by?: string | null
@@ -422,6 +440,8 @@ export type Database = {
           ai_personalize?: boolean
           allowed_instance_ids?: string[]
           allowed_weekdays?: number[]
+          cloud_template_id?: string | null
+          cloud_template_variables?: Json
           completed_at?: string | null
           created_at?: string
           created_by?: string | null
@@ -453,6 +473,13 @@ export type Database = {
           window_start_hour?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "campaigns_cloud_template_id_fkey"
+            columns: ["cloud_template_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_cloud_templates"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "campaigns_instance_id_fkey"
             columns: ["instance_id"]
@@ -1039,6 +1066,119 @@ export type Database = {
           url?: string
         }
         Relationships: []
+      }
+      whatsapp_cloud_accounts: {
+        Row: {
+          access_token: string
+          business_name: string | null
+          created_at: string
+          created_by: string | null
+          display_phone_number: string | null
+          id: string
+          is_default: boolean
+          phone_number_id: string
+          raw: Json
+          token_expires_at: string | null
+          updated_at: string
+          verified_name: string | null
+          waba_id: string
+          webhook_subscribed: boolean
+        }
+        Insert: {
+          access_token: string
+          business_name?: string | null
+          created_at?: string
+          created_by?: string | null
+          display_phone_number?: string | null
+          id?: string
+          is_default?: boolean
+          phone_number_id: string
+          raw?: Json
+          token_expires_at?: string | null
+          updated_at?: string
+          verified_name?: string | null
+          waba_id: string
+          webhook_subscribed?: boolean
+        }
+        Update: {
+          access_token?: string
+          business_name?: string | null
+          created_at?: string
+          created_by?: string | null
+          display_phone_number?: string | null
+          id?: string
+          is_default?: boolean
+          phone_number_id?: string
+          raw?: Json
+          token_expires_at?: string | null
+          updated_at?: string
+          verified_name?: string | null
+          waba_id?: string
+          webhook_subscribed?: boolean
+        }
+        Relationships: []
+      }
+      whatsapp_cloud_templates: {
+        Row: {
+          account_id: string
+          category: string
+          components: Json
+          created_at: string
+          created_by: string | null
+          id: string
+          language: string
+          last_synced_at: string | null
+          meta_template_id: string | null
+          name: string
+          quality_score: string | null
+          rejection_reason: string | null
+          status: string
+          updated_at: string
+          variables_count: number
+        }
+        Insert: {
+          account_id: string
+          category: string
+          components?: Json
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          language: string
+          last_synced_at?: string | null
+          meta_template_id?: string | null
+          name: string
+          quality_score?: string | null
+          rejection_reason?: string | null
+          status?: string
+          updated_at?: string
+          variables_count?: number
+        }
+        Update: {
+          account_id?: string
+          category?: string
+          components?: Json
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          language?: string
+          last_synced_at?: string | null
+          meta_template_id?: string | null
+          name?: string
+          quality_score?: string | null
+          rejection_reason?: string | null
+          status?: string
+          updated_at?: string
+          variables_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_cloud_templates_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_cloud_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       whatsapp_instances: {
         Row: {
