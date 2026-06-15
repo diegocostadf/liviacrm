@@ -50,6 +50,13 @@ const STEPS = [
 function WhatsappCloudPage() {
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: ["wa-cloud"], queryFn: () => api<State>("GET") });
+  const currentHost = typeof window !== "undefined" ? window.location.hostname : "";
+  const domainCheck = useQuery({
+    queryKey: ["wa-cloud-domain", currentHost],
+    queryFn: () => api<{ ok: boolean; allowed: boolean; host: string; domains: string[]; error?: string }>("POST", { action: "check-domain", host: currentHost }),
+    enabled: !!currentHost,
+    staleTime: 60_000,
+  });
   const [step, setStep] = useState(1);
   const accounts = data?.accounts ?? [];
   const defaultAcc = accounts.find((a) => a.is_default) ?? accounts[0];
@@ -201,6 +208,9 @@ function WhatsappCloudPage() {
                 meta={data!.meta}
                 sdkStatus={sdkStatus}
                 isPreviewHost={isPreviewHost}
+                domainCheck={domainCheck.data}
+                domainCheckLoading={domainCheck.isLoading}
+                onRecheckDomain={() => domainCheck.refetch()}
                 accessToken={accessToken}
                 businesses={businesses}
                 onLogin={launchEmbeddedSignup}
