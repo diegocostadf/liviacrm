@@ -8,6 +8,22 @@ export function verifyToken() { return process.env.META_WEBHOOK_VERIFY_TOKEN ?? 
 export function loginConfigId() { return process.env.META_LOGIN_CONFIG_ID ?? ""; }
 export function metaAppId() { return appId(); }
 
+/**
+ * Read App Domains from Meta App settings using an app access token
+ * (`{app_id}|{app_secret}`). Returns the list of configured domains.
+ */
+export async function getAppDomains(): Promise<string[]> {
+  if (!appId() || !appSecret()) throw new Error("META_APP_ID/META_APP_SECRET ausentes.");
+  const appToken = `${appId()}|${appSecret()}`;
+  const url = new URL(`${GRAPH}/${appId()}`);
+  url.searchParams.set("fields", "app_domains");
+  url.searchParams.set("access_token", appToken);
+  const res = await fetch(url.toString());
+  const json = (await res.json().catch(() => ({}))) as { app_domains?: string[] } & GraphErr;
+  if (!res.ok || json.error) throw new Error(json.error?.message ?? `Meta ${res.status}`);
+  return Array.isArray(json.app_domains) ? json.app_domains : [];
+}
+
 type GraphErr = { error?: { message?: string; code?: number; error_subcode?: number; type?: string } };
 
 export async function graph<T = unknown>(
