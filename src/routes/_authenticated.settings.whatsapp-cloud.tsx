@@ -307,6 +307,9 @@ function Step2(props: {
   meta: State["meta"]; accessToken: string;
   sdkStatus: "idle" | "loading" | "ready" | "error";
   isPreviewHost: boolean;
+  domainCheck?: { ok: boolean; allowed: boolean; host: string; domains: string[]; error?: string };
+  domainCheckLoading: boolean;
+  onRecheckDomain: () => void;
   businesses: Array<{ businessId: string; businessName: string; wabas: Array<{ id: string; name: string }> }>;
   onLogin: () => void; loggingIn: boolean;
   onChooseWaba: (w: { id: string; name?: string }) => void;
@@ -327,6 +330,7 @@ function Step2(props: {
     <Card className="space-y-4 p-6">
       <h2 className="text-lg font-semibold">2. Embedded Signup</h2>
       <p className="text-sm text-muted-foreground">Clique para abrir o login da Meta e escolher seu negócio + número WhatsApp.</p>
+      <DomainCheckBanner check={props.domainCheck} loading={props.domainCheckLoading} onRecheck={props.onRecheckDomain} />
       {props.isPreviewHost && (
         <div className="flex gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
           <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
