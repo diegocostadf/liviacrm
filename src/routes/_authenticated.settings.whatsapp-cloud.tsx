@@ -304,6 +304,7 @@ function Step1({ meta }: { meta: State["meta"] }) {
 }
 
 function Step2(props: {
+  // (definition below)
   meta: State["meta"]; accessToken: string;
   sdkStatus: "idle" | "loading" | "ready" | "error";
   isPreviewHost: boolean;
