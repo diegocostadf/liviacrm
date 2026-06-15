@@ -60,6 +60,8 @@ function WhatsappCloudPage() {
   const [selectedWaba, setSelectedWaba] = useState<{ id: string; name?: string } | null>(null);
   const [phones, setPhones] = useState<Array<{ id: string; display_phone_number: string; verified_name: string }>>([]);
   const [selectedPhone, setSelectedPhone] = useState<string>("");
+  const [sdkStatus, setSdkStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const isPreviewHost = typeof window !== "undefined" && /lovableproject\.com|lovable\.app/.test(window.location.hostname);
 
   useEffect(() => { if (defaultAcc && step === 1 && !accessToken) setStep(5); }, [defaultAcc, step, accessToken]);
 
@@ -116,26 +118,67 @@ function WhatsappCloudPage() {
   // Facebook SDK
   useEffect(() => {
     if (!data?.meta.appId) return;
-    if (document.getElementById("fb-sdk")) return;
+    if (document.getElementById("fb-sdk")) { setSdkStatus("ready"); return; }
+    setSdkStatus("loading");
     const s = document.createElement("script");
     s.id = "fb-sdk"; s.async = true; s.src = "https://connect.facebook.net/en_US/sdk.js";
     s.onload = () => {
       const w = window as unknown as { FB?: { init: (o: Record<string, unknown>) => void } };
-      w.FB?.init({ appId: data.meta.appId, cookie: true, xfbml: false, version: "v21.0" });
+      if (!w.FB) { setSdkStatus("error"); return; }
+      try {
+        w.FB.init({ appId: data.meta.appId, cookie: true, xfbml: false, version: "v21.0" });
+        setSdkStatus("ready");
+      } catch (err) {
+        console.error("[wa-cloud] FB.init falhou", err);
+        setSdkStatus("error");
+      }
+    };
+    s.onerror = (err) => {
+      console.error("[wa-cloud] Falha ao carregar SDK do Facebook (bloqueado por extensão ou rede?)", err);
+      setSdkStatus("error");
     };
     document.body.appendChild(s);
   }, [data?.meta.appId]);
 
   function launchEmbeddedSignup() {
-    const w = window as unknown as { FB?: { login: (cb: (r: { authResponse?: { code?: string } }) => void, o: Record<string, unknown>) => void } };
-    if (!w.FB) return toast.error("Facebook SDK não carregou.");
-    if (!data?.meta.configId) return toast.error("Configure META_LOGIN_CONFIG_ID nas secrets.");
-    w.FB.login((r) => {
-      const code = r.authResponse?.code;
-      if (!code) return toast.error("Login cancelado ou sem code.");
-      exchangeMut.mutate(code);
-    }, { config_id: data.meta.configId, response_type: "code", override_default_response_type: true });
+    const w = window as unknown as { FB?: { login: (cb: (r: { authResponse?: { code?: string }; status?: string }) => void, o: Record<string, unknown>) => void } };
+    if (!data?.meta.appId) return toast.error("META_APP_ID não está configurado nas secrets.");
+    if (!data?.meta.configId) return toast.error("META_LOGIN_CONFIG_ID não está configurado nas secrets.");
+    if (!w.FB) {
+      toast.error("SDK do Facebook não carregou. Use o modo manual abaixo.");
+      return;
+    }
+    try {
+      w.FB.login((r) => {
+        console.log("[wa-cloud] FB.login response", r);
+        const code = r?.authResponse?.code;
+        if (!code) {
+          toast.error(`Login não retornou code (status: ${r?.status ?? "desconhecido"}). Verifique se o domínio está na allowlist do app Meta ou use o modo manual.`);
+          return;
+        }
+        exchangeMut.mutate(code);
+      }, { config_id: data.meta.configId, response_type: "code", override_default_response_type: true, extras: { setup: {} } });
+    } catch (err) {
+      console.error("[wa-cloud] FB.login lançou exceção", err);
+      toast.error("Falha ao abrir o Embedded Signup. Use o modo manual abaixo.");
+    }
   }
+
+  // Fallback manual: o admin cola um token + IDs vindos do Meta Business Manager
+  const manualSaveMut = useMutation({
+    mutationFn: (input: { token: string; wabaId: string; phoneNumberId: string; displayPhoneNumber?: string; businessName?: string }) =>
+      api<{ account: Account }>("POST", {
+        action: "save-account",
+        wabaId: input.wabaId,
+        businessName: input.businessName,
+        phoneNumberId: input.phoneNumberId,
+        displayPhoneNumber: input.displayPhoneNumber,
+        accessToken: input.token,
+        setDefault: true,
+      }),
+    onSuccess: () => { toast.success("Conta salva!"); qc.invalidateQueries({ queryKey: ["wa-cloud"] }); setStep(3); },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
+  });
 
   return (
     <div className="h-screen overflow-y-auto p-6">
@@ -156,6 +199,8 @@ function WhatsappCloudPage() {
             {step === 2 && (
               <Step2
                 meta={data!.meta}
+                sdkStatus={sdkStatus}
+                isPreviewHost={isPreviewHost}
                 accessToken={accessToken}
                 businesses={businesses}
                 onLogin={launchEmbeddedSignup}
@@ -167,6 +212,8 @@ function WhatsappCloudPage() {
                 onChoosePhone={setSelectedPhone}
                 onSave={() => saveMut.mutate()}
                 saving={saveMut.isPending}
+                onManualSave={(v) => manualSaveMut.mutate(v)}
+                manualSaving={manualSaveMut.isPending}
               />
             )}
             {step === 3 && (
@@ -248,6 +295,8 @@ function Step1({ meta }: { meta: State["meta"] }) {
 
 function Step2(props: {
   meta: State["meta"]; accessToken: string;
+  sdkStatus: "idle" | "loading" | "ready" | "error";
+  isPreviewHost: boolean;
   businesses: Array<{ businessId: string; businessName: string; wabas: Array<{ id: string; name: string }> }>;
   onLogin: () => void; loggingIn: boolean;
   onChooseWaba: (w: { id: string; name?: string }) => void;
@@ -255,14 +304,36 @@ function Step2(props: {
   phones: Array<{ id: string; display_phone_number: string; verified_name: string }>;
   selectedPhone: string; onChoosePhone: (id: string) => void;
   onSave: () => void; saving: boolean;
+  onManualSave: (v: { token: string; wabaId: string; phoneNumberId: string; displayPhoneNumber?: string; businessName?: string }) => void;
+  manualSaving: boolean;
 }) {
+  const [manualOpen, setManualOpen] = useState(false);
+  const [mToken, setMToken] = useState("");
+  const [mWaba, setMWaba] = useState("");
+  const [mPhoneId, setMPhoneId] = useState("");
+  const [mPhoneNum, setMPhoneNum] = useState("");
+  const [mBiz, setMBiz] = useState("");
   return (
     <Card className="space-y-4 p-6">
       <h2 className="text-lg font-semibold">2. Embedded Signup</h2>
       <p className="text-sm text-muted-foreground">Clique para abrir o login da Meta e escolher seu negócio + número WhatsApp.</p>
+      {props.isPreviewHost && (
+        <div className="flex gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
+          <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
+          <div>
+            Você está no domínio de preview do Lovable. A Meta normalmente bloqueia o Embedded Signup em domínios não cadastrados — o popup pode não retornar nada. Publique o app e abra pelo domínio publicado, <strong>ou</strong> use o modo manual abaixo.
+          </div>
+        </div>
+      )}
+      {props.sdkStatus === "error" && (
+        <div className="flex gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs">
+          <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />
+          <div>SDK do Facebook não carregou (bloqueado por extensão, ad-blocker ou rede). Use o modo manual.</div>
+        </div>
+      )}
       <Button onClick={props.onLogin} disabled={props.loggingIn || !props.meta.appId} className="gap-2">
         {props.loggingIn ? <Loader2 className="h-4 w-4 animate-spin" /> : <Cloud className="h-4 w-4" />}
-        Conectar com a Meta
+        Conectar com a Meta {props.sdkStatus === "loading" && "(carregando SDK…)"}
       </Button>
 
       {props.accessToken && (
@@ -299,6 +370,34 @@ function Step2(props: {
           </Button>
         </>
       )}
+
+      <Separator />
+      <div>
+        <button type="button" onClick={() => setManualOpen((v) => !v)} className="text-xs font-medium text-primary underline-offset-2 hover:underline">
+          {manualOpen ? "Ocultar" : "Conectar manualmente (token + IDs do Business Manager)"}
+        </button>
+        {manualOpen && (
+          <div className="mt-3 space-y-3 rounded-md border bg-muted/30 p-4">
+            <p className="text-xs text-muted-foreground">
+              Use isto se o Embedded Signup não funcionar (preview, bloqueio de popup, etc.). Gere um <strong>System User Access Token</strong> permanente em <em>Meta Business Suite → Configurações → Usuários do Sistema</em> com permissão <code>whatsapp_business_management</code> e <code>whatsapp_business_messaging</code>. Copie o WABA ID e o Phone Number ID em <em>WhatsApp Manager → API Setup</em>.
+            </p>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div><Label>Access Token</Label><Input value={mToken} onChange={(e) => setMToken(e.target.value)} placeholder="EAAB..." className="font-mono text-xs" /></div>
+              <div><Label>WABA ID</Label><Input value={mWaba} onChange={(e) => setMWaba(e.target.value)} placeholder="123456789012345" /></div>
+              <div><Label>Phone Number ID</Label><Input value={mPhoneId} onChange={(e) => setMPhoneId(e.target.value)} placeholder="987654321098765" /></div>
+              <div><Label>Telefone exibido (opcional)</Label><Input value={mPhoneNum} onChange={(e) => setMPhoneNum(e.target.value)} placeholder="+55 11 99999-9999" /></div>
+              <div className="md:col-span-2"><Label>Nome do negócio (opcional)</Label><Input value={mBiz} onChange={(e) => setMBiz(e.target.value)} placeholder="Minha Empresa LTDA" /></div>
+            </div>
+            <Button
+              disabled={!mToken || !mWaba || !mPhoneId || props.manualSaving}
+              onClick={() => props.onManualSave({ token: mToken.trim(), wabaId: mWaba.trim(), phoneNumberId: mPhoneId.trim(), displayPhoneNumber: mPhoneNum.trim() || undefined, businessName: mBiz.trim() || undefined })}
+            >
+              {props.manualSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Salvar conta manual
+            </Button>
+          </div>
+        )}
+      </div>
     </Card>
   );
 }
