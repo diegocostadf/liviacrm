@@ -28,6 +28,8 @@ import { Route as AuthenticatedConnectionsRouteImport } from './routes/_authenti
 import { Route as AuthenticatedCampaignsRouteImport } from './routes/_authenticated.campaigns'
 import { Route as AuthenticatedLeadsIndexRouteImport } from './routes/_authenticated.leads.index'
 import { Route as AuthenticatedCampaignsIndexRouteImport } from './routes/_authenticated.campaigns.index'
+import { Route as AuthenticatedSettingsWhatsappTemplatesRouteImport } from './routes/_authenticated.settings.whatsapp-templates'
+import { Route as AuthenticatedSettingsWhatsappCloudRouteImport } from './routes/_authenticated.settings.whatsapp-cloud'
 import { Route as AuthenticatedSettingsWhatsappRouteImport } from './routes/_authenticated.settings.whatsapp'
 import { Route as AuthenticatedSettingsWebhooksRouteImport } from './routes/_authenticated.settings.webhooks'
 import { Route as AuthenticatedSettingsUsersRouteImport } from './routes/_authenticated.settings.users'
@@ -143,6 +145,18 @@ const AuthenticatedCampaignsIndexRoute =
     id: '/',
     path: '/',
     getParentRoute: () => AuthenticatedCampaignsRoute,
+  } as any)
+const AuthenticatedSettingsWhatsappTemplatesRoute =
+  AuthenticatedSettingsWhatsappTemplatesRouteImport.update({
+    id: '/whatsapp-templates',
+    path: '/whatsapp-templates',
+    getParentRoute: () => AuthenticatedSettingsRoute,
+  } as any)
+const AuthenticatedSettingsWhatsappCloudRoute =
+  AuthenticatedSettingsWhatsappCloudRouteImport.update({
+    id: '/whatsapp-cloud',
+    path: '/whatsapp-cloud',
+    getParentRoute: () => AuthenticatedSettingsRoute,
   } as any)
 const AuthenticatedSettingsWhatsappRoute =
   AuthenticatedSettingsWhatsappRouteImport.update({
@@ -276,6 +290,8 @@ export interface FileRoutesByFullPath {
   '/settings/users': typeof AuthenticatedSettingsUsersRoute
   '/settings/webhooks': typeof AuthenticatedSettingsWebhooksRoute
   '/settings/whatsapp': typeof AuthenticatedSettingsWhatsappRoute
+  '/settings/whatsapp-cloud': typeof AuthenticatedSettingsWhatsappCloudRoute
+  '/settings/whatsapp-templates': typeof AuthenticatedSettingsWhatsappTemplatesRoute
   '/campaigns/': typeof AuthenticatedCampaignsIndexRoute
   '/leads/': typeof AuthenticatedLeadsIndexRoute
   '/api/public/campaigns/tick': typeof ApiPublicCampaignsTickRoute
@@ -311,6 +327,8 @@ export interface FileRoutesByTo {
   '/settings/users': typeof AuthenticatedSettingsUsersRoute
   '/settings/webhooks': typeof AuthenticatedSettingsWebhooksRoute
   '/settings/whatsapp': typeof AuthenticatedSettingsWhatsappRoute
+  '/settings/whatsapp-cloud': typeof AuthenticatedSettingsWhatsappCloudRoute
+  '/settings/whatsapp-templates': typeof AuthenticatedSettingsWhatsappTemplatesRoute
   '/campaigns': typeof AuthenticatedCampaignsIndexRoute
   '/leads': typeof AuthenticatedLeadsIndexRoute
   '/api/public/campaigns/tick': typeof ApiPublicCampaignsTickRoute
@@ -350,6 +368,8 @@ export interface FileRoutesById {
   '/_authenticated/settings/users': typeof AuthenticatedSettingsUsersRoute
   '/_authenticated/settings/webhooks': typeof AuthenticatedSettingsWebhooksRoute
   '/_authenticated/settings/whatsapp': typeof AuthenticatedSettingsWhatsappRoute
+  '/_authenticated/settings/whatsapp-cloud': typeof AuthenticatedSettingsWhatsappCloudRoute
+  '/_authenticated/settings/whatsapp-templates': typeof AuthenticatedSettingsWhatsappTemplatesRoute
   '/_authenticated/campaigns/': typeof AuthenticatedCampaignsIndexRoute
   '/_authenticated/leads/': typeof AuthenticatedLeadsIndexRoute
   '/api/public/campaigns/tick': typeof ApiPublicCampaignsTickRoute
@@ -389,6 +409,8 @@ export interface FileRouteTypes {
     | '/settings/users'
     | '/settings/webhooks'
     | '/settings/whatsapp'
+    | '/settings/whatsapp-cloud'
+    | '/settings/whatsapp-templates'
     | '/campaigns/'
     | '/leads/'
     | '/api/public/campaigns/tick'
@@ -424,6 +446,8 @@ export interface FileRouteTypes {
     | '/settings/users'
     | '/settings/webhooks'
     | '/settings/whatsapp'
+    | '/settings/whatsapp-cloud'
+    | '/settings/whatsapp-templates'
     | '/campaigns'
     | '/leads'
     | '/api/public/campaigns/tick'
@@ -462,6 +486,8 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/users'
     | '/_authenticated/settings/webhooks'
     | '/_authenticated/settings/whatsapp'
+    | '/_authenticated/settings/whatsapp-cloud'
+    | '/_authenticated/settings/whatsapp-templates'
     | '/_authenticated/campaigns/'
     | '/_authenticated/leads/'
     | '/api/public/campaigns/tick'
@@ -617,6 +643,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/campaigns/'
       preLoaderRoute: typeof AuthenticatedCampaignsIndexRouteImport
       parentRoute: typeof AuthenticatedCampaignsRoute
+    }
+    '/_authenticated/settings/whatsapp-templates': {
+      id: '/_authenticated/settings/whatsapp-templates'
+      path: '/whatsapp-templates'
+      fullPath: '/settings/whatsapp-templates'
+      preLoaderRoute: typeof AuthenticatedSettingsWhatsappTemplatesRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
+    }
+    '/_authenticated/settings/whatsapp-cloud': {
+      id: '/_authenticated/settings/whatsapp-cloud'
+      path: '/whatsapp-cloud'
+      fullPath: '/settings/whatsapp-cloud'
+      preLoaderRoute: typeof AuthenticatedSettingsWhatsappCloudRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
     }
     '/_authenticated/settings/whatsapp': {
       id: '/_authenticated/settings/whatsapp'
@@ -794,6 +834,8 @@ interface AuthenticatedSettingsRouteChildren {
   AuthenticatedSettingsUsersRoute: typeof AuthenticatedSettingsUsersRoute
   AuthenticatedSettingsWebhooksRoute: typeof AuthenticatedSettingsWebhooksRoute
   AuthenticatedSettingsWhatsappRoute: typeof AuthenticatedSettingsWhatsappRoute
+  AuthenticatedSettingsWhatsappCloudRoute: typeof AuthenticatedSettingsWhatsappCloudRoute
+  AuthenticatedSettingsWhatsappTemplatesRoute: typeof AuthenticatedSettingsWhatsappTemplatesRoute
 }
 
 const AuthenticatedSettingsRouteChildren: AuthenticatedSettingsRouteChildren = {
@@ -806,6 +848,10 @@ const AuthenticatedSettingsRouteChildren: AuthenticatedSettingsRouteChildren = {
   AuthenticatedSettingsUsersRoute: AuthenticatedSettingsUsersRoute,
   AuthenticatedSettingsWebhooksRoute: AuthenticatedSettingsWebhooksRoute,
   AuthenticatedSettingsWhatsappRoute: AuthenticatedSettingsWhatsappRoute,
+  AuthenticatedSettingsWhatsappCloudRoute:
+    AuthenticatedSettingsWhatsappCloudRoute,
+  AuthenticatedSettingsWhatsappTemplatesRoute:
+    AuthenticatedSettingsWhatsappTemplatesRoute,
 }
 
 const AuthenticatedSettingsRouteWithChildren =
@@ -857,3 +903,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
