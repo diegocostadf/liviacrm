@@ -7,9 +7,9 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { PlugZap, MessageSquare, Smartphone, Settings as SettingsIcon, ArrowRight } from "lucide-react";
+import { PlugZap, MessageSquare, Smartphone, Settings as SettingsIcon, ArrowRight, Cloud } from "lucide-react";
 
-type Provider = "evolution" | "twilio";
+type Provider = "evolution" | "twilio" | "cloud";
 
 async function apiCall<T>(method: "GET" | "POST", body?: unknown): Promise<T> {
   const { data: { session } } = await supabase.auth.getSession();
@@ -61,7 +61,7 @@ function WhatsappSettingsPage() {
           <RadioGroup
             value={provider}
             onValueChange={(v) => setProvider.mutate(v as Provider)}
-            className="grid gap-3 md:grid-cols-2"
+            className="grid gap-3 md:grid-cols-3"
             disabled={isLoading || setProvider.isPending}
           >
             <ProviderOption
@@ -78,13 +78,20 @@ function WhatsappSettingsPage() {
               desc="WhatsApp Business e SMS via Twilio API."
               icon={<MessageSquare className="h-5 w-5" />}
             />
+            <ProviderOption
+              value="cloud"
+              active={provider === "cloud"}
+              title="WhatsApp Cloud API"
+              desc="Meta oficial. Templates com aprovação direta na Meta."
+              icon={<Cloud className="h-5 w-5" />}
+            />
           </RadioGroup>
           <p className="text-xs text-muted-foreground">
             A escolha define quais opções de configuração aparecem abaixo. Disparos novos passarão a usar o provedor ativo.
           </p>
         </Card>
 
-        {provider === "evolution" ? <EvolutionLinks /> : <TwilioLinks />}
+        {provider === "evolution" ? <EvolutionLinks /> : provider === "twilio" ? <TwilioLinks /> : <CloudLinks />}
       </div>
     </div>
   );
@@ -169,6 +176,29 @@ function TwilioLinks() {
           <Link to="/settings/twilio">Abrir configurações Twilio</Link>
         </Button>
       </div>
+    </div>
+  );
+}
+
+function CloudLinks() {
+  return (
+    <div className="space-y-3">
+      <h2 className="text-sm font-semibold text-muted-foreground">Configurações da WhatsApp Cloud API</h2>
+      <NavCard
+        to="/settings/whatsapp-cloud"
+        icon={<Cloud className="h-4 w-4" />}
+        title="Conta Meta / WABA"
+        desc="Embedded Signup, número padrão, webhook e testes."
+      />
+      <NavCard
+        to="/settings/whatsapp-templates"
+        icon={<MessageSquare className="h-4 w-4" />}
+        title="Templates"
+        desc="Criar, editar, sincronizar status (APPROVED/PENDING/REJECTED)."
+      />
+      <Card className="p-4 text-xs text-muted-foreground">
+        Conversas livres só são permitidas dentro de uma janela de 24h após o último contato do lead. Fora disso, use templates aprovados.
+      </Card>
     </div>
   );
 }

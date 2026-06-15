@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Outlet, useRouterState, redirect } from "@tanstack/react-router";
-import { Bot, Sparkles, BookOpen, Webhook, Users, MessageSquare } from "lucide-react";
+import { Bot, Sparkles, BookOpen, Webhook, Users, MessageSquare, FileText } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "Configurações — Lívia CRM" }] }),
@@ -12,7 +12,8 @@ export const Route = createFileRoute("/_authenticated/settings")({
 });
 
 const items = [
-  { to: "/settings/whatsapp", label: "WhatsApp", icon: MessageSquare, desc: "Escolha o provedor (Evolution ou Twilio)" },
+  { to: "/settings/whatsapp", label: "WhatsApp", icon: MessageSquare, desc: "Escolha o provedor (Evolution, Twilio ou Cloud API)" },
+  { to: "/settings/whatsapp-templates", label: "Templates WhatsApp", icon: FileText, desc: "Gerencie templates da Meta (Cloud API)" },
   { to: "/settings/ai-providers", label: "Provedores de IA", icon: Sparkles, desc: "Lovable AI, Claude, OpenAI, Google" },
   { to: "/settings/bot", label: "Bot Júlia", icon: Bot, desc: "Persona, modelo e regras por instância" },
   { to: "/settings/knowledge", label: "Base de conhecimento", icon: BookOpen, desc: "Documentos para RAG" },
