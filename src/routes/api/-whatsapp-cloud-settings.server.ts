@@ -13,6 +13,7 @@ import {
   loginConfigId,
   metaAppId,
   verifyToken,
+  getAppDomains,
 } from "@/lib/whatsapp-cloud.server";
 import { invalidateMessagingCache } from "@/lib/messaging-broker.server";
 
@@ -59,7 +60,8 @@ const sendTestSchema = z.object({
   bodyVariables: z.array(z.string()).optional(),
   text: z.string().optional(),
 });
-const postSchema = z.union([exchangeSchema, listWabasSchema, listPhonesSchema, saveAccountSchema, setDefaultSchema, deleteAccountSchema, subscribeSchema, syncTemplatesSchema, sendTestSchema]);
+const checkDomainSchema = z.object({ action: z.literal("check-domain"), host: z.string().min(3) });
+const postSchema = z.union([exchangeSchema, listWabasSchema, listPhonesSchema, saveAccountSchema, setDefaultSchema, deleteAccountSchema, subscribeSchema, syncTemplatesSchema, sendTestSchema, checkDomainSchema]);
 
 export async function handleGet(request: Request) {
   try {
@@ -84,6 +86,19 @@ export async function handlePost(request: Request) {
     const userId = await requireAdmin(request);
     const body = postSchema.parse(await request.json());
     switch (body.action) {
+      case "check-domain": {
+        try {
+          const domains = await getAppDomains();
+          const host = body.host.toLowerCase();
+          const allowed = domains.some((d) => {
+            const dd = d.toLowerCase();
+            return host === dd || host.endsWith(`.${dd}`);
+          });
+          return json({ ok: true, allowed, host, domains });
+        } catch (e) {
+          return json({ ok: false, allowed: false, host: body.host, domains: [], error: e instanceof Error ? e.message : String(e) });
+        }
+      }
       case "exchange-code": {
         const r = await exchangeCodeForToken(body.code, body.redirectUri);
         return json(r);
