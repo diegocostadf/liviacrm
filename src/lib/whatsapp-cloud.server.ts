@@ -206,7 +206,7 @@ export async function syncTemplatesForAccount(accountId: string) {
         status: t.status,
         rejection_reason: t.rejected_reason ?? null,
         quality_score: t.quality_score?.score ?? null,
-        components: t.components as unknown as object,
+        components: t.components as unknown as never,
         variables_count: variables,
         last_synced_at: now,
       }, { onConflict: "account_id,name,language" });

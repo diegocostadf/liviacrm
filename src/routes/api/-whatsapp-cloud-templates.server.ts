@@ -99,7 +99,7 @@ export async function handlePost(request: Request) {
       const variables = (body.body.match(/\{\{\s*\d+\s*\}\}/g) ?? []).length;
       const { data, error } = await supabaseAdmin.from("whatsapp_cloud_templates").upsert({
         account_id: body.accountId, meta_template_id: r.id, name: body.name, language: body.language, category: body.category,
-        status: r.status, components: components as unknown as object, variables_count: variables,
+        status: r.status, components: components as unknown as never, variables_count: variables,
         last_synced_at: new Date().toISOString(), created_by: userId,
       }, { onConflict: "account_id,name,language" }).select().single();
       if (error) throw new Error(error.message);
@@ -113,7 +113,7 @@ export async function handlePost(request: Request) {
       await updateTemplate(tpl.meta_template_id, acc.access_token, components);
       const variables = (body.body.match(/\{\{\s*\d+\s*\}\}/g) ?? []).length;
       await supabaseAdmin.from("whatsapp_cloud_templates").update({
-        components: components as unknown as object, variables_count: variables, status: "PENDING", last_synced_at: new Date().toISOString(),
+        components: components as unknown as never, variables_count: variables, status: "PENDING", last_synced_at: new Date().toISOString(),
       }).eq("id", body.templateId);
       return json({ ok: true });
     }
