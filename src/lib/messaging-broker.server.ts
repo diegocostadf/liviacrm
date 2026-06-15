@@ -1,7 +1,8 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { evolutionFetch } from "./evolution.server";
+import { getDefaultCloudAccount, sendFreeText, sendTemplateMessage } from "./whatsapp-cloud.server";
 
-export type MessagingProvider = "evolution" | "twilio";
+export type MessagingProvider = "evolution" | "twilio" | "cloud";
 
 type TwilioSettings = {
   accountSid?: string;
@@ -32,7 +33,8 @@ export async function getActiveProvider(): Promise<MessagingProvider> {
     .eq("key", "messaging_provider")
     .maybeSingle();
   const v = (data?.value ?? {}) as { provider?: string };
-  const provider: MessagingProvider = v.provider === "twilio" ? "twilio" : "evolution";
+  const provider: MessagingProvider =
+    v.provider === "twilio" ? "twilio" : v.provider === "cloud" ? "cloud" : "evolution";
   cachedProvider = { value: provider, at: Date.now() };
   return provider;
 }
@@ -125,10 +127,31 @@ export async function brokerSendText(args: {
   text: string;
   evolutionInstanceName?: string | null;
   twilio?: { contentSid?: string; contentVariables?: Record<string, string> };
+  cloud?: { templateName?: string; templateLanguage?: string; bodyVariables?: string[]; headerVariables?: string[] };
 }): Promise<{ id: string | null; provider: MessagingProvider }> {
   const provider = await getActiveProvider();
   if (provider === "twilio") {
     const r = await twilioSendText(args.toPhone, args.text, args.twilio);
+    return { id: r.id, provider };
+  }
+  if (provider === "cloud") {
+    const acc = await getDefaultCloudAccount();
+    if (!acc) throw new Error("Nenhuma conta WhatsApp Cloud configurada como padrão.");
+    const to = String(args.toPhone).replace(/\D/g, "");
+    if (!to) throw new Error("Telefone destino inválido.");
+    if (args.cloud?.templateName) {
+      const r = await sendTemplateMessage({
+        phoneNumberId: acc.phone_number_id,
+        token: acc.access_token,
+        to,
+        templateName: args.cloud.templateName,
+        language: args.cloud.templateLanguage ?? "pt_BR",
+        bodyVariables: args.cloud.bodyVariables,
+        headerVariables: args.cloud.headerVariables,
+      });
+      return { id: r.id, provider };
+    }
+    const r = await sendFreeText({ phoneNumberId: acc.phone_number_id, token: acc.access_token, to, text: args.text });
     return { id: r.id, provider };
   }
   if (!args.evolutionInstanceName) {

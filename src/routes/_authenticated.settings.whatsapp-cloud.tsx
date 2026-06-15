@@ -1,0 +1,382 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { toast } from "sonner";
+import { Cloud, ChevronLeft, ChevronRight, CheckCircle2, AlertTriangle, Loader2, Copy, Send, Trash2, Star } from "lucide-react";
+
+type Account = {
+  id: string; waba_id: string; business_name: string | null; phone_number_id: string;
+  display_phone_number: string | null; verified_name: string | null; is_default: boolean;
+  webhook_subscribed: boolean; created_at: string;
+};
+type State = {
+  meta: { appId: string; configId: string; verifyToken: string; webhookUrl: string };
+  accounts: Account[];
+};
+
+async function api<T>(method: "GET" | "POST", body?: Record<string, unknown>): Promise<T> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) throw new Error("Sessão expirada.");
+  const res = await fetch("/api/whatsapp-cloud-settings", {
+    method,
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(typeof json.error === "string" ? json.error : "Erro");
+  return json as T;
+}
+
+export const Route = createFileRoute("/_authenticated/settings/whatsapp-cloud")({
+  head: () => ({ meta: [{ title: "WhatsApp Cloud — Lívia CRM" }] }),
+  component: WhatsappCloudPage,
+});
+
+const STEPS = [
+  { n: 1, label: "App Meta" },
+  { n: 2, label: "Conectar conta" },
+  { n: 3, label: "Número & Webhook" },
+  { n: 4, label: "Testes" },
+  { n: 5, label: "Resumo" },
+] as const;
+
+function WhatsappCloudPage() {
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery({ queryKey: ["wa-cloud"], queryFn: () => api<State>("GET") });
+  const [step, setStep] = useState(1);
+  const accounts = data?.accounts ?? [];
+  const defaultAcc = accounts.find((a) => a.is_default) ?? accounts[0];
+
+  // Embedded Signup state
+  const [accessToken, setAccessToken] = useState("");
+  const [businesses, setBusinesses] = useState<Array<{ businessId: string; businessName: string; wabas: Array<{ id: string; name: string }> }>>([]);
+  const [selectedWaba, setSelectedWaba] = useState<{ id: string; name?: string } | null>(null);
+  const [phones, setPhones] = useState<Array<{ id: string; display_phone_number: string; verified_name: string }>>([]);
+  const [selectedPhone, setSelectedPhone] = useState<string>("");
+
+  useEffect(() => { if (defaultAcc && step === 1 && !accessToken) setStep(5); }, [defaultAcc, step, accessToken]);
+
+  const exchangeMut = useMutation({
+    mutationFn: (code: string) => api<{ accessToken: string; expiresIn: number | null }>("POST", { action: "exchange-code", code }),
+    onSuccess: async (r) => {
+      setAccessToken(r.accessToken);
+      toast.success("Code trocado por token!");
+      const b = await api<{ businesses: typeof businesses }>("POST", { action: "list-wabas", accessToken: r.accessToken });
+      setBusinesses(b.businesses);
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
+  });
+
+  const listPhonesMut = useMutation({
+    mutationFn: (wabaId: string) => api<{ phones: typeof phones }>("POST", { action: "list-phones", wabaId, accessToken }),
+    onSuccess: (r) => setPhones(r.phones),
+  });
+
+  const saveMut = useMutation({
+    mutationFn: () => {
+      const p = phones.find((x) => x.id === selectedPhone);
+      if (!selectedWaba || !p) throw new Error("Selecione WABA e número.");
+      const biz = businesses.find((b) => b.wabas.some((w) => w.id === selectedWaba.id));
+      return api<{ account: Account }>("POST", {
+        action: "save-account", wabaId: selectedWaba.id, businessName: biz?.businessName,
+        phoneNumberId: p.id, displayPhoneNumber: p.display_phone_number, verifiedName: p.verified_name,
+        accessToken, setDefault: true,
+      });
+    },
+    onSuccess: () => { toast.success("Conta salva!"); qc.invalidateQueries({ queryKey: ["wa-cloud"] }); setStep(3); },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
+  });
+
+  const subscribeMut = useMutation({
+    mutationFn: (id: string) => api("POST", { action: "subscribe-webhook", accountId: id }),
+    onSuccess: () => { toast.success("Webhook inscrito!"); qc.invalidateQueries({ queryKey: ["wa-cloud"] }); },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
+  });
+  const syncMut = useMutation({
+    mutationFn: (id: string) => api<{ count: number }>("POST", { action: "sync-templates", accountId: id }),
+    onSuccess: (r) => toast.success(`${r.count} templates sincronizados.`),
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
+  });
+  const setDefaultMut = useMutation({
+    mutationFn: (id: string) => api("POST", { action: "set-default", accountId: id }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["wa-cloud"] }),
+  });
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => api("POST", { action: "delete-account", accountId: id }),
+    onSuccess: () => { toast.success("Removida."); qc.invalidateQueries({ queryKey: ["wa-cloud"] }); },
+  });
+
+  // Facebook SDK
+  useEffect(() => {
+    if (!data?.meta.appId) return;
+    if (document.getElementById("fb-sdk")) return;
+    const s = document.createElement("script");
+    s.id = "fb-sdk"; s.async = true; s.src = "https://connect.facebook.net/en_US/sdk.js";
+    s.onload = () => {
+      const w = window as unknown as { FB?: { init: (o: Record<string, unknown>) => void } };
+      w.FB?.init({ appId: data.meta.appId, cookie: true, xfbml: false, version: "v21.0" });
+    };
+    document.body.appendChild(s);
+  }, [data?.meta.appId]);
+
+  function launchEmbeddedSignup() {
+    const w = window as unknown as { FB?: { login: (cb: (r: { authResponse?: { code?: string } }) => void, o: Record<string, unknown>) => void } };
+    if (!w.FB) return toast.error("Facebook SDK não carregou.");
+    if (!data?.meta.configId) return toast.error("Configure META_LOGIN_CONFIG_ID nas secrets.");
+    w.FB.login((r) => {
+      const code = r.authResponse?.code;
+      if (!code) return toast.error("Login cancelado ou sem code.");
+      exchangeMut.mutate(code);
+    }, { config_id: data.meta.configId, response_type: "code", override_default_response_type: true });
+  }
+
+  return (
+    <div className="h-screen overflow-y-auto p-6">
+      <div className="mx-auto max-w-4xl space-y-6">
+        <header className="flex items-center justify-between">
+          <div>
+            <h1 className="flex items-center gap-2 text-2xl font-semibold"><Cloud className="h-6 w-6" /> WhatsApp Cloud API</h1>
+            <p className="text-sm text-muted-foreground">Conecte uma conta oficial da Meta para enviar mensagens via Graph API.</p>
+          </div>
+          {defaultAcc && <Badge variant="default" className="gap-1"><CheckCircle2 className="h-3 w-3" /> Conta padrão: {defaultAcc.display_phone_number ?? defaultAcc.phone_number_id}</Badge>}
+        </header>
+
+        <Stepper step={step} onStep={setStep} />
+
+        {isLoading ? <Card className="p-8 text-center text-muted-foreground"><Loader2 className="mx-auto h-5 w-5 animate-spin" /></Card> : (
+          <>
+            {step === 1 && <Step1 meta={data!.meta} />}
+            {step === 2 && (
+              <Step2
+                meta={data!.meta}
+                accessToken={accessToken}
+                businesses={businesses}
+                onLogin={launchEmbeddedSignup}
+                loggingIn={exchangeMut.isPending}
+                onChooseWaba={(w) => { setSelectedWaba(w); listPhonesMut.mutate(w.id); }}
+                selectedWaba={selectedWaba}
+                phones={phones}
+                selectedPhone={selectedPhone}
+                onChoosePhone={setSelectedPhone}
+                onSave={() => saveMut.mutate()}
+                saving={saveMut.isPending}
+              />
+            )}
+            {step === 3 && (
+              <Step3
+                accounts={accounts}
+                onSubscribe={(id) => subscribeMut.mutate(id)}
+                subscribing={subscribeMut.isPending}
+                onDefault={(id) => setDefaultMut.mutate(id)}
+                onDelete={(id) => deleteMut.mutate(id)}
+              />
+            )}
+            {step === 4 && <Step4 accounts={accounts} onSync={(id) => syncMut.mutate(id)} syncing={syncMut.isPending} />}
+            {step === 5 && <Step5 accounts={accounts} />}
+          </>
+        )}
+
+        <div className="flex justify-between">
+          <Button variant="ghost" disabled={step <= 1} onClick={() => setStep((s) => Math.max(1, s - 1))}><ChevronLeft className="mr-1 h-4 w-4" /> Voltar</Button>
+          <Button variant="default" disabled={step >= STEPS.length} onClick={() => setStep((s) => Math.min(STEPS.length, s + 1))}>Próximo <ChevronRight className="ml-1 h-4 w-4" /></Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Stepper({ step, onStep }: { step: number; onStep: (n: number) => void }) {
+  return (
+    <div className="flex items-center gap-1 rounded-lg border bg-card p-2">
+      {STEPS.map((s, i) => {
+        const active = step === s.n; const done = step > s.n;
+        return (
+          <button key={s.n} onClick={() => onStep(s.n)} className={`flex flex-1 items-center justify-center gap-2 rounded-md px-2 py-2 text-xs transition ${active ? "bg-primary text-primary-foreground" : done ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-accent/50"}`}>
+            <span className={`grid h-5 w-5 place-items-center rounded-full text-[10px] ${active || done ? "bg-background/30" : "bg-muted"}`}>{s.n}</span>
+            <span className="hidden sm:inline">{s.label}</span>
+            {i < STEPS.length - 1 && <ChevronRight className="hidden h-3 w-3 opacity-50 md:inline" />}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function CopyableField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs text-muted-foreground">{label}</Label>
+      <div className="flex gap-2">
+        <Input value={value || "(não configurado)"} readOnly className="font-mono text-xs" />
+        <Button size="icon" variant="outline" onClick={() => { navigator.clipboard.writeText(value); toast.success("Copiado!"); }}><Copy className="h-4 w-4" /></Button>
+      </div>
+    </div>
+  );
+}
+
+function Step1({ meta }: { meta: State["meta"] }) {
+  const missing = !meta.appId || !meta.configId || !meta.verifyToken;
+  return (
+    <Card className="space-y-4 p-6">
+      <h2 className="text-lg font-semibold">1. App Meta</h2>
+      <p className="text-sm text-muted-foreground">As credenciais ficam em <strong>secrets</strong> do projeto. Para alterar, peça no chat.</p>
+      {missing && (
+        <div className="flex gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+          <AlertTriangle className="h-4 w-4 text-amber-500" />
+          Faltam secrets: configure <code>META_APP_ID</code>, <code>META_LOGIN_CONFIG_ID</code> e <code>META_WEBHOOK_VERIFY_TOKEN</code>.
+        </div>
+      )}
+      <div className="grid gap-3 md:grid-cols-2">
+        <CopyableField label="App ID" value={meta.appId} />
+        <CopyableField label="Login Configuration ID" value={meta.configId} />
+        <CopyableField label="Verify Token (Webhook)" value={meta.verifyToken} />
+        <CopyableField label="Webhook URL (cole no Meta App Dashboard)" value={meta.webhookUrl} />
+      </div>
+      <p className="text-xs text-muted-foreground">
+        No painel Meta → seu App → WhatsApp → Configuration: defina <strong>Callback URL</strong> como o webhook acima e <strong>Verify Token</strong> idêntico ao secret. Marque os fields <code>messages</code> e <code>message_template_status_update</code>.
+      </p>
+    </Card>
+  );
+}
+
+function Step2(props: {
+  meta: State["meta"]; accessToken: string;
+  businesses: Array<{ businessId: string; businessName: string; wabas: Array<{ id: string; name: string }> }>;
+  onLogin: () => void; loggingIn: boolean;
+  onChooseWaba: (w: { id: string; name?: string }) => void;
+  selectedWaba: { id: string; name?: string } | null;
+  phones: Array<{ id: string; display_phone_number: string; verified_name: string }>;
+  selectedPhone: string; onChoosePhone: (id: string) => void;
+  onSave: () => void; saving: boolean;
+}) {
+  return (
+    <Card className="space-y-4 p-6">
+      <h2 className="text-lg font-semibold">2. Embedded Signup</h2>
+      <p className="text-sm text-muted-foreground">Clique para abrir o login da Meta e escolher seu negócio + número WhatsApp.</p>
+      <Button onClick={props.onLogin} disabled={props.loggingIn || !props.meta.appId} className="gap-2">
+        {props.loggingIn ? <Loader2 className="h-4 w-4 animate-spin" /> : <Cloud className="h-4 w-4" />}
+        Conectar com a Meta
+      </Button>
+
+      {props.accessToken && (
+        <>
+          <Separator />
+          <div className="space-y-2">
+            <Label>WhatsApp Business Account</Label>
+            {props.businesses.flatMap((b) => b.wabas.map((w) => (
+              <button key={w.id} onClick={() => props.onChooseWaba({ id: w.id, name: w.name })}
+                className={`flex w-full items-center justify-between rounded-md border p-3 text-left transition hover:bg-accent ${props.selectedWaba?.id === w.id ? "border-primary bg-accent" : ""}`}>
+                <div><div className="font-medium">{w.name}</div><div className="text-xs text-muted-foreground">{b.businessName} · {w.id}</div></div>
+                {props.selectedWaba?.id === w.id && <CheckCircle2 className="h-4 w-4 text-primary" />}
+              </button>
+            )))}
+            {!props.businesses.length && <p className="text-sm text-muted-foreground">Nenhum negócio encontrado.</p>}
+          </div>
+
+          {props.phones.length > 0 && (
+            <div className="space-y-2">
+              <Label>Número</Label>
+              {props.phones.map((p) => (
+                <button key={p.id} onClick={() => props.onChoosePhone(p.id)}
+                  className={`flex w-full items-center justify-between rounded-md border p-3 text-left transition hover:bg-accent ${props.selectedPhone === p.id ? "border-primary bg-accent" : ""}`}>
+                  <div><div className="font-medium">{p.display_phone_number}</div><div className="text-xs text-muted-foreground">{p.verified_name}</div></div>
+                  {props.selectedPhone === p.id && <CheckCircle2 className="h-4 w-4 text-primary" />}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <Button onClick={props.onSave} disabled={!props.selectedPhone || !props.selectedWaba || props.saving} className="w-full">
+            {props.saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Salvar conta como padrão
+          </Button>
+        </>
+      )}
+    </Card>
+  );
+}
+
+function Step3(props: { accounts: Account[]; onSubscribe: (id: string) => void; subscribing: boolean; onDefault: (id: string) => void; onDelete: (id: string) => void }) {
+  return (
+    <Card className="space-y-4 p-6">
+      <h2 className="text-lg font-semibold">3. Webhook & contas</h2>
+      {!props.accounts.length && <p className="text-sm text-muted-foreground">Nenhuma conta conectada. Volte ao passo anterior.</p>}
+      {props.accounts.map((a) => (
+        <div key={a.id} className="flex items-center justify-between rounded-md border p-3">
+          <div>
+            <div className="flex items-center gap-2 font-medium">
+              {a.display_phone_number ?? a.phone_number_id}
+              {a.is_default && <Badge>Padrão</Badge>}
+              {a.webhook_subscribed ? <Badge variant="default" className="gap-1"><CheckCircle2 className="h-3 w-3" />Webhook OK</Badge> : <Badge variant="outline">Sem webhook</Badge>}
+            </div>
+            <div className="text-xs text-muted-foreground">{a.business_name} · WABA {a.waba_id}</div>
+          </div>
+          <div className="flex gap-2">
+            {!a.is_default && <Button size="sm" variant="outline" onClick={() => props.onDefault(a.id)}><Star className="mr-1 h-3 w-3" />Tornar padrão</Button>}
+            <Button size="sm" onClick={() => props.onSubscribe(a.id)} disabled={props.subscribing}>Inscrever webhook</Button>
+            <Button size="sm" variant="ghost" onClick={() => props.onDelete(a.id)}><Trash2 className="h-3 w-3" /></Button>
+          </div>
+        </div>
+      ))}
+    </Card>
+  );
+}
+
+function Step4({ accounts, onSync, syncing }: { accounts: Account[]; onSync: (id: string) => void; syncing: boolean }) {
+  const [to, setTo] = useState("");
+  const [text, setText] = useState("Teste do Lívia CRM");
+  const [tplName, setTplName] = useState("");
+  const [accId, setAccId] = useState(accounts.find((a) => a.is_default)?.id ?? accounts[0]?.id ?? "");
+  const sendMut = useMutation({
+    mutationFn: () => api("POST", { action: "send-test", accountId: accId, toPhone: to, ...(tplName ? { templateName: tplName, templateLanguage: "pt_BR" } : { text }) }),
+    onSuccess: () => toast.success("Mensagem enviada!"),
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
+  });
+  if (!accounts.length) return <Card className="p-6 text-sm text-muted-foreground">Conecte uma conta primeiro.</Card>;
+  return (
+    <Card className="space-y-4 p-6">
+      <h2 className="text-lg font-semibold">4. Testes</h2>
+      <div className="flex gap-2">
+        <Button onClick={() => onSync(accId)} disabled={syncing} variant="outline">{syncing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Sincronizar templates da Meta</Button>
+      </div>
+      <Separator />
+      <div className="grid gap-3 md:grid-cols-2">
+        <div><Label>Telefone (E.164)</Label><Input value={to} onChange={(e) => setTo(e.target.value)} placeholder="+5511999999999" /></div>
+        <div><Label>Template (opcional — deixe vazio para texto livre)</Label><Input value={tplName} onChange={(e) => setTplName(e.target.value)} placeholder="ex.: hello_world" /></div>
+        {!tplName && <div className="md:col-span-2"><Label>Mensagem</Label><Input value={text} onChange={(e) => setText(e.target.value)} /></div>}
+      </div>
+      <Button onClick={() => sendMut.mutate()} disabled={!to || sendMut.isPending} className="gap-2">
+        {sendMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Enviar teste
+      </Button>
+      <p className="text-xs text-muted-foreground">Texto livre só funciona se o número destino tiver enviado mensagem nas últimas 24h. Caso contrário use um template aprovado.</p>
+    </Card>
+  );
+}
+
+function Step5({ accounts }: { accounts: Account[] }) {
+  const def = accounts.find((a) => a.is_default);
+  return (
+    <Card className="space-y-3 p-6">
+      <h2 className="text-lg font-semibold">5. Resumo</h2>
+      {!def ? <p className="text-sm text-muted-foreground">Nenhuma conta padrão configurada.</p> : (
+        <div className="space-y-1 text-sm">
+          <div><strong>Negócio:</strong> {def.business_name ?? "-"}</div>
+          <div><strong>Número:</strong> {def.display_phone_number ?? def.phone_number_id}</div>
+          <div><strong>Webhook inscrito:</strong> {def.webhook_subscribed ? "sim" : "não"}</div>
+          <div><strong>WABA ID:</strong> <code className="text-xs">{def.waba_id}</code></div>
+        </div>
+      )}
+      <p className="text-xs text-muted-foreground">Para ativar este provedor em todo o sistema, vá em <strong>Configurações → WhatsApp</strong> e selecione <em>WhatsApp Cloud API</em>.</p>
+    </Card>
+  );
+}
+
+function useStateOnce<T>(v: T) { return useMemo(() => v, [v]); }
+void useStateOnce;

@@ -12,6 +12,8 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated.index'
+import { Route as ApiWhatsappCloudTemplatesRouteImport } from './routes/api/whatsapp-cloud-templates'
+import { Route as ApiWhatsappCloudSettingsRouteImport } from './routes/api/whatsapp-cloud-settings'
 import { Route as ApiTwilioSettingsRouteImport } from './routes/api/twilio-settings'
 import { Route as ApiSettingsRouteImport } from './routes/api/settings'
 import { Route as ApiMessagingProviderRouteImport } from './routes/api/messaging-provider'
@@ -26,6 +28,8 @@ import { Route as AuthenticatedConnectionsRouteImport } from './routes/_authenti
 import { Route as AuthenticatedCampaignsRouteImport } from './routes/_authenticated.campaigns'
 import { Route as AuthenticatedLeadsIndexRouteImport } from './routes/_authenticated.leads.index'
 import { Route as AuthenticatedCampaignsIndexRouteImport } from './routes/_authenticated.campaigns.index'
+import { Route as AuthenticatedSettingsWhatsappTemplatesRouteImport } from './routes/_authenticated.settings.whatsapp-templates'
+import { Route as AuthenticatedSettingsWhatsappCloudRouteImport } from './routes/_authenticated.settings.whatsapp-cloud'
 import { Route as AuthenticatedSettingsWhatsappRouteImport } from './routes/_authenticated.settings.whatsapp'
 import { Route as AuthenticatedSettingsWebhooksRouteImport } from './routes/_authenticated.settings.webhooks'
 import { Route as AuthenticatedSettingsUsersRouteImport } from './routes/_authenticated.settings.users'
@@ -40,6 +44,7 @@ import { Route as AuthenticatedReportsListsRouteImport } from './routes/_authent
 import { Route as AuthenticatedReportsExportsRouteImport } from './routes/_authenticated.reports.exports'
 import { Route as AuthenticatedLeadsIdRouteImport } from './routes/_authenticated.leads.$id'
 import { Route as AuthenticatedCampaignsIdRouteImport } from './routes/_authenticated.campaigns.$id'
+import { Route as ApiPublicWebhooksMetaWhatsappRouteImport } from './routes/api/public/webhooks/meta-whatsapp'
 import { Route as ApiPublicWebhooksEvolutionRouteImport } from './routes/api/public/webhooks/evolution'
 import { Route as ApiPublicCampaignsTickRouteImport } from './routes/api/public/campaigns/tick'
 
@@ -57,6 +62,18 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const ApiWhatsappCloudTemplatesRoute =
+  ApiWhatsappCloudTemplatesRouteImport.update({
+    id: '/api/whatsapp-cloud-templates',
+    path: '/api/whatsapp-cloud-templates',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiWhatsappCloudSettingsRoute =
+  ApiWhatsappCloudSettingsRouteImport.update({
+    id: '/api/whatsapp-cloud-settings',
+    path: '/api/whatsapp-cloud-settings',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiTwilioSettingsRoute = ApiTwilioSettingsRouteImport.update({
   id: '/api/twilio-settings',
   path: '/api/twilio-settings',
@@ -128,6 +145,18 @@ const AuthenticatedCampaignsIndexRoute =
     id: '/',
     path: '/',
     getParentRoute: () => AuthenticatedCampaignsRoute,
+  } as any)
+const AuthenticatedSettingsWhatsappTemplatesRoute =
+  AuthenticatedSettingsWhatsappTemplatesRouteImport.update({
+    id: '/whatsapp-templates',
+    path: '/whatsapp-templates',
+    getParentRoute: () => AuthenticatedSettingsRoute,
+  } as any)
+const AuthenticatedSettingsWhatsappCloudRoute =
+  AuthenticatedSettingsWhatsappCloudRouteImport.update({
+    id: '/whatsapp-cloud',
+    path: '/whatsapp-cloud',
+    getParentRoute: () => AuthenticatedSettingsRoute,
   } as any)
 const AuthenticatedSettingsWhatsappRoute =
   AuthenticatedSettingsWhatsappRouteImport.update({
@@ -212,6 +241,12 @@ const AuthenticatedCampaignsIdRoute =
     path: '/$id',
     getParentRoute: () => AuthenticatedCampaignsRoute,
   } as any)
+const ApiPublicWebhooksMetaWhatsappRoute =
+  ApiPublicWebhooksMetaWhatsappRouteImport.update({
+    id: '/api/public/webhooks/meta-whatsapp',
+    path: '/api/public/webhooks/meta-whatsapp',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicWebhooksEvolutionRoute =
   ApiPublicWebhooksEvolutionRouteImport.update({
     id: '/api/public/webhooks/evolution',
@@ -239,6 +274,8 @@ export interface FileRoutesByFullPath {
   '/api/messaging-provider': typeof ApiMessagingProviderRoute
   '/api/settings': typeof ApiSettingsRoute
   '/api/twilio-settings': typeof ApiTwilioSettingsRoute
+  '/api/whatsapp-cloud-settings': typeof ApiWhatsappCloudSettingsRoute
+  '/api/whatsapp-cloud-templates': typeof ApiWhatsappCloudTemplatesRoute
   '/campaigns/$id': typeof AuthenticatedCampaignsIdRoute
   '/leads/$id': typeof AuthenticatedLeadsIdRoute
   '/reports/exports': typeof AuthenticatedReportsExportsRoute
@@ -253,10 +290,13 @@ export interface FileRoutesByFullPath {
   '/settings/users': typeof AuthenticatedSettingsUsersRoute
   '/settings/webhooks': typeof AuthenticatedSettingsWebhooksRoute
   '/settings/whatsapp': typeof AuthenticatedSettingsWhatsappRoute
+  '/settings/whatsapp-cloud': typeof AuthenticatedSettingsWhatsappCloudRoute
+  '/settings/whatsapp-templates': typeof AuthenticatedSettingsWhatsappTemplatesRoute
   '/campaigns/': typeof AuthenticatedCampaignsIndexRoute
   '/leads/': typeof AuthenticatedLeadsIndexRoute
   '/api/public/campaigns/tick': typeof ApiPublicCampaignsTickRoute
   '/api/public/webhooks/evolution': typeof ApiPublicWebhooksEvolutionRoute
+  '/api/public/webhooks/meta-whatsapp': typeof ApiPublicWebhooksMetaWhatsappRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
@@ -270,6 +310,8 @@ export interface FileRoutesByTo {
   '/api/messaging-provider': typeof ApiMessagingProviderRoute
   '/api/settings': typeof ApiSettingsRoute
   '/api/twilio-settings': typeof ApiTwilioSettingsRoute
+  '/api/whatsapp-cloud-settings': typeof ApiWhatsappCloudSettingsRoute
+  '/api/whatsapp-cloud-templates': typeof ApiWhatsappCloudTemplatesRoute
   '/': typeof AuthenticatedIndexRoute
   '/campaigns/$id': typeof AuthenticatedCampaignsIdRoute
   '/leads/$id': typeof AuthenticatedLeadsIdRoute
@@ -285,10 +327,13 @@ export interface FileRoutesByTo {
   '/settings/users': typeof AuthenticatedSettingsUsersRoute
   '/settings/webhooks': typeof AuthenticatedSettingsWebhooksRoute
   '/settings/whatsapp': typeof AuthenticatedSettingsWhatsappRoute
+  '/settings/whatsapp-cloud': typeof AuthenticatedSettingsWhatsappCloudRoute
+  '/settings/whatsapp-templates': typeof AuthenticatedSettingsWhatsappTemplatesRoute
   '/campaigns': typeof AuthenticatedCampaignsIndexRoute
   '/leads': typeof AuthenticatedLeadsIndexRoute
   '/api/public/campaigns/tick': typeof ApiPublicCampaignsTickRoute
   '/api/public/webhooks/evolution': typeof ApiPublicWebhooksEvolutionRoute
+  '/api/public/webhooks/meta-whatsapp': typeof ApiPublicWebhooksMetaWhatsappRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -306,6 +351,8 @@ export interface FileRoutesById {
   '/api/messaging-provider': typeof ApiMessagingProviderRoute
   '/api/settings': typeof ApiSettingsRoute
   '/api/twilio-settings': typeof ApiTwilioSettingsRoute
+  '/api/whatsapp-cloud-settings': typeof ApiWhatsappCloudSettingsRoute
+  '/api/whatsapp-cloud-templates': typeof ApiWhatsappCloudTemplatesRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/campaigns/$id': typeof AuthenticatedCampaignsIdRoute
   '/_authenticated/leads/$id': typeof AuthenticatedLeadsIdRoute
@@ -321,10 +368,13 @@ export interface FileRoutesById {
   '/_authenticated/settings/users': typeof AuthenticatedSettingsUsersRoute
   '/_authenticated/settings/webhooks': typeof AuthenticatedSettingsWebhooksRoute
   '/_authenticated/settings/whatsapp': typeof AuthenticatedSettingsWhatsappRoute
+  '/_authenticated/settings/whatsapp-cloud': typeof AuthenticatedSettingsWhatsappCloudRoute
+  '/_authenticated/settings/whatsapp-templates': typeof AuthenticatedSettingsWhatsappTemplatesRoute
   '/_authenticated/campaigns/': typeof AuthenticatedCampaignsIndexRoute
   '/_authenticated/leads/': typeof AuthenticatedLeadsIndexRoute
   '/api/public/campaigns/tick': typeof ApiPublicCampaignsTickRoute
   '/api/public/webhooks/evolution': typeof ApiPublicWebhooksEvolutionRoute
+  '/api/public/webhooks/meta-whatsapp': typeof ApiPublicWebhooksMetaWhatsappRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -343,6 +393,8 @@ export interface FileRouteTypes {
     | '/api/messaging-provider'
     | '/api/settings'
     | '/api/twilio-settings'
+    | '/api/whatsapp-cloud-settings'
+    | '/api/whatsapp-cloud-templates'
     | '/campaigns/$id'
     | '/leads/$id'
     | '/reports/exports'
@@ -357,10 +409,13 @@ export interface FileRouteTypes {
     | '/settings/users'
     | '/settings/webhooks'
     | '/settings/whatsapp'
+    | '/settings/whatsapp-cloud'
+    | '/settings/whatsapp-templates'
     | '/campaigns/'
     | '/leads/'
     | '/api/public/campaigns/tick'
     | '/api/public/webhooks/evolution'
+    | '/api/public/webhooks/meta-whatsapp'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
@@ -374,6 +429,8 @@ export interface FileRouteTypes {
     | '/api/messaging-provider'
     | '/api/settings'
     | '/api/twilio-settings'
+    | '/api/whatsapp-cloud-settings'
+    | '/api/whatsapp-cloud-templates'
     | '/'
     | '/campaigns/$id'
     | '/leads/$id'
@@ -389,10 +446,13 @@ export interface FileRouteTypes {
     | '/settings/users'
     | '/settings/webhooks'
     | '/settings/whatsapp'
+    | '/settings/whatsapp-cloud'
+    | '/settings/whatsapp-templates'
     | '/campaigns'
     | '/leads'
     | '/api/public/campaigns/tick'
     | '/api/public/webhooks/evolution'
+    | '/api/public/webhooks/meta-whatsapp'
   id:
     | '__root__'
     | '/_authenticated'
@@ -409,6 +469,8 @@ export interface FileRouteTypes {
     | '/api/messaging-provider'
     | '/api/settings'
     | '/api/twilio-settings'
+    | '/api/whatsapp-cloud-settings'
+    | '/api/whatsapp-cloud-templates'
     | '/_authenticated/'
     | '/_authenticated/campaigns/$id'
     | '/_authenticated/leads/$id'
@@ -424,10 +486,13 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/users'
     | '/_authenticated/settings/webhooks'
     | '/_authenticated/settings/whatsapp'
+    | '/_authenticated/settings/whatsapp-cloud'
+    | '/_authenticated/settings/whatsapp-templates'
     | '/_authenticated/campaigns/'
     | '/_authenticated/leads/'
     | '/api/public/campaigns/tick'
     | '/api/public/webhooks/evolution'
+    | '/api/public/webhooks/meta-whatsapp'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -437,8 +502,11 @@ export interface RootRouteChildren {
   ApiMessagingProviderRoute: typeof ApiMessagingProviderRoute
   ApiSettingsRoute: typeof ApiSettingsRoute
   ApiTwilioSettingsRoute: typeof ApiTwilioSettingsRoute
+  ApiWhatsappCloudSettingsRoute: typeof ApiWhatsappCloudSettingsRoute
+  ApiWhatsappCloudTemplatesRoute: typeof ApiWhatsappCloudTemplatesRoute
   ApiPublicCampaignsTickRoute: typeof ApiPublicCampaignsTickRoute
   ApiPublicWebhooksEvolutionRoute: typeof ApiPublicWebhooksEvolutionRoute
+  ApiPublicWebhooksMetaWhatsappRoute: typeof ApiPublicWebhooksMetaWhatsappRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -463,6 +531,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
+    }
+    '/api/whatsapp-cloud-templates': {
+      id: '/api/whatsapp-cloud-templates'
+      path: '/api/whatsapp-cloud-templates'
+      fullPath: '/api/whatsapp-cloud-templates'
+      preLoaderRoute: typeof ApiWhatsappCloudTemplatesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/whatsapp-cloud-settings': {
+      id: '/api/whatsapp-cloud-settings'
+      path: '/api/whatsapp-cloud-settings'
+      fullPath: '/api/whatsapp-cloud-settings'
+      preLoaderRoute: typeof ApiWhatsappCloudSettingsRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/twilio-settings': {
       id: '/api/twilio-settings'
@@ -562,6 +644,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCampaignsIndexRouteImport
       parentRoute: typeof AuthenticatedCampaignsRoute
     }
+    '/_authenticated/settings/whatsapp-templates': {
+      id: '/_authenticated/settings/whatsapp-templates'
+      path: '/whatsapp-templates'
+      fullPath: '/settings/whatsapp-templates'
+      preLoaderRoute: typeof AuthenticatedSettingsWhatsappTemplatesRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
+    }
+    '/_authenticated/settings/whatsapp-cloud': {
+      id: '/_authenticated/settings/whatsapp-cloud'
+      path: '/whatsapp-cloud'
+      fullPath: '/settings/whatsapp-cloud'
+      preLoaderRoute: typeof AuthenticatedSettingsWhatsappCloudRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
+    }
     '/_authenticated/settings/whatsapp': {
       id: '/_authenticated/settings/whatsapp'
       path: '/whatsapp'
@@ -660,6 +756,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCampaignsIdRouteImport
       parentRoute: typeof AuthenticatedCampaignsRoute
     }
+    '/api/public/webhooks/meta-whatsapp': {
+      id: '/api/public/webhooks/meta-whatsapp'
+      path: '/api/public/webhooks/meta-whatsapp'
+      fullPath: '/api/public/webhooks/meta-whatsapp'
+      preLoaderRoute: typeof ApiPublicWebhooksMetaWhatsappRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/webhooks/evolution': {
       id: '/api/public/webhooks/evolution'
       path: '/api/public/webhooks/evolution'
@@ -731,6 +834,8 @@ interface AuthenticatedSettingsRouteChildren {
   AuthenticatedSettingsUsersRoute: typeof AuthenticatedSettingsUsersRoute
   AuthenticatedSettingsWebhooksRoute: typeof AuthenticatedSettingsWebhooksRoute
   AuthenticatedSettingsWhatsappRoute: typeof AuthenticatedSettingsWhatsappRoute
+  AuthenticatedSettingsWhatsappCloudRoute: typeof AuthenticatedSettingsWhatsappCloudRoute
+  AuthenticatedSettingsWhatsappTemplatesRoute: typeof AuthenticatedSettingsWhatsappTemplatesRoute
 }
 
 const AuthenticatedSettingsRouteChildren: AuthenticatedSettingsRouteChildren = {
@@ -743,6 +848,10 @@ const AuthenticatedSettingsRouteChildren: AuthenticatedSettingsRouteChildren = {
   AuthenticatedSettingsUsersRoute: AuthenticatedSettingsUsersRoute,
   AuthenticatedSettingsWebhooksRoute: AuthenticatedSettingsWebhooksRoute,
   AuthenticatedSettingsWhatsappRoute: AuthenticatedSettingsWhatsappRoute,
+  AuthenticatedSettingsWhatsappCloudRoute:
+    AuthenticatedSettingsWhatsappCloudRoute,
+  AuthenticatedSettingsWhatsappTemplatesRoute:
+    AuthenticatedSettingsWhatsappTemplatesRoute,
 }
 
 const AuthenticatedSettingsRouteWithChildren =
@@ -785,8 +894,11 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMessagingProviderRoute: ApiMessagingProviderRoute,
   ApiSettingsRoute: ApiSettingsRoute,
   ApiTwilioSettingsRoute: ApiTwilioSettingsRoute,
+  ApiWhatsappCloudSettingsRoute: ApiWhatsappCloudSettingsRoute,
+  ApiWhatsappCloudTemplatesRoute: ApiWhatsappCloudTemplatesRoute,
   ApiPublicCampaignsTickRoute: ApiPublicCampaignsTickRoute,
   ApiPublicWebhooksEvolutionRoute: ApiPublicWebhooksEvolutionRoute,
+  ApiPublicWebhooksMetaWhatsappRoute: ApiPublicWebhooksMetaWhatsappRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
