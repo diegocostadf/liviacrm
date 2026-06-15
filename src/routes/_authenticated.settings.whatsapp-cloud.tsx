@@ -266,6 +266,53 @@ function Stepper({ step, onStep }: { step: number; onStep: (n: number) => void }
   );
 }
 
+function DomainCheckBanner({ check, loading, onRecheck }: { check?: { ok: boolean; allowed: boolean; host: string; domains: string[]; error?: string }; loading: boolean; onRecheck: () => void }) {
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 rounded-md border bg-muted/40 p-3 text-xs text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" /> Verificando se este domínio está autorizado no app Meta…
+      </div>
+    );
+  }
+  if (!check) return null;
+  if (!check.ok) {
+    return (
+      <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
+        <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
+        <div className="flex-1">
+          Não consegui consultar o app Meta para verificar domínios autorizados ({check.error ?? "erro desconhecido"}). Confirme as secrets <code>META_APP_ID</code> e <code>META_APP_SECRET</code>.
+        </div>
+        <Button size="sm" variant="ghost" onClick={onRecheck}>Tentar de novo</Button>
+      </div>
+    );
+  }
+  if (check.allowed) {
+    return (
+      <div className="flex items-center gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 p-3 text-xs">
+        <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+        <span>Domínio <strong>{check.host}</strong> autorizado no app Meta. ✅</span>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-start gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-xs">
+      <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />
+      <div className="flex-1 space-y-1">
+        <div>
+          O domínio <strong>{check.host}</strong> <strong>não está</strong> na lista de <em>App Domains</em> do seu app Meta. O Embedded Signup vai falhar silenciosamente (popup retorna sem code).
+        </div>
+        <div className="text-muted-foreground">
+          Domínios atuais: {check.domains.length ? check.domains.map((d) => <code key={d} className="mr-1">{d}</code>) : <em>nenhum configurado</em>}
+        </div>
+        <div className="text-muted-foreground">
+          Acesse <em>developers.facebook.com → seu App → Settings → Basic → App Domains</em>, adicione <code>{check.host}</code>, e em <em>Facebook Login for Business → Valid OAuth Redirect URIs</em> inclua <code>https://{check.host}/</code>.
+        </div>
+        <Button size="sm" variant="outline" onClick={onRecheck} className="mt-1">Verificar de novo</Button>
+      </div>
+    </div>
+  );
+}
+
 function CopyableField({ label, value }: { label: string; value: string }) {
   return (
     <div className="space-y-1">
