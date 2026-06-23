@@ -1,8 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/integrations/supabase/types";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { ConnectionOverview, EmbeddedSignupPayload } from "@/lib/meta-connector/types";
 
-async function ensureAdmin(supabase: Awaited<ReturnType<typeof requireSupabaseAuth.client>>["context"]["supabase"], userId: string) {
+type Supa = SupabaseClient<Database>;
+
+async function ensureAdmin(supabase: Supa, userId: string) {
   const { data, error } = await supabase.rpc("has_role", { _user_id: userId, _role: "admin" });
   if (error) throw new Error(error.message);
   if (!data) throw new Error("Acesso restrito a administradores.");
