@@ -20,12 +20,14 @@ import { Route as ApiMessagingProviderRouteImport } from './routes/api/messaging
 import { Route as ApiConnectionsRouteImport } from './routes/api/connections'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated.settings'
 import { Route as AuthenticatedReportsRouteImport } from './routes/_authenticated.reports'
+import { Route as AuthenticatedMetaRouteImport } from './routes/_authenticated.meta'
 import { Route as AuthenticatedLeadsRouteImport } from './routes/_authenticated.leads'
 import { Route as AuthenticatedKnowledgeRouteImport } from './routes/_authenticated.knowledge'
 import { Route as AuthenticatedInboxRouteImport } from './routes/_authenticated.inbox'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated.dashboard'
 import { Route as AuthenticatedConnectionsRouteImport } from './routes/_authenticated.connections'
 import { Route as AuthenticatedCampaignsRouteImport } from './routes/_authenticated.campaigns'
+import { Route as AuthenticatedMetaIndexRouteImport } from './routes/_authenticated.meta.index'
 import { Route as AuthenticatedLeadsIndexRouteImport } from './routes/_authenticated.leads.index'
 import { Route as AuthenticatedCampaignsIndexRouteImport } from './routes/_authenticated.campaigns.index'
 import { Route as AuthenticatedSettingsWhatsappTemplatesRouteImport } from './routes/_authenticated.settings.whatsapp-templates'
@@ -42,6 +44,15 @@ import { Route as AuthenticatedSettingsAiProvidersRouteImport } from './routes/_
 import { Route as AuthenticatedReportsOverviewRouteImport } from './routes/_authenticated.reports.overview'
 import { Route as AuthenticatedReportsListsRouteImport } from './routes/_authenticated.reports.lists'
 import { Route as AuthenticatedReportsExportsRouteImport } from './routes/_authenticated.reports.exports'
+import { Route as AuthenticatedMetaWebhooksRouteImport } from './routes/_authenticated.meta.webhooks'
+import { Route as AuthenticatedMetaTokensRouteImport } from './routes/_authenticated.meta.tokens'
+import { Route as AuthenticatedMetaTemplatesRouteImport } from './routes/_authenticated.meta.templates'
+import { Route as AuthenticatedMetaSettingsRouteImport } from './routes/_authenticated.meta.settings'
+import { Route as AuthenticatedMetaOverviewRouteImport } from './routes/_authenticated.meta.overview'
+import { Route as AuthenticatedMetaNumbersRouteImport } from './routes/_authenticated.meta.numbers'
+import { Route as AuthenticatedMetaLogsRouteImport } from './routes/_authenticated.meta.logs'
+import { Route as AuthenticatedMetaConnectRouteImport } from './routes/_authenticated.meta.connect'
+import { Route as AuthenticatedMetaBusinessesRouteImport } from './routes/_authenticated.meta.businesses'
 import { Route as AuthenticatedLeadsIdRouteImport } from './routes/_authenticated.leads.$id'
 import { Route as AuthenticatedCampaignsIdRouteImport } from './routes/_authenticated.campaigns.$id'
 import { Route as ApiPublicWebhooksMetaWhatsappRouteImport } from './routes/api/public/webhooks/meta-whatsapp'
@@ -104,6 +115,11 @@ const AuthenticatedReportsRoute = AuthenticatedReportsRouteImport.update({
   path: '/reports',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedMetaRoute = AuthenticatedMetaRouteImport.update({
+  id: '/meta',
+  path: '/meta',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedLeadsRoute = AuthenticatedLeadsRouteImport.update({
   id: '/leads',
   path: '/leads',
@@ -134,6 +150,11 @@ const AuthenticatedCampaignsRoute = AuthenticatedCampaignsRouteImport.update({
   id: '/campaigns',
   path: '/campaigns',
   getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedMetaIndexRoute = AuthenticatedMetaIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedMetaRoute,
 } as any)
 const AuthenticatedLeadsIndexRoute = AuthenticatedLeadsIndexRouteImport.update({
   id: '/',
@@ -230,6 +251,58 @@ const AuthenticatedReportsExportsRoute =
     path: '/exports',
     getParentRoute: () => AuthenticatedReportsRoute,
   } as any)
+const AuthenticatedMetaWebhooksRoute =
+  AuthenticatedMetaWebhooksRouteImport.update({
+    id: '/webhooks',
+    path: '/webhooks',
+    getParentRoute: () => AuthenticatedMetaRoute,
+  } as any)
+const AuthenticatedMetaTokensRoute = AuthenticatedMetaTokensRouteImport.update({
+  id: '/tokens',
+  path: '/tokens',
+  getParentRoute: () => AuthenticatedMetaRoute,
+} as any)
+const AuthenticatedMetaTemplatesRoute =
+  AuthenticatedMetaTemplatesRouteImport.update({
+    id: '/templates',
+    path: '/templates',
+    getParentRoute: () => AuthenticatedMetaRoute,
+  } as any)
+const AuthenticatedMetaSettingsRoute =
+  AuthenticatedMetaSettingsRouteImport.update({
+    id: '/settings',
+    path: '/settings',
+    getParentRoute: () => AuthenticatedMetaRoute,
+  } as any)
+const AuthenticatedMetaOverviewRoute =
+  AuthenticatedMetaOverviewRouteImport.update({
+    id: '/overview',
+    path: '/overview',
+    getParentRoute: () => AuthenticatedMetaRoute,
+  } as any)
+const AuthenticatedMetaNumbersRoute =
+  AuthenticatedMetaNumbersRouteImport.update({
+    id: '/numbers',
+    path: '/numbers',
+    getParentRoute: () => AuthenticatedMetaRoute,
+  } as any)
+const AuthenticatedMetaLogsRoute = AuthenticatedMetaLogsRouteImport.update({
+  id: '/logs',
+  path: '/logs',
+  getParentRoute: () => AuthenticatedMetaRoute,
+} as any)
+const AuthenticatedMetaConnectRoute =
+  AuthenticatedMetaConnectRouteImport.update({
+    id: '/connect',
+    path: '/connect',
+    getParentRoute: () => AuthenticatedMetaRoute,
+  } as any)
+const AuthenticatedMetaBusinessesRoute =
+  AuthenticatedMetaBusinessesRouteImport.update({
+    id: '/businesses',
+    path: '/businesses',
+    getParentRoute: () => AuthenticatedMetaRoute,
+  } as any)
 const AuthenticatedLeadsIdRoute = AuthenticatedLeadsIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -268,6 +341,7 @@ export interface FileRoutesByFullPath {
   '/inbox': typeof AuthenticatedInboxRoute
   '/knowledge': typeof AuthenticatedKnowledgeRoute
   '/leads': typeof AuthenticatedLeadsRouteWithChildren
+  '/meta': typeof AuthenticatedMetaRouteWithChildren
   '/reports': typeof AuthenticatedReportsRouteWithChildren
   '/settings': typeof AuthenticatedSettingsRouteWithChildren
   '/api/connections': typeof ApiConnectionsRoute
@@ -278,6 +352,15 @@ export interface FileRoutesByFullPath {
   '/api/whatsapp-cloud-templates': typeof ApiWhatsappCloudTemplatesRoute
   '/campaigns/$id': typeof AuthenticatedCampaignsIdRoute
   '/leads/$id': typeof AuthenticatedLeadsIdRoute
+  '/meta/businesses': typeof AuthenticatedMetaBusinessesRoute
+  '/meta/connect': typeof AuthenticatedMetaConnectRoute
+  '/meta/logs': typeof AuthenticatedMetaLogsRoute
+  '/meta/numbers': typeof AuthenticatedMetaNumbersRoute
+  '/meta/overview': typeof AuthenticatedMetaOverviewRoute
+  '/meta/settings': typeof AuthenticatedMetaSettingsRoute
+  '/meta/templates': typeof AuthenticatedMetaTemplatesRoute
+  '/meta/tokens': typeof AuthenticatedMetaTokensRoute
+  '/meta/webhooks': typeof AuthenticatedMetaWebhooksRoute
   '/reports/exports': typeof AuthenticatedReportsExportsRoute
   '/reports/lists': typeof AuthenticatedReportsListsRoute
   '/reports/overview': typeof AuthenticatedReportsOverviewRoute
@@ -294,6 +377,7 @@ export interface FileRoutesByFullPath {
   '/settings/whatsapp-templates': typeof AuthenticatedSettingsWhatsappTemplatesRoute
   '/campaigns/': typeof AuthenticatedCampaignsIndexRoute
   '/leads/': typeof AuthenticatedLeadsIndexRoute
+  '/meta/': typeof AuthenticatedMetaIndexRoute
   '/api/public/campaigns/tick': typeof ApiPublicCampaignsTickRoute
   '/api/public/webhooks/evolution': typeof ApiPublicWebhooksEvolutionRoute
   '/api/public/webhooks/meta-whatsapp': typeof ApiPublicWebhooksMetaWhatsappRoute
@@ -315,6 +399,15 @@ export interface FileRoutesByTo {
   '/': typeof AuthenticatedIndexRoute
   '/campaigns/$id': typeof AuthenticatedCampaignsIdRoute
   '/leads/$id': typeof AuthenticatedLeadsIdRoute
+  '/meta/businesses': typeof AuthenticatedMetaBusinessesRoute
+  '/meta/connect': typeof AuthenticatedMetaConnectRoute
+  '/meta/logs': typeof AuthenticatedMetaLogsRoute
+  '/meta/numbers': typeof AuthenticatedMetaNumbersRoute
+  '/meta/overview': typeof AuthenticatedMetaOverviewRoute
+  '/meta/settings': typeof AuthenticatedMetaSettingsRoute
+  '/meta/templates': typeof AuthenticatedMetaTemplatesRoute
+  '/meta/tokens': typeof AuthenticatedMetaTokensRoute
+  '/meta/webhooks': typeof AuthenticatedMetaWebhooksRoute
   '/reports/exports': typeof AuthenticatedReportsExportsRoute
   '/reports/lists': typeof AuthenticatedReportsListsRoute
   '/reports/overview': typeof AuthenticatedReportsOverviewRoute
@@ -331,6 +424,7 @@ export interface FileRoutesByTo {
   '/settings/whatsapp-templates': typeof AuthenticatedSettingsWhatsappTemplatesRoute
   '/campaigns': typeof AuthenticatedCampaignsIndexRoute
   '/leads': typeof AuthenticatedLeadsIndexRoute
+  '/meta': typeof AuthenticatedMetaIndexRoute
   '/api/public/campaigns/tick': typeof ApiPublicCampaignsTickRoute
   '/api/public/webhooks/evolution': typeof ApiPublicWebhooksEvolutionRoute
   '/api/public/webhooks/meta-whatsapp': typeof ApiPublicWebhooksMetaWhatsappRoute
@@ -345,6 +439,7 @@ export interface FileRoutesById {
   '/_authenticated/inbox': typeof AuthenticatedInboxRoute
   '/_authenticated/knowledge': typeof AuthenticatedKnowledgeRoute
   '/_authenticated/leads': typeof AuthenticatedLeadsRouteWithChildren
+  '/_authenticated/meta': typeof AuthenticatedMetaRouteWithChildren
   '/_authenticated/reports': typeof AuthenticatedReportsRouteWithChildren
   '/_authenticated/settings': typeof AuthenticatedSettingsRouteWithChildren
   '/api/connections': typeof ApiConnectionsRoute
@@ -356,6 +451,15 @@ export interface FileRoutesById {
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/campaigns/$id': typeof AuthenticatedCampaignsIdRoute
   '/_authenticated/leads/$id': typeof AuthenticatedLeadsIdRoute
+  '/_authenticated/meta/businesses': typeof AuthenticatedMetaBusinessesRoute
+  '/_authenticated/meta/connect': typeof AuthenticatedMetaConnectRoute
+  '/_authenticated/meta/logs': typeof AuthenticatedMetaLogsRoute
+  '/_authenticated/meta/numbers': typeof AuthenticatedMetaNumbersRoute
+  '/_authenticated/meta/overview': typeof AuthenticatedMetaOverviewRoute
+  '/_authenticated/meta/settings': typeof AuthenticatedMetaSettingsRoute
+  '/_authenticated/meta/templates': typeof AuthenticatedMetaTemplatesRoute
+  '/_authenticated/meta/tokens': typeof AuthenticatedMetaTokensRoute
+  '/_authenticated/meta/webhooks': typeof AuthenticatedMetaWebhooksRoute
   '/_authenticated/reports/exports': typeof AuthenticatedReportsExportsRoute
   '/_authenticated/reports/lists': typeof AuthenticatedReportsListsRoute
   '/_authenticated/reports/overview': typeof AuthenticatedReportsOverviewRoute
@@ -372,6 +476,7 @@ export interface FileRoutesById {
   '/_authenticated/settings/whatsapp-templates': typeof AuthenticatedSettingsWhatsappTemplatesRoute
   '/_authenticated/campaigns/': typeof AuthenticatedCampaignsIndexRoute
   '/_authenticated/leads/': typeof AuthenticatedLeadsIndexRoute
+  '/_authenticated/meta/': typeof AuthenticatedMetaIndexRoute
   '/api/public/campaigns/tick': typeof ApiPublicCampaignsTickRoute
   '/api/public/webhooks/evolution': typeof ApiPublicWebhooksEvolutionRoute
   '/api/public/webhooks/meta-whatsapp': typeof ApiPublicWebhooksMetaWhatsappRoute
@@ -387,6 +492,7 @@ export interface FileRouteTypes {
     | '/inbox'
     | '/knowledge'
     | '/leads'
+    | '/meta'
     | '/reports'
     | '/settings'
     | '/api/connections'
@@ -397,6 +503,15 @@ export interface FileRouteTypes {
     | '/api/whatsapp-cloud-templates'
     | '/campaigns/$id'
     | '/leads/$id'
+    | '/meta/businesses'
+    | '/meta/connect'
+    | '/meta/logs'
+    | '/meta/numbers'
+    | '/meta/overview'
+    | '/meta/settings'
+    | '/meta/templates'
+    | '/meta/tokens'
+    | '/meta/webhooks'
     | '/reports/exports'
     | '/reports/lists'
     | '/reports/overview'
@@ -413,6 +528,7 @@ export interface FileRouteTypes {
     | '/settings/whatsapp-templates'
     | '/campaigns/'
     | '/leads/'
+    | '/meta/'
     | '/api/public/campaigns/tick'
     | '/api/public/webhooks/evolution'
     | '/api/public/webhooks/meta-whatsapp'
@@ -434,6 +550,15 @@ export interface FileRouteTypes {
     | '/'
     | '/campaigns/$id'
     | '/leads/$id'
+    | '/meta/businesses'
+    | '/meta/connect'
+    | '/meta/logs'
+    | '/meta/numbers'
+    | '/meta/overview'
+    | '/meta/settings'
+    | '/meta/templates'
+    | '/meta/tokens'
+    | '/meta/webhooks'
     | '/reports/exports'
     | '/reports/lists'
     | '/reports/overview'
@@ -450,6 +575,7 @@ export interface FileRouteTypes {
     | '/settings/whatsapp-templates'
     | '/campaigns'
     | '/leads'
+    | '/meta'
     | '/api/public/campaigns/tick'
     | '/api/public/webhooks/evolution'
     | '/api/public/webhooks/meta-whatsapp'
@@ -463,6 +589,7 @@ export interface FileRouteTypes {
     | '/_authenticated/inbox'
     | '/_authenticated/knowledge'
     | '/_authenticated/leads'
+    | '/_authenticated/meta'
     | '/_authenticated/reports'
     | '/_authenticated/settings'
     | '/api/connections'
@@ -474,6 +601,15 @@ export interface FileRouteTypes {
     | '/_authenticated/'
     | '/_authenticated/campaigns/$id'
     | '/_authenticated/leads/$id'
+    | '/_authenticated/meta/businesses'
+    | '/_authenticated/meta/connect'
+    | '/_authenticated/meta/logs'
+    | '/_authenticated/meta/numbers'
+    | '/_authenticated/meta/overview'
+    | '/_authenticated/meta/settings'
+    | '/_authenticated/meta/templates'
+    | '/_authenticated/meta/tokens'
+    | '/_authenticated/meta/webhooks'
     | '/_authenticated/reports/exports'
     | '/_authenticated/reports/lists'
     | '/_authenticated/reports/overview'
@@ -490,6 +626,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/whatsapp-templates'
     | '/_authenticated/campaigns/'
     | '/_authenticated/leads/'
+    | '/_authenticated/meta/'
     | '/api/public/campaigns/tick'
     | '/api/public/webhooks/evolution'
     | '/api/public/webhooks/meta-whatsapp'
@@ -588,6 +725,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedReportsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/meta': {
+      id: '/_authenticated/meta'
+      path: '/meta'
+      fullPath: '/meta'
+      preLoaderRoute: typeof AuthenticatedMetaRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/leads': {
       id: '/_authenticated/leads'
       path: '/leads'
@@ -629,6 +773,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/campaigns'
       preLoaderRoute: typeof AuthenticatedCampaignsRouteImport
       parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/meta/': {
+      id: '/_authenticated/meta/'
+      path: '/'
+      fullPath: '/meta/'
+      preLoaderRoute: typeof AuthenticatedMetaIndexRouteImport
+      parentRoute: typeof AuthenticatedMetaRoute
     }
     '/_authenticated/leads/': {
       id: '/_authenticated/leads/'
@@ -742,6 +893,69 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedReportsExportsRouteImport
       parentRoute: typeof AuthenticatedReportsRoute
     }
+    '/_authenticated/meta/webhooks': {
+      id: '/_authenticated/meta/webhooks'
+      path: '/webhooks'
+      fullPath: '/meta/webhooks'
+      preLoaderRoute: typeof AuthenticatedMetaWebhooksRouteImport
+      parentRoute: typeof AuthenticatedMetaRoute
+    }
+    '/_authenticated/meta/tokens': {
+      id: '/_authenticated/meta/tokens'
+      path: '/tokens'
+      fullPath: '/meta/tokens'
+      preLoaderRoute: typeof AuthenticatedMetaTokensRouteImport
+      parentRoute: typeof AuthenticatedMetaRoute
+    }
+    '/_authenticated/meta/templates': {
+      id: '/_authenticated/meta/templates'
+      path: '/templates'
+      fullPath: '/meta/templates'
+      preLoaderRoute: typeof AuthenticatedMetaTemplatesRouteImport
+      parentRoute: typeof AuthenticatedMetaRoute
+    }
+    '/_authenticated/meta/settings': {
+      id: '/_authenticated/meta/settings'
+      path: '/settings'
+      fullPath: '/meta/settings'
+      preLoaderRoute: typeof AuthenticatedMetaSettingsRouteImport
+      parentRoute: typeof AuthenticatedMetaRoute
+    }
+    '/_authenticated/meta/overview': {
+      id: '/_authenticated/meta/overview'
+      path: '/overview'
+      fullPath: '/meta/overview'
+      preLoaderRoute: typeof AuthenticatedMetaOverviewRouteImport
+      parentRoute: typeof AuthenticatedMetaRoute
+    }
+    '/_authenticated/meta/numbers': {
+      id: '/_authenticated/meta/numbers'
+      path: '/numbers'
+      fullPath: '/meta/numbers'
+      preLoaderRoute: typeof AuthenticatedMetaNumbersRouteImport
+      parentRoute: typeof AuthenticatedMetaRoute
+    }
+    '/_authenticated/meta/logs': {
+      id: '/_authenticated/meta/logs'
+      path: '/logs'
+      fullPath: '/meta/logs'
+      preLoaderRoute: typeof AuthenticatedMetaLogsRouteImport
+      parentRoute: typeof AuthenticatedMetaRoute
+    }
+    '/_authenticated/meta/connect': {
+      id: '/_authenticated/meta/connect'
+      path: '/connect'
+      fullPath: '/meta/connect'
+      preLoaderRoute: typeof AuthenticatedMetaConnectRouteImport
+      parentRoute: typeof AuthenticatedMetaRoute
+    }
+    '/_authenticated/meta/businesses': {
+      id: '/_authenticated/meta/businesses'
+      path: '/businesses'
+      fullPath: '/meta/businesses'
+      preLoaderRoute: typeof AuthenticatedMetaBusinessesRouteImport
+      parentRoute: typeof AuthenticatedMetaRoute
+    }
     '/_authenticated/leads/$id': {
       id: '/_authenticated/leads/$id'
       path: '/$id'
@@ -809,6 +1023,35 @@ const AuthenticatedLeadsRouteChildren: AuthenticatedLeadsRouteChildren = {
 const AuthenticatedLeadsRouteWithChildren =
   AuthenticatedLeadsRoute._addFileChildren(AuthenticatedLeadsRouteChildren)
 
+interface AuthenticatedMetaRouteChildren {
+  AuthenticatedMetaBusinessesRoute: typeof AuthenticatedMetaBusinessesRoute
+  AuthenticatedMetaConnectRoute: typeof AuthenticatedMetaConnectRoute
+  AuthenticatedMetaLogsRoute: typeof AuthenticatedMetaLogsRoute
+  AuthenticatedMetaNumbersRoute: typeof AuthenticatedMetaNumbersRoute
+  AuthenticatedMetaOverviewRoute: typeof AuthenticatedMetaOverviewRoute
+  AuthenticatedMetaSettingsRoute: typeof AuthenticatedMetaSettingsRoute
+  AuthenticatedMetaTemplatesRoute: typeof AuthenticatedMetaTemplatesRoute
+  AuthenticatedMetaTokensRoute: typeof AuthenticatedMetaTokensRoute
+  AuthenticatedMetaWebhooksRoute: typeof AuthenticatedMetaWebhooksRoute
+  AuthenticatedMetaIndexRoute: typeof AuthenticatedMetaIndexRoute
+}
+
+const AuthenticatedMetaRouteChildren: AuthenticatedMetaRouteChildren = {
+  AuthenticatedMetaBusinessesRoute: AuthenticatedMetaBusinessesRoute,
+  AuthenticatedMetaConnectRoute: AuthenticatedMetaConnectRoute,
+  AuthenticatedMetaLogsRoute: AuthenticatedMetaLogsRoute,
+  AuthenticatedMetaNumbersRoute: AuthenticatedMetaNumbersRoute,
+  AuthenticatedMetaOverviewRoute: AuthenticatedMetaOverviewRoute,
+  AuthenticatedMetaSettingsRoute: AuthenticatedMetaSettingsRoute,
+  AuthenticatedMetaTemplatesRoute: AuthenticatedMetaTemplatesRoute,
+  AuthenticatedMetaTokensRoute: AuthenticatedMetaTokensRoute,
+  AuthenticatedMetaWebhooksRoute: AuthenticatedMetaWebhooksRoute,
+  AuthenticatedMetaIndexRoute: AuthenticatedMetaIndexRoute,
+}
+
+const AuthenticatedMetaRouteWithChildren =
+  AuthenticatedMetaRoute._addFileChildren(AuthenticatedMetaRouteChildren)
+
 interface AuthenticatedReportsRouteChildren {
   AuthenticatedReportsExportsRoute: typeof AuthenticatedReportsExportsRoute
   AuthenticatedReportsListsRoute: typeof AuthenticatedReportsListsRoute
@@ -866,6 +1109,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedInboxRoute: typeof AuthenticatedInboxRoute
   AuthenticatedKnowledgeRoute: typeof AuthenticatedKnowledgeRoute
   AuthenticatedLeadsRoute: typeof AuthenticatedLeadsRouteWithChildren
+  AuthenticatedMetaRoute: typeof AuthenticatedMetaRouteWithChildren
   AuthenticatedReportsRoute: typeof AuthenticatedReportsRouteWithChildren
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRouteWithChildren
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
@@ -878,6 +1122,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedInboxRoute: AuthenticatedInboxRoute,
   AuthenticatedKnowledgeRoute: AuthenticatedKnowledgeRoute,
   AuthenticatedLeadsRoute: AuthenticatedLeadsRouteWithChildren,
+  AuthenticatedMetaRoute: AuthenticatedMetaRouteWithChildren,
   AuthenticatedReportsRoute: AuthenticatedReportsRouteWithChildren,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRouteWithChildren,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
