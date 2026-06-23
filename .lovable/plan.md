@@ -1,102 +1,142 @@
-# WhatsApp Cloud — Tech Provider (Embedded Signup, multi-tenant)
+# Meta Integration — Embedded Signup + WhatsApp Cloud (Multi-Tenant)
 
-Evoluir o módulo atual para um conector Meta completo onde cada tenant conecta seu próprio WABA via Embedded Signup, e o app passa a operar como Tech Provider (Solution Partner).
+Escopo enorme. Vou dividir em **6 fases entregáveis**, cada uma testável de ponta a ponta. Confirme as fases antes de eu começar a codar.
 
-## Entregáveis por fase
+## Arquitetura central
 
-### Fase 1 — Multi-tenant + Embedded Signup
-- Schema: estender `whatsapp_cloud_accounts` para guardar por tenant: `waba_id`, `phone_number_id`, `business_id`, `display_phone_number`, `verified_name`, `access_token_encrypted` (token de longa duração do cliente), `token_expires_at`, `solution_id`, `installed_by_user_id`, `status` (`pending|connected|revoked|error`), `last_error`. RLS por `tenant_id` (já existe coluna).
-- Secret novo: `META_SOLUTION_ID` (você fornece). Reaproveita `META_APP_ID`, `META_APP_SECRET`, `META_WEBHOOK_VERIFY_TOKEN`.
-- Botão **Conectar WhatsApp** dispara `FB.login` com `config_id` (Embedded Signup), `extras.feature: 'whatsapp_embedded_signup'`, `extras.setup.solutionID`.
-- Escuta `message` event do popup com `phone_number_id`, `waba_id`.
-- Server fn `exchangeSignupCode`: troca `code` por **system user access token de longa duração** do cliente via `/oauth/access_token` + `/{waba_id}/subscribed_apps` para assinar o app no WABA.
-- Criptografia simples do token em repouso (AES-GCM com `WHATSAPP_TOKEN_ENC_KEY` gerada).
-- UI: card "WhatsApp Cloud" com estado (Conectado / Pendente / Erro), número exibido, botão Desconectar.
+**Meta Connector SDK** (`src/lib/meta-connector/`): único ponto de saída para a Graph API. Todo módulo (CRM, IA, campanhas, webhooks) consome o SDK — nada chama a Meta diretamente.
 
-### Fase 2 — Webhooks multi-tenant + Phone Numbers + WABA
-- Webhook `meta-whatsapp.ts` já existe → resolver `whatsapp_business_account_id` do payload e rotear pro tenant correto.
-- Server fns: `listPhoneNumbers(waba_id)`, `getPhoneNumber(id)` (display_phone_number, quality_rating, throughput, messaging_limit_tier), `requestVerificationCode`, `verifyCode`, `register` (registro do número no Cloud API), `setTwoStepPin`.
-- Página `/settings/whatsapp-cloud/numbers`: lista, status, ações de registro/verificação.
-- WABA info: nome, business_id, on-behalf-of, on-call status.
+```text
+src/lib/meta-connector/
+├── client.ts          graphFetch + retry + rate limit
+├── crypto.ts          AES-256-GCM (tokens encrypted at rest)
+├── businesses.ts      connect / disconnect / list
+├── waba.ts            list WABAs, subscribe, info
+├── phones.ts          list, register, verify, display name
+├── templates.ts       CRUD + sync
+├── messages.ts        send (text/template/media/interactive)
+├── media.ts           upload/download
+├── webhooks.ts        verify + dispatch
+├── tokens.ts          refresh, expiration, rotate
+└── types.ts
+```
 
-### Fase 3 — Templates avançados + Media
-- Estender `whatsapp_cloud_templates`: `category`, `language`, `components_json` (header/body/footer/buttons), `example_json`.
-- CRUD: criar/editar/excluir via `/{waba_id}/message_templates` (com header IMAGE/VIDEO/DOCUMENT + handle de upload).
-- Upload de mídia para template: `/{app_id}/uploads` (resumable upload sessions) → handle `h:...`.
-- Upload de mídia para envio: `/{phone_number_id}/media` → `media_id`.
-- Editor visual de template com preview e variáveis.
-- Submeter para aprovação + sincronizar status via webhook `message_template_status_update`.
+**Multi-tenant**: tudo escopado por `company_id` (= tenant). RLS força isolamento — nenhuma query cross-tenant possível mesmo via bug.
 
-### Fase 4 — Messages + Contacts
-- Enviar template, texto, mídia, interativos (botões/listas) via broker.
-- Sincronizar `messages` (status: sent/delivered/read/failed + error code).
-- Auto-popular `contacts` de mensagens recebidas (já parcialmente feito).
-- Janela 24h: indicador na UI de "fora da janela → só template".
+## Modelo de dados (Fase 0)
 
-### Fase 5 — Billing + Conversation Analytics + Tokens
-- `/{waba_id}/conversation_analytics`: custo por categoria (marketing/utility/auth/service), volume, países.
-- Dashboard de billing por tenant.
-- Painel de tokens: ver `token_expires_at`, alerta de expiração, botão "Reconectar".
-- Auditoria: log de eventos do conector (instalado, revogado, número adicionado, template aprovado/reprovado).
+Novas tabelas (cada uma com RLS por `company_id` via `user_companies`):
+
+- `companies` — tenant raiz (id, name, slug, created_at)
+- `user_companies` — N:N usuário ↔ tenant + role (`meta_admin`/`meta_manager`/`meta_viewer`)
+- `meta_businesses` — Business Portfolio Meta conectado
+- `meta_whatsapp_accounts` — WABA (waba_id, business_id, status)
+- `meta_phone_numbers` — números (phone_number_id, display_name, quality, limit, verified)
+- `meta_tokens` — access/refresh token **encriptado**, expires_at, scopes, system_user_id
+- `meta_webhooks` — config webhook por tenant (verify_token, status, last_event_at)
+- `meta_webhook_events` — log bruto de eventos recebidos (para reprocessar)
+- `meta_templates` — templates sincronizados (estende `whatsapp_cloud_templates`)
+- `meta_logs` — auditoria (signup, token refresh, webhook, falhas)
+
+Migração das tabelas atuais (`whatsapp_cloud_accounts`) para o novo modelo via script de backfill.
+
+Novo enum `app_role`: adiciona `meta_admin`, `meta_manager`, `meta_viewer` ao existente.
+
+Função `has_company_role(company_id, role)` SECURITY DEFINER — usada em todas as policies.
+
+## Fases
+
+### Fase 1 — Fundação multi-tenant + SDK base
+- Migração: `companies`, `user_companies`, RLS, função `current_company_id()` (cookie ou seleção UI).
+- SDK Meta Connector skeleton (`client.ts`, `crypto.ts`, `tokens.ts`).
+- Secret `META_TOKEN_ENCRYPTION_KEY` (32 bytes) gerado.
+- Seletor de tenant no header (se usuário ∈ múltiplos).
+
+### Fase 2 — Embedded Signup + persistência
+- Botão **Conectar WhatsApp** carrega `fb-sdk.js` e dispara `FB.login` com `config_id` (Solution ID já cadastrado em `META_LOGIN_CONFIG_ID`).
+- Callback recebe `code` + `signup data` → server fn `exchangeSignupCode`:
+  - Troca por long-lived token (60d).
+  - Cria System User token (permanente).
+  - Lê `/debug_token`, lista WABAs, números.
+  - Persiste em `meta_businesses` + `meta_whatsapp_accounts` + `meta_phone_numbers` + `meta_tokens` (encriptado).
+  - Subscribe app ao WABA (`POST /{waba-id}/subscribed_apps`).
+  - Registra `display_phone_number` + PIN (se número novo).
+- Tela **Visão Geral** com status + botões Reconectar/Atualizar/Desconectar.
+
+### Fase 3 — Webhooks multi-tenant + Templates
+- Rota pública `/api/public/webhooks/meta` (já existe `meta-whatsapp.ts`) refatorada:
+  - Valida assinatura `x-hub-signature-256` com `META_APP_SECRET`.
+  - Roteia evento por `entry[].id` (= WABA id) → resolve `company_id`.
+  - Persiste em `meta_webhook_events`, dispara handlers por tipo.
+  - Eventos: `messages`, `message_status`, `template_status_update`, `phone_number_name_update`, `account_update`, `quality_update`.
+- UI **Webhooks**: status, último evento, reprocessar, erros.
+- UI **Templates**: lista, sincronizar, criar (visual builder simples), editar, deletar.
+- UI **Números**: lista, qualidade, limite, registrar novo.
+
+### Fase 4 — Mensagens + Mídia + CRM auto-provisioning
+- SDK `messages.ts`: `sendText`, `sendTemplate`, `sendMedia`, `sendInteractive`.
+- SDK `media.ts`: upload (resumable), download (com auth).
+- Auto-criação ao conectar: inbox padrão, fila, primeiro operador, contato webhook.
+- Sync de status (sent/delivered/read/failed) na tabela `messages` existente.
+
+### Fase 5 — Tokens, Logs, IA, Admin
+- Job (cron via `/api/public/cron/refresh-tokens`) renova tokens < 7d antes de expirar.
+- Tela **Tokens**: gerado, expira, escopos, renovar manual.
+- Tela **Logs** com filtro por tipo/severidade.
+- Configuração de IA por tenant (assistente, prompt, modelo, KB) — reusa `ai_bot_configs`.
+- Tela **Meta Administration** (role `admin` global): todas empresas, WABAs, números, tokens, eventos.
+
+### Fase 6 — Wizard + Sandbox + Monitoramento
+- Wizard 5 passos: empresa → conectar Meta → Embedded Signup → IA → concluir.
+- Modo Sandbox (toggle): usa número de teste Meta, isolado de produção.
+- Dashboard de monitoramento: conexões ativas, msg/dia, falhas, tokens expirando, qualidade.
 
 ## Detalhes técnicos
 
-### Embedded Signup — fluxo
-```
-Cliente clica "Conectar WhatsApp"
-  └─ FB.login({ config_id: META_LOGIN_CONFIG_ID, response_type:'code',
-                override_default_response_type:true,
-                extras:{ feature:'whatsapp_embedded_signup',
-                         setup:{ solutionID: META_SOLUTION_ID } } })
-  └─ window.addEventListener('message') captura { phone_number_id, waba_id }
-  └─ POST /api/whatsapp-cloud/embedded-signup { code, phone_number_id, waba_id }
-        ├─ GET graph.facebook.com/v21.0/oauth/access_token?client_id&client_secret&code  → access_token (longa duração)
-        ├─ POST /{waba_id}/subscribed_apps  (Authorization: Bearer <client_token>)
-        ├─ POST /{phone_number_id}/register (pin)
-        └─ INSERT/UPDATE whatsapp_cloud_accounts (token criptografado)
-```
+**Criptografia de tokens**: AES-256-GCM com chave em `META_TOKEN_ENCRYPTION_KEY`. Funções `encryptToken()`/`decryptToken()` em `crypto.ts`. Tokens **nunca** retornados ao client — apenas flag `has_token` + `expires_at`.
 
-### Criptografia de tokens
-`WHATSAPP_TOKEN_ENC_KEY` (32 bytes random, gerada via generate_secret). AES-256-GCM com IV aleatório por linha. Helpers em `src/lib/whatsapp-cloud.server.ts`.
-
-### Helper Graph API por tenant
-`graphFetch(account, path, init)`:
-- decripta token
-- monta `https://graph.facebook.com/v21.0{path}`
-- adiciona `Authorization: Bearer <decrypted>`
-- trata erro `190` (token inválido) → marca account `status='revoked'` e exige reconexão
-
-### Estrutura de arquivos novos/alterados
+**graphFetch helper** (assinatura):
+```ts
+graphFetch(companyId, path, { method, body, useSystemUser? })
 ```
-src/
-├── lib/
-│   ├── whatsapp-cloud.server.ts          # estender: graphFetch(account), token enc/dec, exchangeCode
-│   ├── whatsapp-cloud-crypto.server.ts   # NOVO — AES-GCM helpers
-│   └── whatsapp-cloud.functions.ts       # NOVO — server fns chamadas do front
-├── routes/
-│   ├── _authenticated.settings.whatsapp-cloud.tsx     # reescrever UI (multi-tenant)
-│   ├── _authenticated.settings.whatsapp-numbers.tsx   # F2
-│   ├── _authenticated.settings.whatsapp-billing.tsx   # F5
-│   └── api/
-│       ├── public/webhooks/meta-whatsapp.ts           # roteamento por waba_id
-│       └── -whatsapp-cloud-*.server.ts                # handlers internos
+Carrega token do tenant, decripta, faz request, trata 401 (token expirado → tenta refresh → retry), 4xx (loga em `meta_logs`), 5xx (retry com backoff).
+
+**Rotas/arquivos novos principais**:
+```text
+src/lib/meta-connector/...
+src/lib/meta.functions.ts          // server fns expostas ao client
+src/routes/_authenticated.meta.tsx                   // layout + sidebar
+src/routes/_authenticated.meta.overview.tsx
+src/routes/_authenticated.meta.connect.tsx
+src/routes/_authenticated.meta.numbers.tsx
+src/routes/_authenticated.meta.businesses.tsx
+src/routes/_authenticated.meta.tokens.tsx
+src/routes/_authenticated.meta.templates.tsx
+src/routes/_authenticated.meta.webhooks.tsx
+src/routes/_authenticated.meta.logs.tsx
+src/routes/_authenticated.meta.settings.tsx
+src/routes/_authenticated.meta.admin.tsx             // role admin
+src/components/meta/EmbeddedSignupButton.tsx
+src/components/meta/ConnectionStatusCard.tsx
+src/components/meta/TemplateEditor.tsx
+src/components/meta/Wizard.tsx
 ```
 
-### Migrações
-1. F1: alterar `whatsapp_cloud_accounts` (colunas novas, unique em `(tenant_id, waba_id)`), criar tabela `whatsapp_cloud_events` (audit log).
-2. F3: estender `whatsapp_cloud_templates` (componentes JSON, example).
+**Secrets necessários** (já presentes: `META_APP_ID`, `META_APP_SECRET`, `META_LOGIN_CONFIG_ID`, `META_WEBHOOK_VERIFY_TOKEN`). Vou gerar:
+- `META_TOKEN_ENCRYPTION_KEY` (32 bytes — `generate_secret`)
 
-### Secrets
-- novos: `META_SOLUTION_ID` (você cola), `WHATSAPP_TOKEN_ENC_KEY` (gerada).
-- existentes reutilizados: `META_APP_ID`, `META_APP_SECRET`, `META_LOGIN_CONFIG_ID`, `META_WEBHOOK_VERIFY_TOKEN`.
+**Tabelas existentes a preservar/migrar**: `whatsapp_cloud_accounts`, `whatsapp_cloud_templates`, `whatsapp_cloud_events`, `messages`, `contacts`, `conversations`. Não dropar — adapter mantém compat enquanto migramos.
 
-### Segurança
-- Token do cliente nunca volta pro front; só `status` + `display_phone_number`.
-- Server fn `exchangeSignupCode` exige `requireSupabaseAuth` + `has_role` (admin do tenant).
-- Webhook continua validando `x-hub-signature-256`.
+## Tamanho e estratégia de entrega
 
-## Execução proposta
+Cada fase é ~1-2k linhas + 1 migração. **Não dá pra entregar tudo num turno só** sem virar um patch ingovernável. Sugiro:
 
-Implementar **agora apenas a Fase 1** (Embedded Signup multi-tenant funcionando ponta-a-ponta). Depois você testa conectar um WABA real, e seguimos para F2–F5 incrementalmente.
+1. Eu implemento **Fase 1 + Fase 2** agora (fundação + signup funcionando ponta a ponta). Você testa o Embedded Signup real.
+2. Depois confirmamos cada fase seguinte.
 
-Confirma a Fase 1? Vou pedir o `META_SOLUTION_ID` no próximo passo (precisa colar do Meta App Dashboard → Configurações Avançadas → Solution ID).
+## Pergunta antes de começar
+
+1. **Multi-tenancy hoje**: o app atual não tem `companies` — todos os usuários compartilham dados. Posso introduzir `companies` agora com migração que coloca todo mundo numa company default "Padrão", ou você prefere que isso fique pra fase posterior e Fase 1/2 sigam single-tenant?
+2. **Manter tabelas `whatsapp_cloud_*`** atuais como legado (adapter) ou refatorar in-place renomeando pra `meta_*`?
+
+Responda 1 e 2 que eu já parto pra Fase 1 + 2.
