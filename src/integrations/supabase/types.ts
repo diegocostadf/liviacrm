@@ -1070,14 +1070,20 @@ export type Database = {
       whatsapp_cloud_accounts: {
         Row: {
           access_token: string
+          business_id: string | null
           business_name: string | null
           created_at: string
           created_by: string | null
           display_phone_number: string | null
           id: string
+          installed_by_user_id: string | null
           is_default: boolean
+          last_error: string | null
+          last_token_refresh_at: string | null
           phone_number_id: string
           raw: Json
+          solution_id: string | null
+          status: string
           token_expires_at: string | null
           updated_at: string
           verified_name: string | null
@@ -1086,14 +1092,20 @@ export type Database = {
         }
         Insert: {
           access_token: string
+          business_id?: string | null
           business_name?: string | null
           created_at?: string
           created_by?: string | null
           display_phone_number?: string | null
           id?: string
+          installed_by_user_id?: string | null
           is_default?: boolean
+          last_error?: string | null
+          last_token_refresh_at?: string | null
           phone_number_id: string
           raw?: Json
+          solution_id?: string | null
+          status?: string
           token_expires_at?: string | null
           updated_at?: string
           verified_name?: string | null
@@ -1102,14 +1114,20 @@ export type Database = {
         }
         Update: {
           access_token?: string
+          business_id?: string | null
           business_name?: string | null
           created_at?: string
           created_by?: string | null
           display_phone_number?: string | null
           id?: string
+          installed_by_user_id?: string | null
           is_default?: boolean
+          last_error?: string | null
+          last_token_refresh_at?: string | null
           phone_number_id?: string
           raw?: Json
+          solution_id?: string | null
+          status?: string
           token_expires_at?: string | null
           updated_at?: string
           verified_name?: string | null
@@ -1117,6 +1135,44 @@ export type Database = {
           webhook_subscribed?: boolean
         }
         Relationships: []
+      }
+      whatsapp_cloud_events: {
+        Row: {
+          account_id: string | null
+          created_at: string
+          created_by: string | null
+          detail: Json
+          event_type: string
+          id: string
+          waba_id: string | null
+        }
+        Insert: {
+          account_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          detail?: Json
+          event_type: string
+          id?: string
+          waba_id?: string | null
+        }
+        Update: {
+          account_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          detail?: Json
+          event_type?: string
+          id?: string
+          waba_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_cloud_events_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_cloud_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       whatsapp_cloud_templates: {
         Row: {
