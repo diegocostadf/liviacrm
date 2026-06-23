@@ -870,6 +870,302 @@ export type Database = {
           },
         ]
       }
+      meta_businesses: {
+        Row: {
+          business_name: string
+          connected_at: string
+          created_at: string
+          disconnected_at: string | null
+          id: string
+          meta_business_id: string
+          portfolio_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          business_name: string
+          connected_at?: string
+          created_at?: string
+          disconnected_at?: string | null
+          id?: string
+          meta_business_id: string
+          portfolio_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          business_name?: string
+          connected_at?: string
+          created_at?: string
+          disconnected_at?: string | null
+          id?: string
+          meta_business_id?: string
+          portfolio_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      meta_logs: {
+        Row: {
+          created_at: string
+          id: string
+          kind: string
+          level: string
+          message: string
+          meta: Json | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kind: string
+          level?: string
+          message: string
+          meta?: Json | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kind?: string
+          level?: string
+          message?: string
+          meta?: Json | null
+        }
+        Relationships: []
+      }
+      meta_phone_numbers: {
+        Row: {
+          created_at: string
+          display_phone_number: string
+          id: string
+          is_default: boolean
+          messaging_limit: string | null
+          phone_number_id: string
+          quality_rating: string | null
+          registered_at: string | null
+          status: string | null
+          updated_at: string
+          verified_name: string | null
+          waba_id: string
+        }
+        Insert: {
+          created_at?: string
+          display_phone_number: string
+          id?: string
+          is_default?: boolean
+          messaging_limit?: string | null
+          phone_number_id: string
+          quality_rating?: string | null
+          registered_at?: string | null
+          status?: string | null
+          updated_at?: string
+          verified_name?: string | null
+          waba_id: string
+        }
+        Update: {
+          created_at?: string
+          display_phone_number?: string
+          id?: string
+          is_default?: boolean
+          messaging_limit?: string | null
+          phone_number_id?: string
+          quality_rating?: string | null
+          registered_at?: string | null
+          status?: string | null
+          updated_at?: string
+          verified_name?: string | null
+          waba_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_phone_numbers_waba_id_fkey"
+            columns: ["waba_id"]
+            isOneToOne: false
+            referencedRelation: "meta_whatsapp_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meta_tokens: {
+        Row: {
+          business_id: string
+          created_at: string
+          expires_at: string | null
+          id: string
+          is_active: boolean
+          kind: string
+          last_refreshed_at: string
+          scopes: string[] | null
+          system_user_id: string | null
+          token_encrypted: string
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          kind?: string
+          last_refreshed_at?: string
+          scopes?: string[] | null
+          system_user_id?: string | null
+          token_encrypted: string
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          kind?: string
+          last_refreshed_at?: string
+          scopes?: string[] | null
+          system_user_id?: string | null
+          token_encrypted?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_tokens_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "meta_businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meta_webhook_events: {
+        Row: {
+          error: string | null
+          event_type: string
+          id: string
+          payload: Json
+          processed: boolean
+          processed_at: string | null
+          received_at: string
+          waba_id: string | null
+        }
+        Insert: {
+          error?: string | null
+          event_type: string
+          id?: string
+          payload: Json
+          processed?: boolean
+          processed_at?: string | null
+          received_at?: string
+          waba_id?: string | null
+        }
+        Update: {
+          error?: string | null
+          event_type?: string
+          id?: string
+          payload?: Json
+          processed?: boolean
+          processed_at?: string | null
+          received_at?: string
+          waba_id?: string | null
+        }
+        Relationships: []
+      }
+      meta_webhooks: {
+        Row: {
+          callback_url: string
+          created_at: string
+          id: string
+          last_error: string | null
+          last_event_at: string | null
+          status: string
+          updated_at: string
+          verify_token: string
+          waba_id: string
+        }
+        Insert: {
+          callback_url: string
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          last_event_at?: string | null
+          status?: string
+          updated_at?: string
+          verify_token: string
+          waba_id: string
+        }
+        Update: {
+          callback_url?: string
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          last_event_at?: string | null
+          status?: string
+          updated_at?: string
+          verify_token?: string
+          waba_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_webhooks_waba_id_fkey"
+            columns: ["waba_id"]
+            isOneToOne: false
+            referencedRelation: "meta_whatsapp_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meta_whatsapp_accounts: {
+        Row: {
+          business_id: string
+          created_at: string
+          currency: string | null
+          id: string
+          message_template_namespace: string | null
+          name: string | null
+          status: string
+          subscribed: boolean
+          subscribed_at: string | null
+          timezone_id: string | null
+          updated_at: string
+          waba_id: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          currency?: string | null
+          id?: string
+          message_template_namespace?: string | null
+          name?: string | null
+          status?: string
+          subscribed?: boolean
+          subscribed_at?: string | null
+          timezone_id?: string | null
+          updated_at?: string
+          waba_id: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          currency?: string | null
+          id?: string
+          message_template_namespace?: string | null
+          name?: string | null
+          status?: string
+          subscribed?: boolean
+          subscribed_at?: string | null
+          timezone_id?: string | null
+          updated_at?: string
+          waba_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_whatsapp_accounts_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "meta_businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
