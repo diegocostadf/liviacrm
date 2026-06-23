@@ -70,5 +70,10 @@ export async function logMeta(
   message: string,
   meta?: Record<string, unknown>,
 ) {
-  await supabaseAdmin.from("meta_logs").insert({ kind, level, message, meta: meta ?? null });
+  await supabaseAdmin.from("meta_logs").insert({
+    kind,
+    level,
+    message,
+    meta: (meta ?? null) as never,
+  });
 }
