@@ -1,83 +1,102 @@
-## WhatsApp Cloud API (Meta) — novo provedor
+# WhatsApp Cloud — Tech Provider (Embedded Signup, multi-tenant)
 
-Adicionar a Meta Cloud API como terceiro provedor de mensageria, com gestão completa de templates e Embedded Signup.
+Evoluir o módulo atual para um conector Meta completo onde cada tenant conecta seu próprio WABA via Embedded Signup, e o app passa a operar como Tech Provider (Solution Partner).
 
-### 1. Pré-requisitos que você precisa providenciar
+## Entregáveis por fase
 
-Para usar **Embedded Signup oficial** da Meta, é obrigatório:
+### Fase 1 — Multi-tenant + Embedded Signup
+- Schema: estender `whatsapp_cloud_accounts` para guardar por tenant: `waba_id`, `phone_number_id`, `business_id`, `display_phone_number`, `verified_name`, `access_token_encrypted` (token de longa duração do cliente), `token_expires_at`, `solution_id`, `installed_by_user_id`, `status` (`pending|connected|revoked|error`), `last_error`. RLS por `tenant_id` (já existe coluna).
+- Secret novo: `META_SOLUTION_ID` (você fornece). Reaproveita `META_APP_ID`, `META_APP_SECRET`, `META_WEBHOOK_VERIFY_TOKEN`.
+- Botão **Conectar WhatsApp** dispara `FB.login` com `config_id` (Embedded Signup), `extras.feature: 'whatsapp_embedded_signup'`, `extras.setup.solutionID`.
+- Escuta `message` event do popup com `phone_number_id`, `waba_id`.
+- Server fn `exchangeSignupCode`: troca `code` por **system user access token de longa duração** do cliente via `/oauth/access_token` + `/{waba_id}/subscribed_apps` para assinar o app no WABA.
+- Criptografia simples do token em repouso (AES-GCM com `WHATSAPP_TOKEN_ENC_KEY` gerada).
+- UI: card "WhatsApp Cloud" com estado (Conectado / Pendente / Erro), número exibido, botão Desconectar.
 
-1. Um **Meta App** (developers.facebook.com) com os produtos **WhatsApp** e **Facebook Login for Business** habilitados, em modo Live e com o caso de uso "Solution Partner" aprovado.
-2. Uma **Configuration ID** do Login for Business (define os escopos `whatsapp_business_management` + `whatsapp_business_messaging` e perfis WABA solicitados).
-3. Os seguintes secrets que pedirei via formulário seguro:
-   - `META_APP_ID`
-   - `META_APP_SECRET`
-   - `META_LOGIN_CONFIG_ID`
-   - `META_WEBHOOK_VERIFY_TOKEN` (você inventa uma string aleatória; usaremos para validar webhook)
-   - `META_SYSTEM_USER_TOKEN` (opcional, fallback quando o cliente quer pular OAuth)
+### Fase 2 — Webhooks multi-tenant + Phone Numbers + WABA
+- Webhook `meta-whatsapp.ts` já existe → resolver `whatsapp_business_account_id` do payload e rotear pro tenant correto.
+- Server fns: `listPhoneNumbers(waba_id)`, `getPhoneNumber(id)` (display_phone_number, quality_rating, throughput, messaging_limit_tier), `requestVerificationCode`, `verifyCode`, `register` (registro do número no Cloud API), `setTwoStepPin`.
+- Página `/settings/whatsapp-cloud/numbers`: lista, status, ações de registro/verificação.
+- WABA info: nome, business_id, on-behalf-of, on-call status.
 
-Sem o Meta App aprovado pela Meta o botão "Conectar" abre o popup mas não retorna WABA — não há como o Lovable contornar isso. Implemento toda a infraestrutura mesmo assim para você plugar quando o app estiver liberado.
+### Fase 3 — Templates avançados + Media
+- Estender `whatsapp_cloud_templates`: `category`, `language`, `components_json` (header/body/footer/buttons), `example_json`.
+- CRUD: criar/editar/excluir via `/{waba_id}/message_templates` (com header IMAGE/VIDEO/DOCUMENT + handle de upload).
+- Upload de mídia para template: `/{app_id}/uploads` (resumable upload sessions) → handle `h:...`.
+- Upload de mídia para envio: `/{phone_number_id}/media` → `media_id`.
+- Editor visual de template com preview e variáveis.
+- Submeter para aprovação + sincronizar status via webhook `message_template_status_update`.
 
-### 2. Banco de dados
+### Fase 4 — Messages + Contacts
+- Enviar template, texto, mídia, interativos (botões/listas) via broker.
+- Sincronizar `messages` (status: sent/delivered/read/failed + error code).
+- Auto-popular `contacts` de mensagens recebidas (já parcialmente feito).
+- Janela 24h: indicador na UI de "fora da janela → só template".
 
-Novo migration:
+### Fase 5 — Billing + Conversation Analytics + Tokens
+- `/{waba_id}/conversation_analytics`: custo por categoria (marketing/utility/auth/service), volume, países.
+- Dashboard de billing por tenant.
+- Painel de tokens: ver `token_expires_at`, alerta de expiração, botão "Reconectar".
+- Auditoria: log de eventos do conector (instalado, revogado, número adicionado, template aprovado/reprovado).
 
-- `whatsapp_cloud_templates` — espelho local dos templates da Meta (nome, idioma, categoria, status APPROVED/PENDING/REJECTED, rejection_reason, components JSONB, last_synced_at, waba_id).
-- `whatsapp_cloud_accounts` — uma linha por WABA conectada (waba_id, business_name, access_token, phone_number_id, display_phone, verified_name, webhook_subscribed).
-- `app_settings.key='whatsapp_cloud'` guarda app credentials e default account.
-- Estender `campaign_steps` e `campaigns` com `cloud_template_id` (uuid) e `cloud_template_variables` (jsonb) — opcionais, usados só quando provider=cloud.
-- Provider enum global passa a aceitar `"evolution" | "twilio" | "cloud"`.
+## Detalhes técnicos
 
-### 3. Backend
-
-- `src/lib/whatsapp-cloud.server.ts` — wrapper Graph API v21 (listar templates, criar, editar, excluir, enviar mensagem template, trocar code→token, subscribe webhook na WABA).
-- `src/lib/messaging-broker.server.ts` — adicionar branch `cloud` que envia via Graph com `template.name + language + components[variables]`.
-- `src/routes/api/-whatsapp-cloud-settings.server.ts` (+ rota `/api/whatsapp-cloud-settings`) — admin-only: GET/save app credentials, trocar code OAuth por long-lived token, listar WABAs, escolher número, subscribe webhook.
-- `src/routes/api/-whatsapp-cloud-templates.server.ts` (+ rota) — listar/sync, criar, editar, excluir templates; testar envio.
-- `src/routes/api/public/webhooks/meta-whatsapp.ts` — público:
-  - `GET` valida `hub.verify_token` contra `META_WEBHOOK_VERIFY_TOKEN`.
-  - `POST` valida assinatura `x-hub-signature-256` com HMAC do `META_APP_SECRET`, processa eventos `message_template_status_update` (atualiza linha local) e `messages` (insere em conversations/messages como o Twilio webhook já faz).
-
-### 4. Frontend — Configurações
-
-- Renomear/atualizar `/settings/whatsapp` para listar 3 provedores (Evolution, Twilio, **Cloud**).
-- Novo `src/routes/_authenticated.settings.whatsapp-cloud.tsx` — wizard de 5 passos:
-  1. App Meta (App ID / Config ID / Verify token) — salva e mostra URL do webhook para colar no Meta App Dashboard.
-  2. Conectar conta (botão Embedded Signup → carrega `connect.facebook.net/en_US/sdk.js`, chama `FB.login` com config_id, recebe code, backend troca por token, lista WABAs e números).
-  3. Escolher número padrão + subscribe webhook na WABA.
-  4. Testes (ping Graph, enviar template aprovado para número).
-  5. Resumo + status do webhook.
-- Novo `src/routes/_authenticated.settings.whatsapp-templates.tsx` — tabela de templates com filtro por status, botões Sync, Criar, Editar, Excluir.
-- `CreateTemplateDialog` — formulário com header (texto/imagem opcional), body com variáveis `{{1}}…{{n}}`, footer, e até 3 botões (Quick Reply / URL / Phone). Mostra preview e categoria (MARKETING / UTILITY / AUTHENTICATION).
-
-### 5. Frontend — Campanhas
-
-- Em `CampaignSequence`, quando `provider==='cloud'`, mostrar seletor de template aprovado em vez do campo de texto livre, e renderizar inputs para cada variável do template (mapeáveis a campos do contato).
-- Validação: bloquear publicar campanha cloud sem template APPROVED.
-
-### 6. Menu
-
-- Adicionar "Templates WhatsApp" sob Configurações no `app-shell`.
-
-### Detalhes técnicos
-
-```text
-Webhook URL pública (cole no Meta App Dashboard):
-  https://liviacrm.lovable.app/api/public/webhooks/meta-whatsapp
-
-Endpoints Graph usados (v21.0):
-  POST /oauth/access_token                              → troca code por token
-  GET  /{waba_id}/message_templates                     → listar
-  POST /{waba_id}/message_templates                     → criar
-  POST /{template_id}                                   → editar
-  DEL  /{waba_id}/message_templates?hsm_id=...          → excluir
-  POST /{phone_number_id}/messages                      → enviar
-  POST /{waba_id}/subscribed_apps                       → subscribe webhook
+### Embedded Signup — fluxo
+```
+Cliente clica "Conectar WhatsApp"
+  └─ FB.login({ config_id: META_LOGIN_CONFIG_ID, response_type:'code',
+                override_default_response_type:true,
+                extras:{ feature:'whatsapp_embedded_signup',
+                         setup:{ solutionID: META_SOLUTION_ID } } })
+  └─ window.addEventListener('message') captura { phone_number_id, waba_id }
+  └─ POST /api/whatsapp-cloud/embedded-signup { code, phone_number_id, waba_id }
+        ├─ GET graph.facebook.com/v21.0/oauth/access_token?client_id&client_secret&code  → access_token (longa duração)
+        ├─ POST /{waba_id}/subscribed_apps  (Authorization: Bearer <client_token>)
+        ├─ POST /{phone_number_id}/register (pin)
+        └─ INSERT/UPDATE whatsapp_cloud_accounts (token criptografado)
 ```
 
-Status de templates são atualizados em tempo real via webhook `message_template_status_update`; o botão Sync força um pull manual via Graph.
+### Criptografia de tokens
+`WHATSAPP_TOKEN_ENC_KEY` (32 bytes random, gerada via generate_secret). AES-256-GCM com IV aleatório por linha. Helpers em `src/lib/whatsapp-cloud.server.ts`.
 
-### Fora de escopo (posso fazer depois se quiser)
+### Helper Graph API por tenant
+`graphFetch(account, path, init)`:
+- decripta token
+- monta `https://graph.facebook.com/v21.0{path}`
+- adiciona `Authorization: Bearer <decrypted>`
+- trata erro `190` (token inválido) → marca account `status='revoked'` e exige reconexão
 
-- Catálogo / produtos / fluxos interativos avançados (list / button messages com payload).
-- Templates de mídia com upload direto pro Resumable Upload da Meta (faço só URL pública no primeiro corte).
-- Migração automática de campanhas Twilio → Cloud.
+### Estrutura de arquivos novos/alterados
+```
+src/
+├── lib/
+│   ├── whatsapp-cloud.server.ts          # estender: graphFetch(account), token enc/dec, exchangeCode
+│   ├── whatsapp-cloud-crypto.server.ts   # NOVO — AES-GCM helpers
+│   └── whatsapp-cloud.functions.ts       # NOVO — server fns chamadas do front
+├── routes/
+│   ├── _authenticated.settings.whatsapp-cloud.tsx     # reescrever UI (multi-tenant)
+│   ├── _authenticated.settings.whatsapp-numbers.tsx   # F2
+│   ├── _authenticated.settings.whatsapp-billing.tsx   # F5
+│   └── api/
+│       ├── public/webhooks/meta-whatsapp.ts           # roteamento por waba_id
+│       └── -whatsapp-cloud-*.server.ts                # handlers internos
+```
+
+### Migrações
+1. F1: alterar `whatsapp_cloud_accounts` (colunas novas, unique em `(tenant_id, waba_id)`), criar tabela `whatsapp_cloud_events` (audit log).
+2. F3: estender `whatsapp_cloud_templates` (componentes JSON, example).
+
+### Secrets
+- novos: `META_SOLUTION_ID` (você cola), `WHATSAPP_TOKEN_ENC_KEY` (gerada).
+- existentes reutilizados: `META_APP_ID`, `META_APP_SECRET`, `META_LOGIN_CONFIG_ID`, `META_WEBHOOK_VERIFY_TOKEN`.
+
+### Segurança
+- Token do cliente nunca volta pro front; só `status` + `display_phone_number`.
+- Server fn `exchangeSignupCode` exige `requireSupabaseAuth` + `has_role` (admin do tenant).
+- Webhook continua validando `x-hub-signature-256`.
+
+## Execução proposta
+
+Implementar **agora apenas a Fase 1** (Embedded Signup multi-tenant funcionando ponta-a-ponta). Depois você testa conectar um WABA real, e seguimos para F2–F5 incrementalmente.
+
+Confirma a Fase 1? Vou pedir o `META_SOLUTION_ID` no próximo passo (precisa colar do Meta App Dashboard → Configurações Avançadas → Solution ID).
