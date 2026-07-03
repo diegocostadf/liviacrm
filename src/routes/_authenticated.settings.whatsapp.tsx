@@ -7,9 +7,9 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { PlugZap, MessageSquare, Smartphone, Settings as SettingsIcon, ArrowRight, Cloud } from "lucide-react";
+import { PlugZap, MessageSquare, Smartphone, Settings as SettingsIcon, ArrowRight, Cloud, Zap } from "lucide-react";
 
-type Provider = "evolution" | "twilio" | "cloud";
+type Provider = "evolution" | "twilio" | "cloud" | "zapi";
 
 async function apiCall<T>(method: "GET" | "POST", body?: unknown): Promise<T> {
   const { data: { session } } = await supabase.auth.getSession();
@@ -40,7 +40,11 @@ function WhatsappSettingsPage() {
   const setProvider = useMutation({
     mutationFn: (p: Provider) => apiCall<{ provider: Provider }>("POST", { provider: p }),
     onSuccess: (r) => {
-      toast.success(`Provedor alterado para ${r.provider === "twilio" ? "Twilio" : "Evolution"}`);
+      const label = r.provider === "twilio" ? "Twilio"
+        : r.provider === "cloud" ? "WhatsApp Cloud"
+        : r.provider === "zapi" ? "Z-API"
+        : "Evolution";
+      toast.success(`Provedor alterado para ${label}`);
       qc.invalidateQueries({ queryKey: ["messaging-provider"] });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
@@ -61,7 +65,7 @@ function WhatsappSettingsPage() {
           <RadioGroup
             value={provider}
             onValueChange={(v) => setProvider.mutate(v as Provider)}
-            className="grid gap-3 md:grid-cols-3"
+            className="grid gap-3 md:grid-cols-2"
             disabled={isLoading || setProvider.isPending}
           >
             <ProviderOption
@@ -85,13 +89,23 @@ function WhatsappSettingsPage() {
               desc="Meta oficial. Templates com aprovação direta na Meta."
               icon={<Cloud className="h-5 w-5" />}
             />
+            <ProviderOption
+              value="zapi"
+              active={provider === "zapi"}
+              title="Z-API"
+              desc="Z-API.io — WhatsApp não-oficial via Instance ID + Token."
+              icon={<Zap className="h-5 w-5" />}
+            />
           </RadioGroup>
           <p className="text-xs text-muted-foreground">
             A escolha define quais opções de configuração aparecem abaixo. Disparos novos passarão a usar o provedor ativo.
           </p>
         </Card>
 
-        {provider === "evolution" ? <EvolutionLinks /> : provider === "twilio" ? <TwilioLinks /> : <CloudLinks />}
+        {provider === "evolution" ? <EvolutionLinks />
+          : provider === "twilio" ? <TwilioLinks />
+          : provider === "cloud" ? <CloudLinks />
+          : <ZapiLinks />}
       </div>
     </div>
   );
@@ -198,6 +212,23 @@ function CloudLinks() {
       />
       <Card className="p-4 text-xs text-muted-foreground">
         Conversas livres só são permitidas dentro de uma janela de 24h após o último contato do lead. Fora disso, use templates aprovados.
+      </Card>
+    </div>
+  );
+}
+
+function ZapiLinks() {
+  return (
+    <div className="space-y-3">
+      <h2 className="text-sm font-semibold text-muted-foreground">Configurações do Z-API</h2>
+      <NavCard
+        to="/settings/zapi"
+        icon={<Zap className="h-4 w-4" />}
+        title="Credenciais Z-API"
+        desc="Instance ID, Instance Token, Client-Token e webhook."
+      />
+      <Card className="p-4 text-xs text-muted-foreground">
+        Z-API é um provedor não-oficial baseado em WhatsApp Web. As credenciais são obtidas em app.z-api.io após criar a instância.
       </Card>
     </div>
   );
