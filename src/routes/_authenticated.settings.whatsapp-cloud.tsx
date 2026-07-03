@@ -517,13 +517,26 @@ function Step4({ accounts, onSync, syncing }: { accounts: Account[]; onSync: (id
     onSuccess: () => toast.success("Mensagem enviada!"),
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
   });
+  const verifyMut = useMutation({
+    mutationFn: () => api<{ ok: boolean; status?: number; url: string; expected?: string; got?: string; error?: string | null }>("POST", { action: "verify-webhook" }),
+    onSuccess: (r) => {
+      if (r.ok) toast.success(`Webhook verificado! Meta consegue chamar ${r.url} (HTTP ${r.status}).`);
+      else toast.error(`Falha no verify: ${r.error ?? "desconhecido"}${r.got ? ` — resposta: ${r.got}` : ""}`);
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
+  });
   if (!accounts.length) return <Card className="p-6 text-sm text-muted-foreground">Conecte uma conta primeiro.</Card>;
   return (
     <Card className="space-y-4 p-6">
       <h2 className="text-lg font-semibold">4. Testes</h2>
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <Button onClick={() => onSync(accId)} disabled={syncing} variant="outline">{syncing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Sincronizar templates da Meta</Button>
+        <Button onClick={() => verifyMut.mutate()} disabled={verifyMut.isPending} variant="outline">
+          {verifyMut.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+          Testar verify do webhook
+        </Button>
       </div>
+      <p className="text-xs text-muted-foreground">O teste envia um GET com <code>hub.mode=subscribe</code> + <code>hub.verify_token</code> + <code>hub.challenge</code> pra sua URL pública e confere se o CRM devolve o challenge — é exatamente o que a Meta faz ao registrar o webhook.</p>
       <Separator />
       <div className="grid gap-3 md:grid-cols-2">
         <div><Label>Telefone (E.164)</Label><Input value={to} onChange={(e) => setTo(e.target.value)} placeholder="+5511999999999" /></div>
