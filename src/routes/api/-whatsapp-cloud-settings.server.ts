@@ -15,6 +15,7 @@ import {
   saveMetaConfig,
   configureAppWebhookSubscription,
   addAppDomain,
+  validateMetaCredentials,
 } from "@/lib/whatsapp-cloud.server";
 import { invalidateMessagingCache } from "@/lib/messaging-broker.server";
 
@@ -72,7 +73,14 @@ const saveMetaSchema = z.object({
   verifyToken: z.string().trim().optional(),
 });
 const configureAppWebhookSchema = z.object({ action: z.literal("configure-app-webhook") });
-const postSchema = z.union([exchangeSchema, listWabasSchema, listPhonesSchema, saveAccountSchema, setDefaultSchema, deleteAccountSchema, subscribeSchema, syncTemplatesSchema, sendTestSchema, checkDomainSchema, addDomainSchema, verifyWebhookSchema, saveMetaSchema, configureAppWebhookSchema]);
+const validateCredsSchema = z.object({
+  action: z.literal("validate-credentials"),
+  appId: z.string().trim().optional(),
+  appSecret: z.string().trim().optional(),
+  configId: z.string().trim().optional(),
+  verifyToken: z.string().trim().optional(),
+});
+const postSchema = z.union([exchangeSchema, listWabasSchema, listPhonesSchema, saveAccountSchema, setDefaultSchema, deleteAccountSchema, subscribeSchema, syncTemplatesSchema, sendTestSchema, checkDomainSchema, addDomainSchema, verifyWebhookSchema, saveMetaSchema, configureAppWebhookSchema, validateCredsSchema]);
 
 export async function handleGet(request: Request) {
   try {
@@ -107,6 +115,15 @@ export async function handlePost(request: Request) {
     const userId = await requireAdmin(request);
     const body = postSchema.parse(await request.json());
     switch (body.action) {
+      case "validate-credentials": {
+        const check = await validateMetaCredentials({
+          appId: body.appId,
+          appSecret: body.appSecret,
+          configId: body.configId,
+          verifyToken: body.verifyToken,
+        });
+        return json({ ok: true, check });
+      }
       case "save-meta-config": {
         const saved = await saveMetaConfig({
           appId: body.appId,

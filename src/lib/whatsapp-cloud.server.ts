@@ -39,6 +39,138 @@ export async function saveMetaConfig(patch: Partial<MetaConfig>) {
   return merged;
 }
 
+export type FieldCheck = { ok: boolean; message: string; detail?: string };
+export type CredentialsCheck = {
+  appId: FieldCheck;
+  appSecret: FieldCheck;
+  configId: FieldCheck;
+  verifyToken: FieldCheck;
+  overall: boolean;
+};
+
+/**
+ * Validate Meta App credentials against the Graph API without persisting anything.
+ * If any field in `override` is provided, it is used instead of the stored value —
+ * lets the UI test uncommitted form values before saving.
+ */
+export async function validateMetaCredentials(
+  override: Partial<MetaConfig> = {},
+): Promise<CredentialsCheck> {
+  const current = await getMetaConfig();
+  const cfg: MetaConfig = {
+    appId: (override.appId ?? current.appId).trim(),
+    appSecret: (override.appSecret ?? current.appSecret).trim(),
+    configId: (override.configId ?? current.configId).trim(),
+    verifyToken: (override.verifyToken ?? current.verifyToken).trim(),
+  };
+
+  const result: CredentialsCheck = {
+    appId: { ok: false, message: "" },
+    appSecret: { ok: false, message: "" },
+    configId: { ok: false, message: "" },
+    verifyToken: { ok: false, message: "" },
+    overall: false,
+  };
+
+  // 1. App ID — required + numeric.
+  if (!cfg.appId) {
+    result.appId = { ok: false, message: "App ID obrigatório." };
+  } else if (!/^\d{6,}$/.test(cfg.appId)) {
+    result.appId = { ok: false, message: "Formato inválido — App ID da Meta é numérico (>=6 dígitos)." };
+  } else {
+    result.appId = { ok: true, message: "Formato válido." };
+  }
+
+  // 2. Verify Token — required + mínimo de segurança.
+  if (!cfg.verifyToken) {
+    result.verifyToken = { ok: false, message: "Verify Token obrigatório." };
+  } else if (cfg.verifyToken.length < 8) {
+    result.verifyToken = { ok: false, message: "Verify Token muito curto (mínimo 8 caracteres)." };
+  } else if (!/^[A-Za-z0-9._~-]+$/.test(cfg.verifyToken)) {
+    result.verifyToken = { ok: false, message: "Use apenas letras, números e . _ ~ - (sem espaços)." };
+  } else {
+    result.verifyToken = { ok: true, message: "OK." };
+  }
+
+  // Sem App ID válido não dá pra testar Secret nem Config ID no Graph.
+  if (!result.appId.ok) {
+    result.appSecret = { ok: false, message: "Corrija o App ID antes de validar o secret." };
+    result.configId = { ok: false, message: "Corrija o App ID antes de validar o Config ID." };
+    result.overall = false;
+    return result;
+  }
+
+  // 3. App Secret — validate by calling GET /{app-id} with app access token.
+  if (!cfg.appSecret) {
+    result.appSecret = { ok: false, message: "App Secret obrigatório." };
+  } else {
+    const appToken = `${cfg.appId}|${cfg.appSecret}`;
+    try {
+      const url = new URL(`${GRAPH}/${cfg.appId}`);
+      url.searchParams.set("fields", "id,name");
+      url.searchParams.set("access_token", appToken);
+      const res = await fetch(url.toString());
+      const j = (await res.json().catch(() => ({}))) as { id?: string; name?: string } & GraphErr;
+      if (res.ok && j.id === cfg.appId) {
+        result.appSecret = { ok: true, message: j.name ? `App "${j.name}" autenticado.` : "Secret válido." };
+      } else if (j.error) {
+        const code = j.error.code;
+        const msg = j.error.message ?? `Meta ${res.status}`;
+        if (code === 101 || code === 1 || code === 190 || /secret|invalid/i.test(msg)) {
+          result.appSecret = { ok: false, message: "App Secret inválido para este App ID.", detail: msg };
+        } else {
+          result.appSecret = { ok: false, message: msg, detail: `code=${code}` };
+        }
+      } else {
+        result.appSecret = { ok: false, message: `Meta respondeu HTTP ${res.status}.` };
+      }
+    } catch (e) {
+      result.appSecret = { ok: false, message: e instanceof Error ? e.message : "Falha ao chamar Graph API." };
+    }
+  }
+
+  // 4. Login Configuration ID — validate by GET /{config-id} with app token.
+  if (!cfg.configId) {
+    result.configId = { ok: false, message: "Login Configuration ID obrigatório." };
+  } else if (!/^\d{6,}$/.test(cfg.configId)) {
+    result.configId = { ok: false, message: "Formato inválido — Config ID é numérico." };
+  } else if (!result.appSecret.ok) {
+    result.configId = { ok: false, message: "Corrija o App Secret antes de validar o Config ID." };
+  } else {
+    const appToken = `${cfg.appId}|${cfg.appSecret}`;
+    try {
+      const url = new URL(`${GRAPH}/${cfg.configId}`);
+      url.searchParams.set("access_token", appToken);
+      const res = await fetch(url.toString());
+      const j = (await res.json().catch(() => ({}))) as { id?: string; application_id?: string } & GraphErr;
+      if (res.ok && j.id) {
+        if (j.application_id && j.application_id !== cfg.appId) {
+          result.configId = {
+            ok: false,
+            message: `Este Config ID pertence a outro App (${j.application_id}), não a ${cfg.appId}.`,
+          };
+        } else {
+          result.configId = { ok: true, message: "Login Configuration acessível." };
+        }
+      } else if (j.error) {
+        const msg = j.error.message ?? `Meta ${res.status}`;
+        if (j.error.code === 100 || /nonexisting|does not exist|unknown/i.test(msg)) {
+          result.configId = { ok: false, message: "Config ID não encontrado neste App.", detail: msg };
+        } else {
+          result.configId = { ok: false, message: msg, detail: `code=${j.error.code}` };
+        }
+      } else {
+        result.configId = { ok: false, message: `Meta respondeu HTTP ${res.status}.` };
+      }
+    } catch (e) {
+      result.configId = { ok: false, message: e instanceof Error ? e.message : "Falha ao chamar Graph API." };
+    }
+  }
+
+  result.overall = result.appId.ok && result.appSecret.ok && result.configId.ok && result.verifyToken.ok;
+  return result;
+}
+
 // Legacy sync helpers — kept only for meta-connector modules that still read env.
 export function verifyToken() { return process.env.META_WEBHOOK_VERIFY_TOKEN ?? ""; }
 export function loginConfigId() { return process.env.META_LOGIN_CONFIG_ID ?? ""; }
