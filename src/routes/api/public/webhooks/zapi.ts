@@ -10,11 +10,14 @@ export const Route = createFileRoute("/api/public/webhooks/zapi")({
       POST: async ({ request }) => {
         try {
           const body = await request.json().catch(() => ({}));
-          await supabaseAdmin.from("meta_logs").insert({
-            source: "zapi",
-            direction: "inbound",
-            payload: body as never,
-          }).throwOnError().catch(() => {});
+          try {
+            await supabaseAdmin.from("meta_logs").insert({
+              kind: "zapi.webhook",
+              level: "info",
+              message: "inbound",
+              meta: body as never,
+            });
+          } catch { /* logging is best-effort */ }
           return Response.json({ ok: true });
         } catch (e) {
           return Response.json({ ok: false, error: e instanceof Error ? e.message : String(e) }, { status: 200 });
