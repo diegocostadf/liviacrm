@@ -302,6 +302,14 @@ function Stepper({ step, onStep }: { step: number; onStep: (n: number) => void }
 }
 
 function DomainCheckBanner({ check, loading, onRecheck }: { check?: { ok: boolean; allowed: boolean; host: string; domains: string[]; error?: string }; loading: boolean; onRecheck: () => void }) {
+  const addDomainMut = useMutation({
+    mutationFn: (host: string) => api<{ ok: boolean; error?: string }>("POST", { action: "add-domain", host }),
+    onSuccess: (r) => {
+      if (r.ok) { toast.success("Domínio adicionado no app Meta."); onRecheck(); }
+      else toast.error(r.error ?? "Falha ao adicionar domínio.");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
   if (loading) {
     return (
       <div className="flex items-center gap-2 rounded-md border bg-muted/40 p-3 text-xs text-muted-foreground">
@@ -340,9 +348,15 @@ function DomainCheckBanner({ check, loading, onRecheck }: { check?: { ok: boolea
           Domínios atuais: {check.domains.length ? check.domains.map((d) => <code key={d} className="mr-1">{d}</code>) : <em>nenhum configurado</em>}
         </div>
         <div className="text-muted-foreground">
-          Acesse <em>developers.facebook.com → seu App → Settings → Basic → App Domains</em>, adicione <code>{check.host}</code>, e em <em>Facebook Login for Business → Valid OAuth Redirect URIs</em> inclua <code>https://{check.host}/</code>.
+          Posso adicionar <code>{check.host}</code> automaticamente na lista de <em>App Domains</em> do seu app Meta (usando <code>META_APP_ID</code> + <code>META_APP_SECRET</code>).
         </div>
-        <Button size="sm" variant="outline" onClick={onRecheck} className="mt-1">Verificar de novo</Button>
+        <div className="mt-1 flex gap-2">
+          <Button size="sm" onClick={() => addDomainMut.mutate(check.host)} disabled={addDomainMut.isPending}>
+            {addDomainMut.isPending ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
+            Autorizar {check.host} automaticamente
+          </Button>
+          <Button size="sm" variant="outline" onClick={onRecheck}>Verificar de novo</Button>
+        </div>
       </div>
     </div>
   );
