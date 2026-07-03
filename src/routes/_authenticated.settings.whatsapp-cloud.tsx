@@ -112,6 +112,42 @@ function WhatsappCloudPage() {
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
   });
 
+  // Auto-select single WABA / single phone → save without extra clicks.
+  useEffect(() => {
+    if (!accessToken || selectedWaba) return;
+    const flat = businesses.flatMap((b) => b.wabas);
+    if (flat.length === 1) {
+      setSelectedWaba({ id: flat[0].id, name: flat[0].name });
+      listPhonesMut.mutate(flat[0].id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [businesses, accessToken]);
+
+  useEffect(() => {
+    if (!selectedWaba || selectedPhone) return;
+    if (phones.length === 1) {
+      setSelectedPhone(phones[0].id);
+      setTimeout(() => saveMut.mutate(), 0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phones, selectedWaba]);
+
+  const saveMetaMut = useMutation({
+    mutationFn: (v: { appId?: string; appSecret?: string; configId?: string; verifyToken?: string }) =>
+      api<{ ok: boolean; meta: State["meta"] }>("POST", { action: "save-meta-config", ...v }),
+    onSuccess: () => { toast.success("Credenciais salvas!"); qc.invalidateQueries({ queryKey: ["wa-cloud"] }); },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
+  });
+
+  const appWebhookMut = useMutation({
+    mutationFn: () => api<{ ok: boolean; error?: string }>("POST", { action: "configure-app-webhook" }),
+    onSuccess: (r) => {
+      if (r.ok) toast.success("Subscription do App registrada na Meta!");
+      else toast.error(`Falhou: ${r.error ?? "erro"}`);
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
+  });
+
   const subscribeMut = useMutation({
     mutationFn: (id: string) => api("POST", { action: "subscribe-webhook", accountId: id }),
     onSuccess: () => { toast.success("Webhook inscrito!"); qc.invalidateQueries({ queryKey: ["wa-cloud"] }); },
