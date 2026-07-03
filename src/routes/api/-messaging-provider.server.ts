@@ -3,7 +3,7 @@ import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type { Database } from "@/integrations/supabase/types";
 
-const schema = z.object({ provider: z.enum(["evolution", "twilio"]) });
+const schema = z.object({ provider: z.enum(["evolution", "twilio", "cloud", "zapi"]) });
 
 function json(data: unknown, status = 200) {
   return Response.json(data, { status });
@@ -29,11 +29,15 @@ async function requireAdmin(request: Request) {
   return userId;
 }
 
-async function readProvider(): Promise<"evolution" | "twilio"> {
+type Provider = "evolution" | "twilio" | "cloud" | "zapi";
+async function readProvider(): Promise<Provider> {
   const { data } = await supabaseAdmin
     .from("app_settings").select("value").eq("key", "messaging_provider").maybeSingle();
   const v = (data?.value ?? {}) as { provider?: string };
-  return v.provider === "twilio" ? "twilio" : "evolution";
+  return v.provider === "twilio" ? "twilio"
+    : v.provider === "cloud" ? "cloud"
+    : v.provider === "zapi" ? "zapi"
+    : "evolution";
 }
 
 export async function handleGet(request: Request) {

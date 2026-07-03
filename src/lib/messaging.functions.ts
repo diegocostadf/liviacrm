@@ -11,6 +11,10 @@ export const getMessagingProvider = createServerFn({ method: "GET" })
       .eq("key", "messaging_provider")
       .maybeSingle();
     const v = (data?.value ?? {}) as { provider?: string };
-    const provider: "evolution" | "twilio" = v.provider === "twilio" ? "twilio" : "evolution";
+    const provider: "evolution" | "twilio" | "cloud" | "zapi" =
+      v.provider === "twilio" ? "twilio"
+      : v.provider === "cloud" ? "cloud"
+      : v.provider === "zapi" ? "zapi"
+      : "evolution";
     return { provider };
   });

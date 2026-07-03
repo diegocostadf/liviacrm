@@ -1,8 +1,9 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { evolutionFetch } from "./evolution.server";
 import { getDefaultCloudAccount, sendFreeText, sendTemplateMessage } from "./whatsapp-cloud.server";
+import { zapiSendText } from "./zapi.server";
 
-export type MessagingProvider = "evolution" | "twilio" | "cloud";
+export type MessagingProvider = "evolution" | "twilio" | "cloud" | "zapi";
 
 type TwilioSettings = {
   accountSid?: string;
@@ -34,7 +35,10 @@ export async function getActiveProvider(): Promise<MessagingProvider> {
     .maybeSingle();
   const v = (data?.value ?? {}) as { provider?: string };
   const provider: MessagingProvider =
-    v.provider === "twilio" ? "twilio" : v.provider === "cloud" ? "cloud" : "evolution";
+    v.provider === "twilio" ? "twilio"
+    : v.provider === "cloud" ? "cloud"
+    : v.provider === "zapi" ? "zapi"
+    : "evolution";
   cachedProvider = { value: provider, at: Date.now() };
   return provider;
 }
@@ -132,6 +136,10 @@ export async function brokerSendText(args: {
   const provider = await getActiveProvider();
   if (provider === "twilio") {
     const r = await twilioSendText(args.toPhone, args.text, args.twilio);
+    return { id: r.id, provider };
+  }
+  if (provider === "zapi") {
+    const r = await zapiSendText(args.toPhone, args.text);
     return { id: r.id, provider };
   }
   if (provider === "cloud") {
