@@ -2,6 +2,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { evolutionFetch } from "./evolution.server";
 import { getDefaultCloudAccount, sendFreeText, sendTemplateMessage } from "./whatsapp-cloud.server";
 import { zapiSendText } from "./zapi.server";
+import { assertCanSend } from "./messaging-rules.server";
 
 export type MessagingProvider = "evolution" | "twilio" | "cloud" | "zapi";
 
@@ -132,8 +133,14 @@ export async function brokerSendText(args: {
   evolutionInstanceName?: string | null;
   twilio?: { contentSid?: string; contentVariables?: Record<string, string> };
   cloud?: { templateName?: string; templateLanguage?: string; bodyVariables?: string[]; headerVariables?: string[] };
+  /** Quando informado, aplica regras de janela 24h/opt-out do WhatsApp Cloud. */
+  contactId?: string;
 }): Promise<{ id: string | null; provider: MessagingProvider }> {
   const provider = await getActiveProvider();
+  // Regras da Meta só se aplicam ao provider Cloud (Graph API).
+  if (provider === "cloud" && args.contactId) {
+    await assertCanSend({ contactId: args.contactId, isTemplate: Boolean(args.cloud?.templateName) });
+  }
   if (provider === "twilio") {
     const r = await twilioSendText(args.toPhone, args.text, args.twilio);
     return { id: r.id, provider };

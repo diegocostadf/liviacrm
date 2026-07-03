@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { Plus, RefreshCw, Trash2, Pencil, FileText, Loader2, X } from "lucide-react";
+import { TemplatePreview } from "@/components/whatsapp/template-preview";
 
 type Tpl = {
   id: string; account_id: string; name: string; language: string; category: string; status: string;
@@ -151,8 +152,9 @@ function CreateDialog({ accountId, onDone }: { accountId?: string; onDone: () =>
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild><Button disabled={!accountId}><Plus className="mr-1 h-4 w-4" /> Novo template</Button></DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Novo template</DialogTitle></DialogHeader>
+        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-3">
           <div className="grid gap-3 md:grid-cols-3">
             <div><Label>Nome</Label><Input value={name} onChange={(e) => setName(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "_"))} placeholder="ex.: boas_vindas" /></div>
@@ -214,6 +216,16 @@ function CreateDialog({ accountId, onDone }: { accountId?: string; onDone: () =>
               </div>
             ))}
           </div>
+        </div>
+          <aside className="space-y-2">
+            <Label className="text-xs uppercase tracking-wide text-muted-foreground">Preview</Label>
+            <div className="sticky top-2">
+              <TemplatePreview headerText={headerText} body={body} footer={footer} buttons={buttons} examples={examples} />
+              <p className="mt-2 text-[11px] text-muted-foreground">
+                As variáveis em amarelo são substituídas em cada envio. Templates aprovados são obrigatórios fora da janela de 24h.
+              </p>
+            </div>
+          </aside>
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>

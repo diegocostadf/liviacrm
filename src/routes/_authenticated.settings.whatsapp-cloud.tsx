@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -522,16 +522,36 @@ function Step4({ accounts, onSync, syncing }: { accounts: Account[]; onSync: (id
 
 function Step5({ accounts }: { accounts: Account[] }) {
   const def = accounts.find((a) => a.is_default);
+  const checks = [
+    { ok: !!def, label: "Conta conectada" },
+    { ok: !!def?.webhook_subscribed, label: "Webhook inscrito" },
+    { ok: !!def?.display_phone_number, label: "Número identificado" },
+  ];
   return (
     <Card className="space-y-3 p-6">
       <h2 className="text-lg font-semibold">5. Resumo</h2>
       {!def ? <p className="text-sm text-muted-foreground">Nenhuma conta padrão configurada.</p> : (
-        <div className="space-y-1 text-sm">
-          <div><strong>Negócio:</strong> {def.business_name ?? "-"}</div>
-          <div><strong>Número:</strong> {def.display_phone_number ?? def.phone_number_id}</div>
-          <div><strong>Webhook inscrito:</strong> {def.webhook_subscribed ? "sim" : "não"}</div>
-          <div><strong>WABA ID:</strong> <code className="text-xs">{def.waba_id}</code></div>
-        </div>
+        <>
+          <div className="space-y-1 text-sm">
+            <div><strong>Negócio:</strong> {def.business_name ?? "-"}</div>
+            <div><strong>Número:</strong> {def.display_phone_number ?? def.phone_number_id}</div>
+            <div><strong>WABA ID:</strong> <code className="text-xs">{def.waba_id}</code></div>
+          </div>
+          <Separator />
+          <div className="space-y-1">
+            {checks.map((c) => (
+              <div key={c.label} className="flex items-center gap-2 text-sm">
+                {c.ok ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <AlertTriangle className="h-4 w-4 text-amber-500" />}
+                <span>{c.label}</span>
+              </div>
+            ))}
+          </div>
+          <Separator />
+          <div className="flex flex-wrap gap-2">
+            <Button asChild variant="outline"><Link to="/settings/whatsapp-templates">Gerenciar templates</Link></Button>
+            <Button asChild><Link to="/settings/whatsapp-cloud/dashboard">Abrir painel de mensagens</Link></Button>
+          </div>
+        </>
       )}
       <p className="text-xs text-muted-foreground">Para ativar este provedor em todo o sistema, vá em <strong>Configurações → WhatsApp</strong> e selecione <em>WhatsApp Cloud API</em>.</p>
     </Card>
