@@ -232,6 +232,15 @@ function WhatsappCloudPage() {
         {isLoading ? <Card className="p-8 text-center text-muted-foreground"><Loader2 className="mx-auto h-5 w-5 animate-spin" /></Card> : (
           <>
             {step === 1 && <Step1 meta={data!.meta} />}
+            {step === 1 && (
+              <Step1Credentials
+                meta={data!.meta}
+                onSave={(v) => saveMetaMut.mutate(v)}
+                saving={saveMetaMut.isPending}
+                onConfigureAppWebhook={() => appWebhookMut.mutate()}
+                configuringWebhook={appWebhookMut.isPending}
+              />
+            )}
             {step === 2 && (
               <Step2
                 meta={data!.meta}
@@ -251,8 +260,6 @@ function WhatsappCloudPage() {
                 onChoosePhone={setSelectedPhone}
                 onSave={() => saveMut.mutate()}
                 saving={saveMut.isPending}
-                onManualSave={(v) => manualSaveMut.mutate(v)}
-                manualSaving={manualSaveMut.isPending}
               />
             )}
             {step === 3 && (
