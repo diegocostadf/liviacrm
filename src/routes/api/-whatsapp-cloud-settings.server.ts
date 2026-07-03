@@ -10,10 +10,10 @@ import {
   syncTemplatesForAccount,
   sendFreeText,
   sendTemplateMessage,
-  loginConfigId,
-  metaAppId,
-  verifyToken,
   getAppDomains,
+  getMetaConfig,
+  saveMetaConfig,
+  configureAppWebhookSubscription,
 } from "@/lib/whatsapp-cloud.server";
 import { invalidateMessagingCache } from "@/lib/messaging-broker.server";
 
@@ -62,14 +62,32 @@ const sendTestSchema = z.object({
 });
 const checkDomainSchema = z.object({ action: z.literal("check-domain"), host: z.string().min(3) });
 const verifyWebhookSchema = z.object({ action: z.literal("verify-webhook") });
-const postSchema = z.union([exchangeSchema, listWabasSchema, listPhonesSchema, saveAccountSchema, setDefaultSchema, deleteAccountSchema, subscribeSchema, syncTemplatesSchema, sendTestSchema, checkDomainSchema, verifyWebhookSchema]);
+const saveMetaSchema = z.object({
+  action: z.literal("save-meta-config"),
+  appId: z.string().trim().optional(),
+  appSecret: z.string().trim().optional(),
+  configId: z.string().trim().optional(),
+  verifyToken: z.string().trim().optional(),
+});
+const configureAppWebhookSchema = z.object({ action: z.literal("configure-app-webhook") });
+const postSchema = z.union([exchangeSchema, listWabasSchema, listPhonesSchema, saveAccountSchema, setDefaultSchema, deleteAccountSchema, subscribeSchema, syncTemplatesSchema, sendTestSchema, checkDomainSchema, verifyWebhookSchema, saveMetaSchema, configureAppWebhookSchema]);
 
 export async function handleGet(request: Request) {
   try {
     await requireAdmin(request);
-    const { data: accounts } = await supabaseAdmin.from("whatsapp_cloud_accounts").select("*").order("created_at", { ascending: true });
+    const [{ data: accounts }, cfg] = await Promise.all([
+      supabaseAdmin.from("whatsapp_cloud_accounts").select("*").order("created_at", { ascending: true }),
+      getMetaConfig(),
+    ]);
     return json({
-      meta: { appId: metaAppId(), configId: loginConfigId(), verifyToken: verifyToken(), webhookUrl: webhookUrl(request) },
+      meta: {
+        appId: cfg.appId,
+        configId: cfg.configId,
+        verifyToken: cfg.verifyToken,
+        // Never leak the app secret; just tell the UI whether one is set.
+        hasAppSecret: !!cfg.appSecret,
+        webhookUrl: webhookUrl(request),
+      },
       accounts: accounts ?? [],
     });
   } catch (e) {
@@ -87,6 +105,26 @@ export async function handlePost(request: Request) {
     const userId = await requireAdmin(request);
     const body = postSchema.parse(await request.json());
     switch (body.action) {
+      case "save-meta-config": {
+        const saved = await saveMetaConfig({
+          appId: body.appId,
+          appSecret: body.appSecret,
+          configId: body.configId,
+          verifyToken: body.verifyToken,
+        });
+        return json({
+          ok: true,
+          meta: { appId: saved.appId, configId: saved.configId, verifyToken: saved.verifyToken, hasAppSecret: !!saved.appSecret },
+        });
+      }
+      case "configure-app-webhook": {
+        try {
+          await configureAppWebhookSubscription(webhookUrl(request));
+          return json({ ok: true });
+        } catch (e) {
+          return json({ ok: false, error: e instanceof Error ? e.message : String(e) });
+        }
+      }
       case "check-domain": {
         try {
           const domains = await getAppDomains();
@@ -102,7 +140,7 @@ export async function handlePost(request: Request) {
       }
       case "verify-webhook": {
         const url = webhookUrl(request);
-        const token = verifyToken();
+        const token = (await getMetaConfig()).verifyToken;
         if (!token) return json({ ok: false, error: "META_WEBHOOK_VERIFY_TOKEN não configurado." });
         const challenge = `livia-${Date.now()}`;
         const target = `${url}?hub.mode=subscribe&hub.verify_token=${encodeURIComponent(token)}&hub.challenge=${encodeURIComponent(challenge)}`;
@@ -157,12 +195,16 @@ export async function handlePost(request: Request) {
         // Auto-subscribe webhook using this WABA's override_callback_uri so
         // the CRM starts receiving inbound + status events immediately.
         const callback = webhookUrl(request);
+        const cfg = await getMetaConfig();
         let subscribed = false;
         let subscribeError: string | null = null;
         try {
+          // Best-effort: also register the app-level subscription so the
+          // Meta App Dashboard doesn't need any manual configuration.
+          try { await configureAppWebhookSubscription(callback); } catch { /* non-fatal */ }
           await subscribeWaba(body.wabaId, body.accessToken, {
             overrideCallbackUri: callback,
-            verifyToken: verifyToken(),
+            verifyToken: cfg.verifyToken,
           });
           subscribed = true;
           await supabaseAdmin
@@ -198,9 +240,10 @@ export async function handlePost(request: Request) {
       case "subscribe-webhook": {
         const { data: acc } = await supabaseAdmin.from("whatsapp_cloud_accounts").select("*").eq("id", body.accountId).maybeSingle();
         if (!acc) throw new Error("Conta não encontrada.");
+        const cfg = await getMetaConfig();
         await subscribeWaba(acc.waba_id, acc.access_token, {
           overrideCallbackUri: webhookUrl(request),
-          verifyToken: verifyToken(),
+          verifyToken: cfg.verifyToken,
         });
         await supabaseAdmin.from("whatsapp_cloud_accounts").update({ webhook_subscribed: true }).eq("id", body.accountId);
         return json({ ok: true });
