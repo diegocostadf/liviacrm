@@ -11,6 +11,11 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { Cloud, ChevronLeft, ChevronRight, CheckCircle2, AlertTriangle, Loader2, Copy, Send, Trash2, Star } from "lucide-react";
 
+type FieldCheck = { ok: boolean; message: string; detail?: string };
+type CredentialsCheck = {
+  appId: FieldCheck; appSecret: FieldCheck; configId: FieldCheck; verifyToken: FieldCheck; overall: boolean;
+};
+
 type Account = {
   id: string; waba_id: string; business_name: string | null; phone_number_id: string;
   display_phone_number: string | null; verified_name: string | null; is_default: boolean;
