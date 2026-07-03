@@ -231,7 +231,6 @@ function WhatsappCloudPage() {
 
         {isLoading ? <Card className="p-8 text-center text-muted-foreground"><Loader2 className="mx-auto h-5 w-5 animate-spin" /></Card> : (
           <>
-            {step === 1 && <Step1 meta={data!.meta} />}
             {step === 1 && (
               <Step1Credentials
                 meta={data!.meta}
