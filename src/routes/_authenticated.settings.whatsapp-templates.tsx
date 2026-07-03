@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { Plus, RefreshCw, Trash2, Pencil, FileText, Loader2, X } from "lucide-react";
+import { TemplatePreview } from "@/components/whatsapp/template-preview";
 
 type Tpl = {
   id: string; account_id: string; name: string; language: string; category: string; status: string;
@@ -152,6 +153,7 @@ function CreateDialog({ accountId, onDone }: { accountId?: string; onDone: () =>
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild><Button disabled={!accountId}><Plus className="mr-1 h-4 w-4" /> Novo template</Button></DialogTrigger>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Novo template</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <div className="grid gap-3 md:grid-cols-3">
