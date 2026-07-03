@@ -126,6 +126,13 @@ function WhatsappCloudPage() {
       api<{ account: Account; subscribed: boolean; subscribeError: string | null }>("POST", { action: "save-from-signup", ...v }),
     onSuccess: async (r) => {
       await qc.refetchQueries({ queryKey: ["wa-cloud"], type: "all" });
+      const state = qc.getQueryData<State>(["wa-cloud"]);
+      const def = state?.accounts.find((a) => a.is_default) ?? state?.accounts[0];
+      if (def) {
+        toast.success("Conta padrão configurada", {
+          description: `${def.business_name ?? def.display_phone_number ?? def.phone_number_id} (${def.waba_id})`,
+        });
+      }
       if (r.subscribed) {
         toast.success("Conta conectada e webhook inscrito automaticamente!");
         setStep(4);
