@@ -61,7 +61,8 @@ const sendTestSchema = z.object({
   text: z.string().optional(),
 });
 const checkDomainSchema = z.object({ action: z.literal("check-domain"), host: z.string().min(3) });
-const postSchema = z.union([exchangeSchema, listWabasSchema, listPhonesSchema, saveAccountSchema, setDefaultSchema, deleteAccountSchema, subscribeSchema, syncTemplatesSchema, sendTestSchema, checkDomainSchema]);
+const verifyWebhookSchema = z.object({ action: z.literal("verify-webhook") });
+const postSchema = z.union([exchangeSchema, listWabasSchema, listPhonesSchema, saveAccountSchema, setDefaultSchema, deleteAccountSchema, subscribeSchema, syncTemplatesSchema, sendTestSchema, checkDomainSchema, verifyWebhookSchema]);
 
 export async function handleGet(request: Request) {
   try {
@@ -97,6 +98,28 @@ export async function handlePost(request: Request) {
           return json({ ok: true, allowed, host, domains });
         } catch (e) {
           return json({ ok: false, allowed: false, host: body.host, domains: [], error: e instanceof Error ? e.message : String(e) });
+        }
+      }
+      case "verify-webhook": {
+        const url = webhookUrl(request);
+        const token = verifyToken();
+        if (!token) return json({ ok: false, error: "META_WEBHOOK_VERIFY_TOKEN não configurado." });
+        const challenge = `livia-${Date.now()}`;
+        const target = `${url}?hub.mode=subscribe&hub.verify_token=${encodeURIComponent(token)}&hub.challenge=${encodeURIComponent(challenge)}`;
+        try {
+          const res = await fetch(target, { method: "GET" });
+          const text = await res.text();
+          const ok = res.status === 200 && text === challenge;
+          return json({
+            ok,
+            status: res.status,
+            url,
+            expected: challenge,
+            got: text.slice(0, 200),
+            error: ok ? null : (res.status === 403 ? "verify_token não bate (403)" : `Resposta inesperada (${res.status}).`),
+          });
+        } catch (e) {
+          return json({ ok: false, url, error: e instanceof Error ? e.message : String(e) });
         }
       }
       case "exchange-code": {
