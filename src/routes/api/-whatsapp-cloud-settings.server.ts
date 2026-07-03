@@ -130,7 +130,35 @@ export async function handlePost(request: Request) {
           .select()
           .single();
         if (error) throw new Error(error.message);
-        return json({ account: data });
+
+        // Auto-subscribe webhook using this WABA's override_callback_uri so
+        // the CRM starts receiving inbound + status events immediately.
+        const callback = webhookUrl(request);
+        let subscribed = false;
+        let subscribeError: string | null = null;
+        try {
+          await subscribeWaba(body.wabaId, body.accessToken, {
+            overrideCallbackUri: callback,
+            verifyToken: verifyToken(),
+          });
+          subscribed = true;
+          await supabaseAdmin
+            .from("whatsapp_cloud_accounts")
+            .update({ webhook_subscribed: true })
+            .eq("id", data.id);
+        } catch (e) {
+          subscribeError = e instanceof Error ? e.message : String(e);
+        }
+
+        // Best-effort: sync templates so the user already sees them in Step 4.
+        try {
+          await syncTemplatesForAccount(data.id);
+        } catch {
+          /* non-fatal */
+        }
+
+        invalidateMessagingCache();
+        return json({ account: { ...data, webhook_subscribed: subscribed }, subscribed, subscribeError });
       }
       case "set-default": {
         await supabaseAdmin.from("whatsapp_cloud_accounts").update({ is_default: false }).neq("id", body.accountId);
@@ -147,7 +175,10 @@ export async function handlePost(request: Request) {
       case "subscribe-webhook": {
         const { data: acc } = await supabaseAdmin.from("whatsapp_cloud_accounts").select("*").eq("id", body.accountId).maybeSingle();
         if (!acc) throw new Error("Conta não encontrada.");
-        await subscribeWaba(acc.waba_id, acc.access_token);
+        await subscribeWaba(acc.waba_id, acc.access_token, {
+          overrideCallbackUri: webhookUrl(request),
+          verifyToken: verifyToken(),
+        });
         await supabaseAdmin.from("whatsapp_cloud_accounts").update({ webhook_subscribed: true }).eq("id", body.accountId);
         return json({ ok: true });
       }
