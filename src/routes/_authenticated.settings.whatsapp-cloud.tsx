@@ -17,7 +17,7 @@ type Account = {
   webhook_subscribed: boolean; created_at: string;
 };
 type State = {
-  meta: { appId: string; configId: string; verifyToken: string; webhookUrl: string };
+  meta: { appId: string; configId: string; verifyToken: string; hasAppSecret: boolean; webhookUrl: string };
   accounts: Account[];
 };
 
@@ -40,9 +40,9 @@ export const Route = createFileRoute("/_authenticated/settings/whatsapp-cloud")(
 });
 
 const STEPS = [
-  { n: 1, label: "App Meta" },
+  { n: 1, label: "Credenciais Meta" },
   { n: 2, label: "Conectar conta" },
-  { n: 3, label: "Número & Webhook" },
+  { n: 3, label: "Contas & Webhook" },
   { n: 4, label: "Testes" },
   { n: 5, label: "Resumo" },
 ] as const;
@@ -112,6 +112,42 @@ function WhatsappCloudPage() {
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
   });
 
+  // Auto-select single WABA / single phone → save without extra clicks.
+  useEffect(() => {
+    if (!accessToken || selectedWaba) return;
+    const flat = businesses.flatMap((b) => b.wabas);
+    if (flat.length === 1) {
+      setSelectedWaba({ id: flat[0].id, name: flat[0].name });
+      listPhonesMut.mutate(flat[0].id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [businesses, accessToken]);
+
+  useEffect(() => {
+    if (!selectedWaba || selectedPhone) return;
+    if (phones.length === 1) {
+      setSelectedPhone(phones[0].id);
+      setTimeout(() => saveMut.mutate(), 0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phones, selectedWaba]);
+
+  const saveMetaMut = useMutation({
+    mutationFn: (v: { appId?: string; appSecret?: string; configId?: string; verifyToken?: string }) =>
+      api<{ ok: boolean; meta: State["meta"] }>("POST", { action: "save-meta-config", ...v }),
+    onSuccess: () => { toast.success("Credenciais salvas!"); qc.invalidateQueries({ queryKey: ["wa-cloud"] }); },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
+  });
+
+  const appWebhookMut = useMutation({
+    mutationFn: () => api<{ ok: boolean; error?: string }>("POST", { action: "configure-app-webhook" }),
+    onSuccess: (r) => {
+      if (r.ok) toast.success("Subscription do App registrada na Meta!");
+      else toast.error(`Falhou: ${r.error ?? "erro"}`);
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
+  });
+
   const subscribeMut = useMutation({
     mutationFn: (id: string) => api("POST", { action: "subscribe-webhook", accountId: id }),
     onSuccess: () => { toast.success("Webhook inscrito!"); qc.invalidateQueries({ queryKey: ["wa-cloud"] }); },
@@ -158,10 +194,10 @@ function WhatsappCloudPage() {
 
   function launchEmbeddedSignup() {
     const w = window as unknown as { FB?: { login: (cb: (r: { authResponse?: { code?: string }; status?: string }) => void, o: Record<string, unknown>) => void } };
-    if (!data?.meta.appId) return toast.error("META_APP_ID não está configurado nas secrets.");
-    if (!data?.meta.configId) return toast.error("META_LOGIN_CONFIG_ID não está configurado nas secrets.");
+    if (!data?.meta.appId) return toast.error("Configure o App ID no passo 1.");
+    if (!data?.meta.configId) return toast.error("Configure o Login Configuration ID no passo 1.");
     if (!w.FB) {
-      toast.error("SDK do Facebook não carregou. Use o modo manual abaixo.");
+      toast.error("SDK do Facebook não carregou. Verifique adblockers ou rede.");
       return;
     }
     try {
@@ -169,41 +205,16 @@ function WhatsappCloudPage() {
         console.log("[wa-cloud] FB.login response", r);
         const code = r?.authResponse?.code;
         if (!code) {
-          toast.error(`Login não retornou code (status: ${r?.status ?? "desconhecido"}). Verifique se o domínio está na allowlist do app Meta ou use o modo manual.`);
+          toast.error(`Login não retornou code (status: ${r?.status ?? "desconhecido"}). Verifique se o domínio está na allowlist do app Meta.`);
           return;
         }
         exchangeMut.mutate(code);
       }, { config_id: data.meta.configId, response_type: "code", override_default_response_type: true, extras: { setup: {} } });
     } catch (err) {
       console.error("[wa-cloud] FB.login lançou exceção", err);
-      toast.error("Falha ao abrir o Embedded Signup. Use o modo manual abaixo.");
+      toast.error("Falha ao abrir o Embedded Signup.");
     }
   }
-
-  // Fallback manual: o admin cola um token + IDs vindos do Meta Business Manager
-  const manualSaveMut = useMutation({
-    mutationFn: (input: { token: string; wabaId: string; phoneNumberId: string; displayPhoneNumber?: string; businessName?: string }) =>
-      api<{ account: Account; subscribed: boolean; subscribeError: string | null }>("POST", {
-        action: "save-account",
-        wabaId: input.wabaId,
-        businessName: input.businessName,
-        phoneNumberId: input.phoneNumberId,
-        displayPhoneNumber: input.displayPhoneNumber,
-        accessToken: input.token,
-        setDefault: true,
-      }),
-    onSuccess: (r) => {
-      qc.invalidateQueries({ queryKey: ["wa-cloud"] });
-      if (r.subscribed) {
-        toast.success("Conta salva e webhook inscrito automaticamente!");
-        setStep(4);
-      } else {
-        toast.warning(`Conta salva, mas falhou ao inscrever o webhook: ${r.subscribeError ?? "erro desconhecido"}. Tente novamente no passo 3.`);
-        setStep(3);
-      }
-    },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
-  });
 
   return (
     <div className="h-screen overflow-y-auto p-6">
@@ -220,7 +231,15 @@ function WhatsappCloudPage() {
 
         {isLoading ? <Card className="p-8 text-center text-muted-foreground"><Loader2 className="mx-auto h-5 w-5 animate-spin" /></Card> : (
           <>
-            {step === 1 && <Step1 meta={data!.meta} />}
+            {step === 1 && (
+              <Step1Credentials
+                meta={data!.meta}
+                onSave={(v) => saveMetaMut.mutate(v)}
+                saving={saveMetaMut.isPending}
+                onConfigureAppWebhook={() => appWebhookMut.mutate()}
+                configuringWebhook={appWebhookMut.isPending}
+              />
+            )}
             {step === 2 && (
               <Step2
                 meta={data!.meta}
@@ -240,8 +259,6 @@ function WhatsappCloudPage() {
                 onChoosePhone={setSelectedPhone}
                 onSave={() => saveMut.mutate()}
                 saving={saveMut.isPending}
-                onManualSave={(v) => manualSaveMut.mutate(v)}
-                manualSaving={manualSaveMut.isPending}
               />
             )}
             {step === 3 && (
@@ -343,26 +360,83 @@ function CopyableField({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Step1({ meta }: { meta: State["meta"] }) {
-  const missing = !meta.appId || !meta.configId || !meta.verifyToken;
+function Step1Credentials(props: {
+  meta: State["meta"];
+  onSave: (v: { appId?: string; appSecret?: string; configId?: string; verifyToken?: string }) => void;
+  saving: boolean;
+  onConfigureAppWebhook: () => void;
+  configuringWebhook: boolean;
+}) {
+  const [appId, setAppId] = useState(props.meta.appId);
+  const [appSecret, setAppSecret] = useState("");
+  const [configId, setConfigId] = useState(props.meta.configId);
+  const [verify, setVerify] = useState(props.meta.verifyToken);
+  useEffect(() => {
+    setAppId(props.meta.appId);
+    setConfigId(props.meta.configId);
+    setVerify(props.meta.verifyToken);
+  }, [props.meta.appId, props.meta.configId, props.meta.verifyToken]);
+  const missing = !props.meta.appId || !props.meta.configId || !props.meta.verifyToken;
   return (
     <Card className="space-y-4 p-6">
-      <h2 className="text-lg font-semibold">1. App Meta</h2>
-      <p className="text-sm text-muted-foreground">As credenciais ficam em <strong>secrets</strong> do projeto. Para alterar, peça no chat.</p>
+      <h2 className="text-lg font-semibold">1. Credenciais do App Meta</h2>
+      <p className="text-sm text-muted-foreground">
+        Cole os dados do seu App Meta abaixo. Depois de salvar, um clique conecta o webhook direto na Meta e você não precisa mexer no App Dashboard.
+      </p>
       {missing && (
         <div className="flex gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
           <AlertTriangle className="h-4 w-4 text-amber-500" />
-          Faltam secrets: configure <code>META_APP_ID</code>, <code>META_LOGIN_CONFIG_ID</code> e <code>META_WEBHOOK_VERIFY_TOKEN</code>.
+          Preencha App ID, Login Configuration ID e (opcional) o Verify Token — deixe em branco para gerarmos automaticamente.
         </div>
       )}
       <div className="grid gap-3 md:grid-cols-2">
-        <CopyableField label="App ID" value={meta.appId} />
-        <CopyableField label="Login Configuration ID" value={meta.configId} />
-        <CopyableField label="Verify Token (Webhook)" value={meta.verifyToken} />
-        <CopyableField label="Webhook URL (cole no Meta App Dashboard)" value={meta.webhookUrl} />
+        <div className="space-y-1">
+          <Label>App ID</Label>
+          <Input value={appId} onChange={(e) => setAppId(e.target.value)} placeholder="1234567890" />
+        </div>
+        <div className="space-y-1">
+          <Label>App Secret {props.meta.hasAppSecret && <span className="text-xs text-emerald-500">(salvo)</span>}</Label>
+          <Input value={appSecret} onChange={(e) => setAppSecret(e.target.value)} placeholder={props.meta.hasAppSecret ? "•••••••• (deixe vazio p/ manter)" : "abcdef..."} type="password" />
+        </div>
+        <div className="space-y-1">
+          <Label>Login Configuration ID</Label>
+          <Input value={configId} onChange={(e) => setConfigId(e.target.value)} placeholder="9876543210" />
+        </div>
+        <div className="space-y-1">
+          <Label>Verify Token do Webhook <span className="text-xs text-muted-foreground">(opcional)</span></Label>
+          <Input value={verify} onChange={(e) => setVerify(e.target.value)} placeholder="deixe vazio p/ gerar" />
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          onClick={() => props.onSave({
+            appId: appId.trim(),
+            ...(appSecret.trim() ? { appSecret: appSecret.trim() } : {}),
+            configId: configId.trim(),
+            verifyToken: verify.trim(),
+          })}
+          disabled={props.saving || !appId.trim() || !configId.trim() || (!props.meta.hasAppSecret && !appSecret.trim())}
+        >
+          {props.saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+          Salvar credenciais
+        </Button>
+        <Button
+          variant="outline"
+          onClick={props.onConfigureAppWebhook}
+          disabled={props.configuringWebhook || !props.meta.appId || !props.meta.hasAppSecret || !props.meta.verifyToken}
+          title={!props.meta.hasAppSecret ? "Salve o App Secret primeiro" : ""}
+        >
+          {props.configuringWebhook ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+          Registrar webhook automaticamente na Meta
+        </Button>
+      </div>
+      <Separator />
+      <div className="grid gap-3 md:grid-cols-2">
+        <CopyableField label="Verify Token (Webhook)" value={props.meta.verifyToken} />
+        <CopyableField label="Webhook URL" value={props.meta.webhookUrl} />
       </div>
       <p className="text-xs text-muted-foreground">
-        No painel Meta → seu App → WhatsApp → Configuration: defina <strong>Callback URL</strong> como o webhook acima e <strong>Verify Token</strong> idêntico ao secret. Marque os fields <code>messages</code> e <code>message_template_status_update</code>.
+        O botão &quot;Registrar webhook&quot; chama <code>POST /{"{"}app-id{"}"}/subscriptions</code> na Meta com a URL e o Verify Token acima — substitui totalmente o passo manual no App Dashboard.
       </p>
     </Card>
   );
@@ -382,15 +456,7 @@ function Step2(props: {
   phones: Array<{ id: string; display_phone_number: string; verified_name: string }>;
   selectedPhone: string; onChoosePhone: (id: string) => void;
   onSave: () => void; saving: boolean;
-  onManualSave: (v: { token: string; wabaId: string; phoneNumberId: string; displayPhoneNumber?: string; businessName?: string }) => void;
-  manualSaving: boolean;
 }) {
-  const [manualOpen, setManualOpen] = useState(false);
-  const [mToken, setMToken] = useState("");
-  const [mWaba, setMWaba] = useState("");
-  const [mPhoneId, setMPhoneId] = useState("");
-  const [mPhoneNum, setMPhoneNum] = useState("");
-  const [mBiz, setMBiz] = useState("");
   return (
     <Card className="space-y-4 p-6">
       <h2 className="text-lg font-semibold">2. Embedded Signup</h2>
@@ -400,14 +466,14 @@ function Step2(props: {
         <div className="flex gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
           <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
           <div>
-            Você está no domínio de preview do Lovable. A Meta normalmente bloqueia o Embedded Signup em domínios não cadastrados — o popup pode não retornar nada. Publique o app e abra pelo domínio publicado, <strong>ou</strong> use o modo manual abaixo.
+            Você está no domínio de preview do Lovable. A Meta normalmente bloqueia o Embedded Signup em domínios não cadastrados — o popup pode não retornar nada. Publique o app e abra pelo domínio publicado.
           </div>
         </div>
       )}
       {props.sdkStatus === "error" && (
         <div className="flex gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs">
           <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />
-          <div>SDK do Facebook não carregou (bloqueado por extensão, ad-blocker ou rede). Use o modo manual.</div>
+          <div>SDK do Facebook não carregou (bloqueado por extensão, ad-blocker ou rede).</div>
         </div>
       )}
       <Button onClick={props.onLogin} disabled={props.loggingIn || !props.meta.appId} className="gap-2">
@@ -449,34 +515,6 @@ function Step2(props: {
           </Button>
         </>
       )}
-
-      <Separator />
-      <div>
-        <button type="button" onClick={() => setManualOpen((v) => !v)} className="text-xs font-medium text-primary underline-offset-2 hover:underline">
-          {manualOpen ? "Ocultar" : "Conectar manualmente (token + IDs do Business Manager)"}
-        </button>
-        {manualOpen && (
-          <div className="mt-3 space-y-3 rounded-md border bg-muted/30 p-4">
-            <p className="text-xs text-muted-foreground">
-              Use isto se o Embedded Signup não funcionar (preview, bloqueio de popup, etc.). Gere um <strong>System User Access Token</strong> permanente em <em>Meta Business Suite → Configurações → Usuários do Sistema</em> com permissão <code>whatsapp_business_management</code> e <code>whatsapp_business_messaging</code>. Copie o WABA ID e o Phone Number ID em <em>WhatsApp Manager → API Setup</em>.
-            </p>
-            <div className="grid gap-3 md:grid-cols-2">
-              <div><Label>Access Token</Label><Input value={mToken} onChange={(e) => setMToken(e.target.value)} placeholder="EAAB..." className="font-mono text-xs" /></div>
-              <div><Label>WABA ID</Label><Input value={mWaba} onChange={(e) => setMWaba(e.target.value)} placeholder="123456789012345" /></div>
-              <div><Label>Phone Number ID</Label><Input value={mPhoneId} onChange={(e) => setMPhoneId(e.target.value)} placeholder="987654321098765" /></div>
-              <div><Label>Telefone exibido (opcional)</Label><Input value={mPhoneNum} onChange={(e) => setMPhoneNum(e.target.value)} placeholder="+55 11 99999-9999" /></div>
-              <div className="md:col-span-2"><Label>Nome do negócio (opcional)</Label><Input value={mBiz} onChange={(e) => setMBiz(e.target.value)} placeholder="Minha Empresa LTDA" /></div>
-            </div>
-            <Button
-              disabled={!mToken || !mWaba || !mPhoneId || props.manualSaving}
-              onClick={() => props.onManualSave({ token: mToken.trim(), wabaId: mWaba.trim(), phoneNumberId: mPhoneId.trim(), displayPhoneNumber: mPhoneNum.trim() || undefined, businessName: mBiz.trim() || undefined })}
-            >
-              {props.manualSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Salvar conta manual
-            </Button>
-          </div>
-        )}
-      </div>
     </Card>
   );
 }

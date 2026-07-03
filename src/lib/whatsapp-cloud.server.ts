@@ -2,26 +2,92 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 const GRAPH = "https://graph.facebook.com/v21.0";
 
-function appId() { return process.env.META_APP_ID ?? ""; }
-function appSecret() { return process.env.META_APP_SECRET ?? ""; }
+export type MetaConfig = { appId: string; appSecret: string; configId: string; verifyToken: string };
+
+/**
+ * Read Meta App credentials. Values in `app_settings.meta_app` take precedence
+ * over env vars, so the admin can edit them straight from the panel without
+ * touching secrets.
+ */
+export async function getMetaConfig(): Promise<MetaConfig> {
+  const { data } = await supabaseAdmin
+    .from("app_settings")
+    .select("value")
+    .eq("key", "meta_app")
+    .maybeSingle();
+  const v = (data?.value ?? {}) as Partial<MetaConfig>;
+  return {
+    appId: v.appId?.trim() || process.env.META_APP_ID || "",
+    appSecret: v.appSecret?.trim() || process.env.META_APP_SECRET || "",
+    configId: v.configId?.trim() || process.env.META_LOGIN_CONFIG_ID || "",
+    verifyToken: v.verifyToken?.trim() || process.env.META_WEBHOOK_VERIFY_TOKEN || "",
+  };
+}
+
+export async function saveMetaConfig(patch: Partial<MetaConfig>) {
+  const current = await getMetaConfig();
+  const merged: MetaConfig = {
+    appId: (patch.appId ?? current.appId).trim(),
+    appSecret: (patch.appSecret ?? current.appSecret).trim(),
+    configId: (patch.configId ?? current.configId).trim(),
+    verifyToken: (patch.verifyToken ?? current.verifyToken).trim()
+      || `livia_${crypto.randomUUID().replace(/-/g, "")}`,
+  };
+  await supabaseAdmin
+    .from("app_settings")
+    .upsert({ key: "meta_app", value: merged as unknown as never }, { onConflict: "key" });
+  return merged;
+}
+
+// Legacy sync helpers — kept only for meta-connector modules that still read env.
 export function verifyToken() { return process.env.META_WEBHOOK_VERIFY_TOKEN ?? ""; }
 export function loginConfigId() { return process.env.META_LOGIN_CONFIG_ID ?? ""; }
-export function metaAppId() { return appId(); }
+export function metaAppId() { return process.env.META_APP_ID ?? ""; }
 
 /**
  * Read App Domains from Meta App settings using an app access token
  * (`{app_id}|{app_secret}`). Returns the list of configured domains.
  */
 export async function getAppDomains(): Promise<string[]> {
-  if (!appId() || !appSecret()) throw new Error("META_APP_ID/META_APP_SECRET ausentes.");
-  const appToken = `${appId()}|${appSecret()}`;
-  const url = new URL(`${GRAPH}/${appId()}`);
+  const cfg = await getMetaConfig();
+  if (!cfg.appId || !cfg.appSecret) throw new Error("META_APP_ID/META_APP_SECRET ausentes.");
+  const appToken = `${cfg.appId}|${cfg.appSecret}`;
+  const url = new URL(`${GRAPH}/${cfg.appId}`);
   url.searchParams.set("fields", "app_domains");
   url.searchParams.set("access_token", appToken);
   const res = await fetch(url.toString());
   const json = (await res.json().catch(() => ({}))) as { app_domains?: string[] } & GraphErr;
   if (!res.ok || json.error) throw new Error(json.error?.message ?? `Meta ${res.status}`);
   return Array.isArray(json.app_domains) ? json.app_domains : [];
+}
+
+/**
+ * Register the CRM webhook against the Meta App itself
+ * (`POST /{app-id}/subscriptions`). Meta then routes WABA events to that
+ * callback for every WABA subscribed via this app.
+ */
+export async function configureAppWebhookSubscription(callbackUrl: string) {
+  const cfg = await getMetaConfig();
+  if (!cfg.appId || !cfg.appSecret) throw new Error("Configure META_APP_ID / META_APP_SECRET primeiro.");
+  if (!cfg.verifyToken) throw new Error("Configure o Verify Token primeiro.");
+  const appToken = `${cfg.appId}|${cfg.appSecret}`;
+  const body = new URLSearchParams({
+    object: "whatsapp_business_account",
+    callback_url: callbackUrl,
+    verify_token: cfg.verifyToken,
+    fields: "messages,message_template_status_update,account_review_update,phone_number_quality_update",
+    access_token: appToken,
+  });
+  const res = await fetch(`${GRAPH}/${cfg.appId}/subscriptions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: body.toString(),
+  });
+  const j = (await res.json().catch(() => ({}))) as { success?: boolean } & GraphErr;
+  if (!res.ok || j.error || j.success === false) {
+    throw new Error(j.error?.message ?? `Meta ${res.status} ao registrar subscription do App.`);
+  }
+  return { ok: true };
 }
 
 type GraphErr = { error?: { message?: string; code?: number; error_subcode?: number; type?: string } };
@@ -52,10 +118,11 @@ export async function graph<T = unknown>(
 
 /** Trade OAuth `code` for a long-lived business access token. */
 export async function exchangeCodeForToken(code: string, redirectUri?: string) {
-  if (!appId() || !appSecret()) throw new Error("META_APP_ID/META_APP_SECRET ausentes.");
+  const cfg = await getMetaConfig();
+  if (!cfg.appId || !cfg.appSecret) throw new Error("META_APP_ID/META_APP_SECRET ausentes.");
   const params = new URLSearchParams({
-    client_id: appId(),
-    client_secret: appSecret(),
+    client_id: cfg.appId,
+    client_secret: cfg.appSecret,
     code,
   });
   if (redirectUri) params.set("redirect_uri", redirectUri);
