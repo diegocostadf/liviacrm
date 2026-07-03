@@ -70,8 +70,8 @@ function WhatsappCloudPage() {
   const [sdkStatus, setSdkStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const isPreviewHost = typeof window !== "undefined" && /lovableproject\.com|lovable\.app/.test(window.location.hostname);
 
-  useEffect(() => { if (defaultAcc && step === 1 && !accessToken) setStep(5); }, [defaultAcc, step, accessToken]);
-
+  // Wizard sempre começa no passo 1. O usuário navega manualmente pelo Stepper
+  // ou pelos botões Voltar/Próximo — não pulamos etapas automaticamente.
   const exchangeMut = useMutation({
     mutationFn: (code: string) => api<{ accessToken: string; expiresIn: number | null }>("POST", { action: "exchange-code", code }),
     onSuccess: async (r) => {
