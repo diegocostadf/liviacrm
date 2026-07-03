@@ -62,6 +62,35 @@ export async function getAppDomains(): Promise<string[]> {
 }
 
 /**
+ * Add a host to the Meta App's App Domains list (merging with what already exists).
+ * Uses the app access token — the Meta account that owns the App must have granted
+ * the necessary permissions when the App was created.
+ */
+export async function addAppDomain(host: string): Promise<{ domains: string[] }> {
+  const cfg = await getMetaConfig();
+  if (!cfg.appId || !cfg.appSecret) throw new Error("META_APP_ID/META_APP_SECRET ausentes.");
+  const clean = host.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+  if (!clean) throw new Error("Host inválido.");
+  const current = await getAppDomains();
+  const set = new Set(current.map((d) => d.toLowerCase()));
+  set.add(clean);
+  const appToken = `${cfg.appId}|${cfg.appSecret}`;
+  const body = new URLSearchParams();
+  for (const d of set) body.append("app_domains[]", d);
+  body.set("access_token", appToken);
+  const res = await fetch(`${GRAPH}/${cfg.appId}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: body.toString(),
+  });
+  const j = (await res.json().catch(() => ({}))) as { success?: boolean } & GraphErr;
+  if (!res.ok || j.error || j.success === false) {
+    throw new Error(j.error?.message ?? `Meta ${res.status} ao atualizar App Domains.`);
+  }
+  return { domains: Array.from(set) };
+}
+
+/**
  * Register the CRM webhook against the Meta App itself
  * (`POST /{app-id}/subscriptions`). Meta then routes WABA events to that
  * callback for every WABA subscribed via this app.

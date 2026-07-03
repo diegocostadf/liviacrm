@@ -14,6 +14,7 @@ import {
   getMetaConfig,
   saveMetaConfig,
   configureAppWebhookSubscription,
+  addAppDomain,
 } from "@/lib/whatsapp-cloud.server";
 import { invalidateMessagingCache } from "@/lib/messaging-broker.server";
 
@@ -61,6 +62,7 @@ const sendTestSchema = z.object({
   text: z.string().optional(),
 });
 const checkDomainSchema = z.object({ action: z.literal("check-domain"), host: z.string().min(3) });
+const addDomainSchema = z.object({ action: z.literal("add-domain"), host: z.string().min(3) });
 const verifyWebhookSchema = z.object({ action: z.literal("verify-webhook") });
 const saveMetaSchema = z.object({
   action: z.literal("save-meta-config"),
@@ -70,7 +72,7 @@ const saveMetaSchema = z.object({
   verifyToken: z.string().trim().optional(),
 });
 const configureAppWebhookSchema = z.object({ action: z.literal("configure-app-webhook") });
-const postSchema = z.union([exchangeSchema, listWabasSchema, listPhonesSchema, saveAccountSchema, setDefaultSchema, deleteAccountSchema, subscribeSchema, syncTemplatesSchema, sendTestSchema, checkDomainSchema, verifyWebhookSchema, saveMetaSchema, configureAppWebhookSchema]);
+const postSchema = z.union([exchangeSchema, listWabasSchema, listPhonesSchema, saveAccountSchema, setDefaultSchema, deleteAccountSchema, subscribeSchema, syncTemplatesSchema, sendTestSchema, checkDomainSchema, addDomainSchema, verifyWebhookSchema, saveMetaSchema, configureAppWebhookSchema]);
 
 export async function handleGet(request: Request) {
   try {
@@ -136,6 +138,14 @@ export async function handlePost(request: Request) {
           return json({ ok: true, allowed, host, domains });
         } catch (e) {
           return json({ ok: false, allowed: false, host: body.host, domains: [], error: e instanceof Error ? e.message : String(e) });
+        }
+      }
+      case "add-domain": {
+        try {
+          const { domains } = await addAppDomain(body.host);
+          return json({ ok: true, host: body.host.toLowerCase(), domains });
+        } catch (e) {
+          return json({ ok: false, error: e instanceof Error ? e.message : String(e) });
         }
       }
       case "verify-webhook": {
