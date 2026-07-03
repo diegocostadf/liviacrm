@@ -73,6 +73,7 @@ function WhatsappCloudPage() {
   const [phones, setPhones] = useState<Array<{ id: string; display_phone_number: string; verified_name: string }>>([]);
   const [selectedPhone, setSelectedPhone] = useState<string>("");
   const [sdkStatus, setSdkStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [signupIds, setSignupIds] = useState<{ wabaId: string; phoneNumberId: string } | null>(null);
   const isPreviewHost = typeof window !== "undefined" && /lovableproject\.com|lovable\.app/.test(window.location.hostname);
 
   // Wizard sempre começa no passo 1. O usuário navega manualmente pelo Stepper
@@ -82,7 +83,10 @@ function WhatsappCloudPage() {
     onSuccess: async (r) => {
       setAccessToken(r.accessToken);
       toast.success("Code trocado por token!");
-      const b = await api<{ businesses: typeof businesses }>("POST", { action: "list-wabas", accessToken: r.accessToken });
+      // Prefer IDs from the Embedded Signup postMessage — the signup token
+      // grants access to a *shared* WABA that doesn't appear in /me/businesses.
+      const b = await api<{ businesses: typeof businesses }>("POST", { action: "list-wabas", accessToken: r.accessToken })
+        .catch(() => ({ businesses: [] as typeof businesses }));
       setBusinesses(b.businesses);
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
@@ -116,6 +120,52 @@ function WhatsappCloudPage() {
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
   });
+
+  const saveFromSignupMut = useMutation({
+    mutationFn: (v: { wabaId: string; phoneNumberId: string; accessToken: string }) =>
+      api<{ account: Account; subscribed: boolean; subscribeError: string | null }>("POST", { action: "save-from-signup", ...v }),
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: ["wa-cloud"] });
+      if (r.subscribed) {
+        toast.success("Conta conectada e webhook inscrito automaticamente!");
+        setStep(4);
+      } else {
+        toast.warning(`Conta conectada, mas falhou ao inscrever o webhook: ${r.subscribeError ?? "erro desconhecido"}.`);
+        setStep(3);
+      }
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
+  });
+
+  // Auto-save assim que temos IDs do postMessage + token do exchange-code.
+  useEffect(() => {
+    if (!signupIds || !accessToken || saveFromSignupMut.isPending) return;
+    saveFromSignupMut.mutate({ ...signupIds, accessToken });
+    setSignupIds(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signupIds, accessToken]);
+
+  // Captura WABA/phone diretamente do Embedded Signup (postMessage).
+  useEffect(() => {
+    function onMsg(ev: MessageEvent) {
+      if (ev.origin !== "https://www.facebook.com" && ev.origin !== "https://web.facebook.com") return;
+      let payload: unknown = ev.data;
+      if (typeof payload === "string") {
+        try { payload = JSON.parse(payload); } catch { return; }
+      }
+      const p = payload as { type?: string; event?: string; data?: { waba_id?: string; phone_number_id?: string } };
+      if (p?.type !== "WA_EMBEDDED_SIGNUP") return;
+      console.log("[wa-cloud] WA_EMBEDDED_SIGNUP", p);
+      if (p.event === "FINISH" && p.data?.waba_id && p.data?.phone_number_id) {
+        setSignupIds({ wabaId: p.data.waba_id, phoneNumberId: p.data.phone_number_id });
+        toast.success("Conta e número recebidos da Meta — salvando…");
+      } else if (p.event === "CANCEL") {
+        toast.warning("Signup cancelado pelo usuário.");
+      }
+    }
+    window.addEventListener("message", onMsg);
+    return () => window.removeEventListener("message", onMsg);
+  }, []);
 
   // Auto-select single WABA / single phone → save without extra clicks.
   useEffect(() => {
