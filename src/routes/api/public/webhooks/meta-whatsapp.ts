@@ -50,7 +50,20 @@ export const Route = createFileRoute("/api/public/webhooks/meta-whatsapp")({
               }
             } else if (change.field === "messages") {
               // Inbound and status callbacks. Status updates carry "statuses[]".
-              const v = change.value as { statuses?: Array<{ id: string; status: string }>; messages?: Array<{ id: string; from: string; type: string; text?: { body: string } }> };
+              const v = change.value as {
+                statuses?: Array<{ id: string; status: string; timestamp?: string }>;
+                messages?: Array<{
+                  id: string;
+                  from: string;
+                  type: string;
+                  timestamp?: string;
+                  text?: { body: string };
+                  image?: { caption?: string };
+                  document?: { caption?: string };
+                }>;
+                metadata?: { phone_number_id?: string; display_phone_number?: string };
+                contacts?: Array<{ wa_id: string; profile?: { name?: string } }>;
+              };
               if (v.statuses?.length) {
                 for (const s of v.statuses) {
                   const mapped =
@@ -62,7 +75,77 @@ export const Route = createFileRoute("/api/public/webhooks/meta-whatsapp")({
                   await supabaseAdmin.from("messages").update({ status: mapped }).eq("wa_message_id", s.id);
                 }
               }
-              // Inbound messages handling is left to the inbox layer to keep this PR small.
+              // Inbound messages: idempotent por wa_message_id.
+              if (v.messages?.length) {
+                const phoneNumberId = v.metadata?.phone_number_id ?? null;
+                for (const m of v.messages) {
+                  const from = String(m.from ?? "").replace(/\D/g, "");
+                  if (!from || !m.id) continue;
+
+                  // Skip if already processed
+                  const { data: existing } = await supabaseAdmin
+                    .from("messages")
+                    .select("id")
+                    .eq("wa_message_id", m.id)
+                    .maybeSingle();
+                  if (existing) continue;
+
+                  const contactName = v.contacts?.[0]?.profile?.name ?? null;
+                  const inboundAt = m.timestamp
+                    ? new Date(Number(m.timestamp) * 1000).toISOString()
+                    : new Date().toISOString();
+
+                  // Upsert contato + atualiza last_inbound_at (crítico para janela 24h)
+                  const { data: contact } = await supabaseAdmin
+                    .from("contacts")
+                    .upsert(
+                      { phone: from, name: contactName ?? undefined, last_inbound_at: inboundAt },
+                      { onConflict: "phone" },
+                    )
+                    .select("id")
+                    .single();
+                  if (!contact) continue;
+                  await supabaseAdmin
+                    .from("contacts")
+                    .update({ last_inbound_at: inboundAt })
+                    .eq("id", contact.id);
+
+                  // Encontra/cria conversa via whatsapp_instances (Cloud API mapeada
+                  // por phone_number_id em app_settings/whatsapp_instances é fora do
+                  // escopo aqui — usa a primeira instância disponível).
+                  const { data: instance } = await supabaseAdmin
+                    .from("whatsapp_instances")
+                    .select("id")
+                    .limit(1)
+                    .maybeSingle();
+                  if (!instance) continue;
+
+                  const { data: conv } = await supabaseAdmin
+                    .from("conversations")
+                    .upsert(
+                      {
+                        contact_id: contact.id,
+                        instance_id: instance.id,
+                        last_message_at: inboundAt,
+                        last_message_preview: (m.text?.body ?? m.image?.caption ?? m.document?.caption ?? `[${m.type}]`).slice(0, 200),
+                      },
+                      { onConflict: "contact_id,instance_id" },
+                    )
+                    .select("id")
+                    .single();
+                  if (!conv) continue;
+
+                  await supabaseAdmin.from("messages").insert({
+                    conversation_id: conv.id,
+                    wa_message_id: m.id,
+                    direction: "in",
+                    type: (m.type === "text" ? "text" : "text") as never,
+                    content: m.text?.body ?? m.image?.caption ?? m.document?.caption ?? `[${m.type}]`,
+                    status: "delivered" as never,
+                    metadata: { provider: "cloud", phoneNumberId } as never,
+                  });
+                }
+              }
             }
           }
         }
