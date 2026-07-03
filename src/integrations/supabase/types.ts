@@ -503,6 +503,7 @@ export type Database = {
           journey_completed_at: string | null
           landing_link_sent_at: string | null
           landing_link_sent_count: number
+          last_inbound_at: string | null
           last_intent: Database["public"]["Enums"]["intent_label"] | null
           last_intent_at: string | null
           last_score_at: string | null
@@ -532,6 +533,7 @@ export type Database = {
           journey_completed_at?: string | null
           landing_link_sent_at?: string | null
           landing_link_sent_count?: number
+          last_inbound_at?: string | null
           last_intent?: Database["public"]["Enums"]["intent_label"] | null
           last_intent_at?: string | null
           last_score_at?: string | null
@@ -561,6 +563,7 @@ export type Database = {
           journey_completed_at?: string | null
           landing_link_sent_at?: string | null
           landing_link_sent_count?: number
+          last_inbound_at?: string | null
           last_intent?: Database["public"]["Enums"]["intent_label"] | null
           last_intent_at?: string | null
           last_score_at?: string | null
