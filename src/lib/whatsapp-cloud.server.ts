@@ -298,6 +298,32 @@ export async function listPhoneNumbers(wabaId: string, token: string) {
   return r.data ?? [];
 }
 
+/**
+ * Fetch a phone number + its WABA name directly by ID, without listing
+ * `/me/businesses`. Required for the Embedded Signup flow: the signup token
+ * grants access to a *shared* WABA that never shows up under
+ * `/me/businesses` → `/{biz}/owned_whatsapp_business_accounts`.
+ */
+export async function fetchSignupDetails(
+  wabaId: string,
+  phoneNumberId: string,
+  token: string,
+) {
+  const phone = await graph<{ id: string; display_phone_number?: string; verified_name?: string }>(
+    `/${phoneNumberId}`,
+    { token, query: { fields: "display_phone_number,verified_name" } },
+  );
+  const waba = await graph<{ id: string; name?: string }>(
+    `/${wabaId}`,
+    { token, query: { fields: "name,owner_business_info" } },
+  ).catch(() => ({ id: wabaId, name: undefined }));
+  return {
+    displayPhoneNumber: phone.display_phone_number ?? null,
+    verifiedName: phone.verified_name ?? null,
+    wabaName: waba.name ?? null,
+  };
+}
+
 export async function subscribeWaba(
   wabaId: string,
   token: string,
