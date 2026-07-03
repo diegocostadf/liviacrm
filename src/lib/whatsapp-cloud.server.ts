@@ -129,42 +129,19 @@ export async function validateMetaCredentials(
     }
   }
 
-  // 4. Login Configuration ID — validate by GET /{config-id} with app token.
+  // 4. Login Configuration ID — a Facebook Login for Business config is NOT a
+  // Graph API object, so `GET /{config-id}` sempre retorna "does not exist".
+  // O único caminho real de validação é abrir o Embedded Signup (passo 2).
+  // Aqui só validamos o formato e informamos o usuário.
   if (!cfg.configId) {
     result.configId = { ok: false, message: "Login Configuration ID obrigatório." };
   } else if (!/^\d{6,}$/.test(cfg.configId)) {
     result.configId = { ok: false, message: "Formato inválido — Config ID é numérico." };
-  } else if (!result.appSecret.ok) {
-    result.configId = { ok: false, message: "Corrija o App Secret antes de validar o Config ID." };
   } else {
-    const appToken = `${cfg.appId}|${cfg.appSecret}`;
-    try {
-      const url = new URL(`${GRAPH}/${cfg.configId}`);
-      url.searchParams.set("access_token", appToken);
-      const res = await fetch(url.toString());
-      const j = (await res.json().catch(() => ({}))) as { id?: string; application_id?: string } & GraphErr;
-      if (res.ok && j.id) {
-        if (j.application_id && j.application_id !== cfg.appId) {
-          result.configId = {
-            ok: false,
-            message: `Este Config ID pertence a outro App (${j.application_id}), não a ${cfg.appId}.`,
-          };
-        } else {
-          result.configId = { ok: true, message: "Login Configuration acessível." };
-        }
-      } else if (j.error) {
-        const msg = j.error.message ?? `Meta ${res.status}`;
-        if (j.error.code === 100 || /nonexisting|does not exist|unknown/i.test(msg)) {
-          result.configId = { ok: false, message: "Config ID não encontrado neste App.", detail: msg };
-        } else {
-          result.configId = { ok: false, message: msg, detail: `code=${j.error.code}` };
-        }
-      } else {
-        result.configId = { ok: false, message: `Meta respondeu HTTP ${res.status}.` };
-      }
-    } catch (e) {
-      result.configId = { ok: false, message: e instanceof Error ? e.message : "Falha ao chamar Graph API." };
-    }
+    result.configId = {
+      ok: true,
+      message: "Formato válido. A Meta só confirma o Config ID ao abrir o Embedded Signup (passo 2).",
+    };
   }
 
   result.overall = result.appId.ok && result.appSecret.ok && result.configId.ok && result.verifyToken.ok;
