@@ -194,10 +194,10 @@ function WhatsappCloudPage() {
 
   function launchEmbeddedSignup() {
     const w = window as unknown as { FB?: { login: (cb: (r: { authResponse?: { code?: string }; status?: string }) => void, o: Record<string, unknown>) => void } };
-    if (!data?.meta.appId) return toast.error("META_APP_ID não está configurado nas secrets.");
-    if (!data?.meta.configId) return toast.error("META_LOGIN_CONFIG_ID não está configurado nas secrets.");
+    if (!data?.meta.appId) return toast.error("Configure o App ID no passo 1.");
+    if (!data?.meta.configId) return toast.error("Configure o Login Configuration ID no passo 1.");
     if (!w.FB) {
-      toast.error("SDK do Facebook não carregou. Use o modo manual abaixo.");
+      toast.error("SDK do Facebook não carregou. Verifique adblockers ou rede.");
       return;
     }
     try {
@@ -205,41 +205,16 @@ function WhatsappCloudPage() {
         console.log("[wa-cloud] FB.login response", r);
         const code = r?.authResponse?.code;
         if (!code) {
-          toast.error(`Login não retornou code (status: ${r?.status ?? "desconhecido"}). Verifique se o domínio está na allowlist do app Meta ou use o modo manual.`);
+          toast.error(`Login não retornou code (status: ${r?.status ?? "desconhecido"}). Verifique se o domínio está na allowlist do app Meta.`);
           return;
         }
         exchangeMut.mutate(code);
       }, { config_id: data.meta.configId, response_type: "code", override_default_response_type: true, extras: { setup: {} } });
     } catch (err) {
       console.error("[wa-cloud] FB.login lançou exceção", err);
-      toast.error("Falha ao abrir o Embedded Signup. Use o modo manual abaixo.");
+      toast.error("Falha ao abrir o Embedded Signup.");
     }
   }
-
-  // Fallback manual: o admin cola um token + IDs vindos do Meta Business Manager
-  const manualSaveMut = useMutation({
-    mutationFn: (input: { token: string; wabaId: string; phoneNumberId: string; displayPhoneNumber?: string; businessName?: string }) =>
-      api<{ account: Account; subscribed: boolean; subscribeError: string | null }>("POST", {
-        action: "save-account",
-        wabaId: input.wabaId,
-        businessName: input.businessName,
-        phoneNumberId: input.phoneNumberId,
-        displayPhoneNumber: input.displayPhoneNumber,
-        accessToken: input.token,
-        setDefault: true,
-      }),
-    onSuccess: (r) => {
-      qc.invalidateQueries({ queryKey: ["wa-cloud"] });
-      if (r.subscribed) {
-        toast.success("Conta salva e webhook inscrito automaticamente!");
-        setStep(4);
-      } else {
-        toast.warning(`Conta salva, mas falhou ao inscrever o webhook: ${r.subscribeError ?? "erro desconhecido"}. Tente novamente no passo 3.`);
-        setStep(3);
-      }
-    },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
-  });
 
   return (
     <div className="h-screen overflow-y-auto p-6">
