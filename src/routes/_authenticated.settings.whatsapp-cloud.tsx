@@ -17,7 +17,7 @@ type Account = {
   webhook_subscribed: boolean; created_at: string;
 };
 type State = {
-  meta: { appId: string; configId: string; verifyToken: string; webhookUrl: string };
+  meta: { appId: string; configId: string; verifyToken: string; hasAppSecret: boolean; webhookUrl: string };
   accounts: Account[];
 };
 
@@ -40,9 +40,9 @@ export const Route = createFileRoute("/_authenticated/settings/whatsapp-cloud")(
 });
 
 const STEPS = [
-  { n: 1, label: "App Meta" },
+  { n: 1, label: "Credenciais Meta" },
   { n: 2, label: "Conectar conta" },
-  { n: 3, label: "Número & Webhook" },
+  { n: 3, label: "Contas & Webhook" },
   { n: 4, label: "Testes" },
   { n: 5, label: "Resumo" },
 ] as const;
