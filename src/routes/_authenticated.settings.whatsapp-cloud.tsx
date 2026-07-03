@@ -396,6 +396,16 @@ function Step1Credentials(props: {
     setVerify(props.meta.verifyToken);
   }, [props.meta.appId, props.meta.configId, props.meta.verifyToken]);
   const missing = !props.meta.appId || !props.meta.configId || !props.meta.verifyToken;
+  const validateMut = useMutation({
+    mutationFn: (v: { appId?: string; appSecret?: string; configId?: string; verifyToken?: string }) =>
+      api<{ ok: boolean; check: CredentialsCheck }>("POST", { action: "validate-credentials", ...v }),
+    onSuccess: (r) => {
+      if (r.check.overall) toast.success("Todas as credenciais são válidas!");
+      else toast.error("Uma ou mais credenciais estão inválidas — veja detalhes abaixo.");
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
+  });
+  const check = validateMut.data?.check;
   return (
     <Card className="space-y-4 p-6">
       <h2 className="text-lg font-semibold">1. Credenciais do App Meta</h2>
@@ -440,6 +450,20 @@ function Step1Credentials(props: {
           Salvar credenciais
         </Button>
         <Button
+          variant="secondary"
+          onClick={() => validateMut.mutate({
+            appId: appId.trim() || undefined,
+            ...(appSecret.trim() ? { appSecret: appSecret.trim() } : {}),
+            configId: configId.trim() || undefined,
+            verifyToken: verify.trim() || undefined,
+          })}
+          disabled={validateMut.isPending || (!appId.trim() && !props.meta.appId)}
+          title="Testa cada campo direto na Meta Graph API, sem salvar."
+        >
+          {validateMut.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+          Validar credenciais na Meta
+        </Button>
+        <Button
           variant="outline"
           onClick={props.onConfigureAppWebhook}
           disabled={props.configuringWebhook || !props.meta.appId || !props.meta.hasAppSecret || !props.meta.verifyToken}
@@ -449,6 +473,20 @@ function Step1Credentials(props: {
           Registrar webhook automaticamente na Meta
         </Button>
       </div>
+      {check && (
+        <div className="space-y-2 rounded-md border bg-muted/30 p-3">
+          <div className="text-xs font-medium uppercase text-muted-foreground">
+            Resultado da validação {check.overall && <span className="text-emerald-500">— tudo OK ✅</span>}
+          </div>
+          <CredentialCheckRow label="App ID" c={check.appId} />
+          <CredentialCheckRow label="App Secret" c={check.appSecret} />
+          <CredentialCheckRow label="Login Configuration ID" c={check.configId} />
+          <CredentialCheckRow label="Verify Token" c={check.verifyToken} />
+          <p className="pt-1 text-[11px] text-muted-foreground">
+            App ID/Secret são testados com <code>GET /{"{"}app-id{"}"}</code> usando o app access token. O Config ID é lido em <code>GET /{"{"}config-id{"}"}</code> e conferimos se pertence a este App.
+          </p>
+        </div>
+      )}
       <Separator />
       <div className="grid gap-3 md:grid-cols-2">
         <CopyableField label="Verify Token (Webhook)" value={props.meta.verifyToken} />
@@ -458,6 +496,22 @@ function Step1Credentials(props: {
         O botão &quot;Registrar webhook&quot; chama <code>POST /{"{"}app-id{"}"}/subscriptions</code> na Meta com a URL e o Verify Token acima — substitui totalmente o passo manual no App Dashboard.
       </p>
     </Card>
+  );
+}
+
+function CredentialCheckRow({ label, c }: { label: string; c: FieldCheck }) {
+  return (
+    <div className="flex items-start gap-2 text-sm">
+      {c.ok
+        ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
+        : <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />}
+      <div className="flex-1">
+        <div className={c.ok ? "" : "font-medium text-destructive"}>
+          <span className="font-medium">{label}:</span> {c.message}
+        </div>
+        {c.detail && <div className="text-xs text-muted-foreground">{c.detail}</div>}
+      </div>
+    </div>
   );
 }
 
