@@ -16,6 +16,7 @@ import {
   configureAppWebhookSubscription,
   addAppDomain,
   validateMetaCredentials,
+  fetchSignupDetails,
 } from "@/lib/whatsapp-cloud.server";
 import { invalidateMessagingCache } from "@/lib/messaging-broker.server";
 
@@ -49,6 +50,12 @@ const saveAccountSchema = z.object({
   accessToken: z.string().min(10),
   setDefault: z.boolean().default(true),
 });
+const saveFromSignupSchema = z.object({
+  action: z.literal("save-from-signup"),
+  wabaId: z.string().min(3),
+  phoneNumberId: z.string().min(3),
+  accessToken: z.string().min(10),
+});
 const setDefaultSchema = z.object({ action: z.literal("set-default"), accountId: z.string().uuid() });
 const deleteAccountSchema = z.object({ action: z.literal("delete-account"), accountId: z.string().uuid() });
 const subscribeSchema = z.object({ action: z.literal("subscribe-webhook"), accountId: z.string().uuid() });
@@ -80,7 +87,7 @@ const validateCredsSchema = z.object({
   configId: z.string().trim().optional(),
   verifyToken: z.string().trim().optional(),
 });
-const postSchema = z.union([exchangeSchema, listWabasSchema, listPhonesSchema, saveAccountSchema, setDefaultSchema, deleteAccountSchema, subscribeSchema, syncTemplatesSchema, sendTestSchema, checkDomainSchema, addDomainSchema, verifyWebhookSchema, saveMetaSchema, configureAppWebhookSchema, validateCredsSchema]);
+const postSchema = z.union([exchangeSchema, listWabasSchema, listPhonesSchema, saveAccountSchema, saveFromSignupSchema, setDefaultSchema, deleteAccountSchema, subscribeSchema, syncTemplatesSchema, sendTestSchema, checkDomainSchema, addDomainSchema, verifyWebhookSchema, saveMetaSchema, configureAppWebhookSchema, validateCredsSchema]);
 
 export async function handleGet(request: Request) {
   try {
@@ -248,6 +255,50 @@ export async function handlePost(request: Request) {
         } catch {
           /* non-fatal */
         }
+
+        invalidateMessagingCache();
+        return json({ account: { ...data, webhook_subscribed: subscribed }, subscribed, subscribeError });
+      }
+      case "save-from-signup": {
+        // Fetch phone + WABA details directly (Embedded Signup token can't list /me/businesses).
+        const details = await fetchSignupDetails(body.wabaId, body.phoneNumberId, body.accessToken);
+        await supabaseAdmin.from("whatsapp_cloud_accounts").update({ is_default: false }).neq("waba_id", body.wabaId);
+        const { data, error } = await supabaseAdmin
+          .from("whatsapp_cloud_accounts")
+          .upsert({
+            waba_id: body.wabaId,
+            business_name: details.wabaName,
+            phone_number_id: body.phoneNumberId,
+            display_phone_number: details.displayPhoneNumber,
+            verified_name: details.verifiedName,
+            access_token: body.accessToken,
+            is_default: true,
+            created_by: userId,
+          }, { onConflict: "waba_id" })
+          .select()
+          .single();
+        if (error) throw new Error(error.message);
+
+        const callback = webhookUrl(request);
+        const cfg = await getMetaConfig();
+        let subscribed = false;
+        let subscribeError: string | null = null;
+        try {
+          try { await configureAppWebhookSubscription(callback); } catch { /* non-fatal */ }
+          await subscribeWaba(body.wabaId, body.accessToken, {
+            overrideCallbackUri: callback,
+            verifyToken: cfg.verifyToken,
+          });
+          subscribed = true;
+          await supabaseAdmin
+            .from("whatsapp_cloud_accounts")
+            .update({ webhook_subscribed: true })
+            .eq("id", data.id);
+        } catch (e) {
+          subscribeError = e instanceof Error ? e.message : String(e);
+        }
+
+        try { await syncTemplatesForAccount(data.id); } catch { /* non-fatal */ }
 
         invalidateMessagingCache();
         return json({ account: { ...data, webhook_subscribed: subscribed }, subscribed, subscribeError });
