@@ -124,8 +124,8 @@ function WhatsappCloudPage() {
   const saveFromSignupMut = useMutation({
     mutationFn: (v: { wabaId: string; phoneNumberId: string; accessToken: string }) =>
       api<{ account: Account; subscribed: boolean; subscribeError: string | null }>("POST", { action: "save-from-signup", ...v }),
-    onSuccess: (r) => {
-      qc.invalidateQueries({ queryKey: ["wa-cloud"] });
+    onSuccess: async (r) => {
+      await qc.refetchQueries({ queryKey: ["wa-cloud"], type: "all" });
       if (r.subscribed) {
         toast.success("Conta conectada e webhook inscrito automaticamente!");
         setStep(4);
