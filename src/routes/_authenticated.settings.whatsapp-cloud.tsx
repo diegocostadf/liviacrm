@@ -93,13 +93,22 @@ function WhatsappCloudPage() {
       const p = phones.find((x) => x.id === selectedPhone);
       if (!selectedWaba || !p) throw new Error("Selecione WABA e número.");
       const biz = businesses.find((b) => b.wabas.some((w) => w.id === selectedWaba.id));
-      return api<{ account: Account }>("POST", {
+      return api<{ account: Account; subscribed: boolean; subscribeError: string | null }>("POST", {
         action: "save-account", wabaId: selectedWaba.id, businessName: biz?.businessName,
         phoneNumberId: p.id, displayPhoneNumber: p.display_phone_number, verifiedName: p.verified_name,
         accessToken, setDefault: true,
       });
     },
-    onSuccess: () => { toast.success("Conta salva!"); qc.invalidateQueries({ queryKey: ["wa-cloud"] }); setStep(3); },
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: ["wa-cloud"] });
+      if (r.subscribed) {
+        toast.success("Conta salva e webhook inscrito automaticamente!");
+        setStep(4);
+      } else {
+        toast.warning(`Conta salva, mas falhou ao inscrever o webhook: ${r.subscribeError ?? "erro desconhecido"}. Tente novamente no passo 3.`);
+        setStep(3);
+      }
+    },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
   });
 
@@ -174,7 +183,7 @@ function WhatsappCloudPage() {
   // Fallback manual: o admin cola um token + IDs vindos do Meta Business Manager
   const manualSaveMut = useMutation({
     mutationFn: (input: { token: string; wabaId: string; phoneNumberId: string; displayPhoneNumber?: string; businessName?: string }) =>
-      api<{ account: Account }>("POST", {
+      api<{ account: Account; subscribed: boolean; subscribeError: string | null }>("POST", {
         action: "save-account",
         wabaId: input.wabaId,
         businessName: input.businessName,
@@ -183,7 +192,16 @@ function WhatsappCloudPage() {
         accessToken: input.token,
         setDefault: true,
       }),
-    onSuccess: () => { toast.success("Conta salva!"); qc.invalidateQueries({ queryKey: ["wa-cloud"] }); setStep(3); },
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: ["wa-cloud"] });
+      if (r.subscribed) {
+        toast.success("Conta salva e webhook inscrito automaticamente!");
+        setStep(4);
+      } else {
+        toast.warning(`Conta salva, mas falhou ao inscrever o webhook: ${r.subscribeError ?? "erro desconhecido"}. Tente novamente no passo 3.`);
+        setStep(3);
+      }
+    },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
   });
 
