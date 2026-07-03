@@ -93,8 +93,19 @@ export async function listPhoneNumbers(wabaId: string, token: string) {
   return r.data ?? [];
 }
 
-export async function subscribeWaba(wabaId: string, token: string) {
-  await graph(`/${wabaId}/subscribed_apps`, { method: "POST", token });
+export async function subscribeWaba(
+  wabaId: string,
+  token: string,
+  opts?: { overrideCallbackUri?: string; verifyToken?: string },
+) {
+  const body: Record<string, unknown> = {};
+  if (opts?.overrideCallbackUri) body.override_callback_uri = opts.overrideCallbackUri;
+  if (opts?.verifyToken) body.verify_token = opts.verifyToken;
+  await graph(`/${wabaId}/subscribed_apps`, {
+    method: "POST",
+    token,
+    body: Object.keys(body).length ? body : undefined,
+  });
   return true;
 }
 
