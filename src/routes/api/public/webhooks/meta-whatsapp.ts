@@ -9,7 +9,8 @@ export const Route = createFileRoute("/api/public/webhooks/meta-whatsapp")({
         const mode = u.searchParams.get("hub.mode");
         const token = u.searchParams.get("hub.verify_token");
         const challenge = u.searchParams.get("hub.challenge");
-        const expected = process.env.META_WEBHOOK_VERIFY_TOKEN ?? "";
+        const { getMetaConfig } = await import("@/lib/whatsapp-cloud.server");
+        const expected = (await getMetaConfig()).verifyToken;
         if (mode === "subscribe" && token && expected && token === expected) {
           return new Response(challenge ?? "", { status: 200 });
         }
@@ -18,7 +19,8 @@ export const Route = createFileRoute("/api/public/webhooks/meta-whatsapp")({
       POST: async ({ request }) => {
         const raw = await request.text();
         const sig = request.headers.get("x-hub-signature-256") ?? "";
-        const secret = process.env.META_APP_SECRET ?? "";
+        const { getMetaConfig, ensureCloudInstance } = await import("@/lib/whatsapp-cloud.server");
+        const secret = (await getMetaConfig()).appSecret;
         if (secret) {
           const expected = "sha256=" + createHmac("sha256", secret).update(raw).digest("hex");
           const a = Buffer.from(sig);
