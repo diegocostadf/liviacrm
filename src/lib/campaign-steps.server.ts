@@ -402,7 +402,7 @@ export async function tickStep(stepId: string, batch = 1) {
   // WhatsApp Cloud: fora da janela de 24h só template aprovado é aceito pela
   // Meta. Resolve o template (step > campanha) uma vez por tick.
   let cloudTemplate:
-    | { templateName: string; templateLanguage: string; bodyVariables?: string[] }
+    | { templateName: string; templateLanguage: string; varTemplates: string[] }
     | undefined;
   if (provider === "cloud") {
     const tplId =
@@ -416,7 +416,20 @@ export async function tickStep(stepId: string, batch = 1) {
         .eq("id", tplId)
         .maybeSingle();
       if (tpl && tpl.status === "APPROVED") {
-        cloudTemplate = { templateName: tpl.name, templateLanguage: tpl.language };
+        const rawVars =
+          ((s as unknown as { cloud_template_variables?: unknown }).cloud_template_variables as
+            | Record<string, unknown>
+            | null) ??
+          ((c as unknown as { cloud_template_variables?: unknown }).cloud_template_variables as
+            | Record<string, unknown>
+            | null) ??
+          null;
+        const varTemplates = rawVars
+          ? Object.keys(rawVars)
+              .sort((a, b) => Number(a) - Number(b))
+              .map((k) => String(rawVars[k] ?? ""))
+          : [];
+        cloudTemplate = { templateName: tpl.name, templateLanguage: tpl.language, varTemplates };
       }
     }
   }
