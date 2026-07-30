@@ -112,14 +112,19 @@ export const Route = createFileRoute("/api/public/webhooks/meta-whatsapp")({
                     .update({ last_inbound_at: inboundAt })
                     .eq("id", contact.id);
 
-                  // Encontra/cria conversa via whatsapp_instances (Cloud API mapeada
-                  // por phone_number_id em app_settings/whatsapp_instances é fora do
-                  // escopo aqui — usa a primeira instância disponível).
-                  const { data: instance } = await supabaseAdmin
-                    .from("whatsapp_instances")
-                    .select("id")
-                    .limit(1)
-                    .maybeSingle();
+                  // Conversa vinculada à "instância" virtual da Cloud API,
+                  // criada por phone_number_id (não usa instâncias Evolution).
+                  const instance = phoneNumberId
+                    ? await ensureCloudInstance({
+                        phoneNumberId,
+                        displayPhoneNumber: v.metadata?.display_phone_number ?? null,
+                      })
+                    : await supabaseAdmin
+                        .from("whatsapp_instances")
+                        .select("id")
+                        .limit(1)
+                        .maybeSingle()
+                        .then((r) => r.data);
                   if (!instance) continue;
 
                   const { data: conv } = await supabaseAdmin
@@ -146,6 +151,19 @@ export const Route = createFileRoute("/api/public/webhooks/meta-whatsapp")({
                     status: "delivered" as never,
                     metadata: { provider: "cloud", phoneNumberId } as never,
                   });
+
+                  // Marca respostas de campanha + trata opt-out.
+                  try {
+                    const { markRepliesForPhone, handleOptOut } = await import("@/lib/campaign-steps.server");
+                    await markRepliesForPhone(from);
+                    await handleOptOut({
+                      phone: from,
+                      text: m.text?.body ?? "",
+                      instanceName: `cloud:${phoneNumberId ?? ""}`,
+                    });
+                  } catch (e) {
+                    console.warn("[meta-webhook] campaign hooks", e);
+                  }
                 }
               }
             }
