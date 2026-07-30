@@ -572,7 +572,9 @@ export async function tickStep(stepId: string, batch = 1) {
           ? {
               templateName: cloudTemplate.templateName,
               templateLanguage: cloudTemplate.templateLanguage,
-              bodyVariables: [rendered],
+              bodyVariables: cloudTemplate.varTemplates.length
+                ? cloudTemplate.varTemplates.map((t) => renderTemplate(t, fields).trim())
+                : [rendered],
             }
           : undefined,
       });
