@@ -39,17 +39,19 @@ type Campaign = {
   sent_count: number;
   failed_count: number;
   total_count: number;
+  cloud_template_id: string | null;
+  cloud_template_variables: Record<string, unknown> | null;
 };
 
 /** Process up to `batch` pending targets for one campaign. Returns counts. */
 export async function tickCampaign(campaignId: string, batch = 1) {
   const { data: campaignRow, error: cErr } = await supabaseAdmin
     .from("campaigns")
-    .select("id, status, instance_id, template, throttle_min_seconds, throttle_max_seconds, window_start_hour, window_end_hour, sent_count, failed_count, total_count")
+    .select("id, status, instance_id, template, throttle_min_seconds, throttle_max_seconds, window_start_hour, window_end_hour, sent_count, failed_count, total_count, cloud_template_id, cloud_template_variables")
     .eq("id", campaignId)
     .maybeSingle();
   if (cErr || !campaignRow) return { processed: 0, sent: 0, failed: 0, reason: "not_found" as const };
-  const campaign = campaignRow as Campaign;
+  const campaign = campaignRow as unknown as Campaign;
   if (campaign.status !== "running") return { processed: 0, sent: 0, failed: 0, reason: "not_running" as const };
   if (!isWithinWindow(campaign.window_start_hour, campaign.window_end_hour)) {
     return { processed: 0, sent: 0, failed: 0, reason: "out_of_window" as const };
@@ -72,6 +74,28 @@ export async function tickCampaign(campaignId: string, batch = 1) {
     evolutionInstanceName = inst.evolution_instance_name;
   }
 
+  // WhatsApp Cloud: resolve template aprovado (obrigatório fora da janela 24h).
+  let cloudTemplate:
+    | { templateName: string; templateLanguage: string; varTemplates: string[] }
+    | undefined;
+  if (provider === "cloud" && campaign.cloud_template_id) {
+    const { data: tpl } = await supabaseAdmin
+      .from("whatsapp_cloud_templates")
+      .select("name, language, status")
+      .eq("id", campaign.cloud_template_id)
+      .maybeSingle();
+    if (tpl && tpl.status === "APPROVED") {
+      const rawVars = (campaign.cloud_template_variables ?? null) as Record<string, unknown> | null;
+      cloudTemplate = {
+        templateName: tpl.name,
+        templateLanguage: tpl.language,
+        varTemplates: rawVars
+          ? Object.keys(rawVars).sort((a, b) => Number(a) - Number(b)).map((k) => String(rawVars[k] ?? ""))
+          : [],
+      };
+    }
+  }
+
   const nowIso = new Date().toISOString();
   let processed = 0;
   let sent = 0;
@@ -81,7 +105,7 @@ export async function tickCampaign(campaignId: string, batch = 1) {
     // Pick + lock next pending target
     const { data: candidates } = await supabaseAdmin
       .from("campaign_targets")
-      .select("id, phone, name, custom_fields, attempts")
+      .select("id, contact_id, phone, name, custom_fields, attempts")
       .eq("campaign_id", campaign.id)
       .eq("status", "pending")
       .or(`locked_until.is.null,locked_until.lt.${nowIso}`)
@@ -143,6 +167,16 @@ export async function tickCampaign(campaignId: string, batch = 1) {
         toPhone: phone,
         text: rendered,
         evolutionInstanceName,
+        contactId: target.contact_id ?? undefined,
+        cloud: cloudTemplate
+          ? {
+              templateName: cloudTemplate.templateName,
+              templateLanguage: cloudTemplate.templateLanguage,
+              bodyVariables: cloudTemplate.varTemplates.length
+                ? cloudTemplate.varTemplates.map((t) => renderTemplate(t, fields).trim())
+                : [rendered],
+            }
+          : undefined,
       });
       await supabaseAdmin
         .from("campaign_targets")
