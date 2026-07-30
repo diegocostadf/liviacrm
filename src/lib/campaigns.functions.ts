@@ -106,7 +106,11 @@ export const createCampaign = createServerFn({ method: "POST" })
     return { id: inserted.id };
   });
 
-const updateSchema = createSchema.partial().merge(rulesSchema).extend({ id: z.string().uuid() });
+const updateSchema = createSchema.partial().merge(rulesSchema).extend({
+  id: z.string().uuid(),
+  cloud_template_id: z.string().uuid().nullable().optional(),
+  cloud_template_variables: z.record(z.string(), z.string()).optional(),
+});
 
 export const updateCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

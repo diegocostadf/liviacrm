@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { listCloudTemplates } from "@/lib/whatsapp-templates.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -48,6 +50,7 @@ function statusBadge(s: string) {
 
 function TemplatesPage() {
   const qc = useQueryClient();
+  const listFn = useServerFn(listCloudTemplates);
   const accountsQ = useQuery({ queryKey: ["wa-cloud-accounts"], queryFn: () => api<{ accounts: Account[] }>("/api/whatsapp-cloud-settings", "GET") });
   const accounts = accountsQ.data?.accounts ?? [];
   const [accountId, setAccountId] = useState<string>("");
@@ -55,12 +58,14 @@ function TemplatesPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ["wa-templates", effectiveId],
-    queryFn: () => api<{ templates: Tpl[] }>(`/api/whatsapp-cloud-templates?accountId=${effectiveId}`, "GET"),
+    // Sincroniza automaticamente com a Meta quando os dados locais estão vazios ou antigos.
+    queryFn: () => listFn({ data: { accountId: effectiveId } }) as Promise<{ templates: Tpl[] }>,
     enabled: !!effectiveId,
+    refetchInterval: 60_000,
   });
 
   const syncMut = useMutation({
-    mutationFn: () => api("/api/whatsapp-cloud-settings", "POST", { action: "sync-templates", accountId: effectiveId }),
+    mutationFn: () => listFn({ data: { accountId: effectiveId, forceSync: true } }),
     onSuccess: () => { toast.success("Sincronizado."); qc.invalidateQueries({ queryKey: ["wa-templates"] }); },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
   });
