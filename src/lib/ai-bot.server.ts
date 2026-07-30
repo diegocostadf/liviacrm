@@ -610,7 +610,7 @@ async function sendBotMessage(
     content: text,
     status: "sent",
     sent_by: "bot",
-    wa_message_id: res?.key?.id ?? null,
+    wa_message_id: res.id,
     metadata: (metadata as unknown as never) ?? null,
   });
 
