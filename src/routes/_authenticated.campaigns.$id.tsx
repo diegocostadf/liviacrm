@@ -17,6 +17,7 @@ import {
 import { CampaignSequence } from "@/components/campaign-sequence";
 import { CampaignRulesCard } from "@/components/campaign-rules";
 import { CampaignCrmPicker } from "@/components/campaign-crm-picker";
+import { CampaignCloudTemplateCard } from "@/components/campaign-cloud-template";
 import {
   getCampaign, addCampaignTargets, removeCampaignTarget,
   setCampaignStatus, tickCampaignFn, previewCampaignMessage, updateCampaign,
@@ -647,6 +648,7 @@ function CampaignDetailPage() {
         </TabsContent>
 
         <TabsContent value="message">
+          <div className="space-y-4">
           <Card>
             <CardHeader><CardTitle className="text-base">Modelo da mensagem</CardTitle></CardHeader>
             <CardContent className="space-y-3">
@@ -669,6 +671,13 @@ function CampaignDetailPage() {
               </Label>
             </CardContent>
           </Card>
+          <CampaignCloudTemplateCard
+            campaignId={campaign.id}
+            currentTemplateId={(campaign as { cloud_template_id?: string | null }).cloud_template_id ?? null}
+            currentVariables={(campaign as { cloud_template_variables?: Record<string, unknown> | null }).cloud_template_variables ?? null}
+            onSaved={() => qc.invalidateQueries({ queryKey: ["campaign", id] })}
+          />
+          </div>
         </TabsContent>
 
         <TabsContent value="rules">
