@@ -172,10 +172,14 @@ export const sendTextMessage = createServerFn({ method: "POST" })
     const contact = (conv as unknown as { contacts: { phone: string } }).contacts;
     const instance = (conv as unknown as { whatsapp_instances: { evolution_instance_name: string } }).whatsapp_instances;
 
-    const res = (await evolutionFetch(`/message/sendText/${instance.evolution_instance_name}`, {
-      method: "POST",
-      json: { number: contact.phone, text: data.text },
-    })) as { key?: { id?: string } };
+    // Envia pelo provedor ativo (Evolution, Twilio, WhatsApp Cloud ou Z-API).
+    const { brokerSendText } = await import("./messaging-broker.server");
+    const res = await brokerSendText({
+      toPhone: contact.phone,
+      text: data.text,
+      evolutionInstanceName: instance?.evolution_instance_name ?? null,
+      contactId: conv.contact_id,
+    });
 
     const { data: msg, error: msgErr } = await supabaseAdmin
       .from("messages")
@@ -185,7 +189,7 @@ export const sendTextMessage = createServerFn({ method: "POST" })
         type: "text",
         content: data.text,
         status: "sent",
-        wa_message_id: res?.key?.id ?? null,
+        wa_message_id: res.id,
         sender_id: context.userId,
       })
       .select()

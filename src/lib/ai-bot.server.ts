@@ -479,10 +479,7 @@ export async function handleHandoffCommand(args: {
 
   const replyTo = async (msg: string) => {
     try {
-      await evolutionFetch(`/message/sendText/${instanceName}`, {
-        method: "POST",
-        json: { number: handoffNorm, text: msg },
-      });
+      await providerSendText(instanceName, handoffNorm, msg);
     } catch (e) {
       console.warn("[bot] handoff reply failed", e);
     }
@@ -535,14 +532,29 @@ export async function handleResetCommand(args: {
     .eq("id", conversationId);
 
   try {
-    await evolutionFetch(`/message/sendText/${instanceName}`, {
-      method: "POST",
-      json: { number: phone, text: "🔄 Conversa reiniciada! Vamos começar de novo — em que posso ajudar?" },
-    });
+    await providerSendText(instanceName, phone, "🔄 Conversa reiniciada! Vamos começar de novo — em que posso ajudar?");
   } catch (e) {
     console.warn("[bot] reset reply failed", e);
   }
   return true;
+}
+
+/**
+ * Envia texto pelo provedor ativo (Evolution, Twilio, WhatsApp Cloud, Z-API).
+ * Instâncias Cloud/Twilio não têm nome Evolution — o broker ignora esse campo.
+ */
+async function providerSendText(
+  evolutionInstanceName: string,
+  phone: string,
+  text: string,
+): Promise<{ id: string | null }> {
+  const { brokerSendText } = await import("./messaging-broker.server");
+  const res = await brokerSendText({
+    toPhone: phone,
+    text,
+    evolutionInstanceName: evolutionInstanceName?.startsWith("cloud:") ? null : evolutionInstanceName,
+  });
+  return { id: res.id };
 }
 
 async function notifyHumanHandoff(
@@ -559,10 +571,7 @@ async function notifyHumanHandoff(
     `Motivo: ${reason}`,
   ].join("\n");
   try {
-    await evolutionFetch(`/message/sendText/${evolutionInstanceName}`, {
-      method: "POST",
-      json: { number: target, text },
-    });
+    await providerSendText(evolutionInstanceName, target, text);
   } catch (e) {
     console.warn("[bot] handoff notify failed", e);
   }
@@ -580,19 +589,19 @@ async function sendBotMessage(
     try {
       // Typing indicator (composing) — Evolution v2 endpoint
       const delay = Math.min(4000, 800 + Math.min(text.length, 400) * 25);
-      await evolutionFetch(`/chat/sendPresence/${evolutionInstanceName}`, {
-        method: "POST",
-        json: { number: phone, presence: "composing", delay },
-      });
+      const { getActiveProvider } = await import("./messaging-broker.server");
+      if ((await getActiveProvider()) === "evolution" && evolutionInstanceName) {
+        await evolutionFetch(`/chat/sendPresence/${evolutionInstanceName}`, {
+          method: "POST",
+          json: { number: phone, presence: "composing", delay },
+        });
+      }
       await new Promise((r) => setTimeout(r, delay));
     } catch (e) {
       console.warn("[bot] typing presence failed", e);
     }
   }
-  const res = (await evolutionFetch(`/message/sendText/${evolutionInstanceName}`, {
-    method: "POST",
-    json: { number: phone, text },
-  })) as { key?: { id?: string } };
+  const res = await providerSendText(evolutionInstanceName, phone, text);
 
     await supabaseAdmin.from("messages").insert({
     conversation_id: conversationId,
@@ -601,7 +610,7 @@ async function sendBotMessage(
     content: text,
     status: "sent",
     sent_by: "bot",
-    wa_message_id: res?.key?.id ?? null,
+    wa_message_id: res.id,
     metadata: (metadata as unknown as never) ?? null,
   });
 

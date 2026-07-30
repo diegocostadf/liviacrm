@@ -9,7 +9,8 @@ export const Route = createFileRoute("/api/public/webhooks/meta-whatsapp")({
         const mode = u.searchParams.get("hub.mode");
         const token = u.searchParams.get("hub.verify_token");
         const challenge = u.searchParams.get("hub.challenge");
-        const expected = process.env.META_WEBHOOK_VERIFY_TOKEN ?? "";
+        const { getMetaConfig } = await import("@/lib/whatsapp-cloud.server");
+        const expected = (await getMetaConfig()).verifyToken;
         if (mode === "subscribe" && token && expected && token === expected) {
           return new Response(challenge ?? "", { status: 200 });
         }
@@ -18,7 +19,8 @@ export const Route = createFileRoute("/api/public/webhooks/meta-whatsapp")({
       POST: async ({ request }) => {
         const raw = await request.text();
         const sig = request.headers.get("x-hub-signature-256") ?? "";
-        const secret = process.env.META_APP_SECRET ?? "";
+        const { getMetaConfig, ensureCloudInstance } = await import("@/lib/whatsapp-cloud.server");
+        const secret = (await getMetaConfig()).appSecret;
         if (secret) {
           const expected = "sha256=" + createHmac("sha256", secret).update(raw).digest("hex");
           const a = Buffer.from(sig);
@@ -110,14 +112,19 @@ export const Route = createFileRoute("/api/public/webhooks/meta-whatsapp")({
                     .update({ last_inbound_at: inboundAt })
                     .eq("id", contact.id);
 
-                  // Encontra/cria conversa via whatsapp_instances (Cloud API mapeada
-                  // por phone_number_id em app_settings/whatsapp_instances é fora do
-                  // escopo aqui — usa a primeira instância disponível).
-                  const { data: instance } = await supabaseAdmin
-                    .from("whatsapp_instances")
-                    .select("id")
-                    .limit(1)
-                    .maybeSingle();
+                  // Conversa vinculada à "instância" virtual da Cloud API,
+                  // criada por phone_number_id (não usa instâncias Evolution).
+                  const instance = phoneNumberId
+                    ? await ensureCloudInstance({
+                        phoneNumberId,
+                        displayPhoneNumber: v.metadata?.display_phone_number ?? null,
+                      })
+                    : await supabaseAdmin
+                        .from("whatsapp_instances")
+                        .select("id")
+                        .limit(1)
+                        .maybeSingle()
+                        .then((r) => r.data);
                   if (!instance) continue;
 
                   const { data: conv } = await supabaseAdmin
@@ -144,6 +151,19 @@ export const Route = createFileRoute("/api/public/webhooks/meta-whatsapp")({
                     status: "delivered" as never,
                     metadata: { provider: "cloud", phoneNumberId } as never,
                   });
+
+                  // Marca respostas de campanha + trata opt-out.
+                  try {
+                    const { markRepliesForPhone, handleOptOut } = await import("@/lib/campaign-steps.server");
+                    await markRepliesForPhone(from);
+                    await handleOptOut({
+                      phone: from,
+                      text: m.text?.body ?? "",
+                      instanceName: `cloud:${phoneNumberId ?? ""}`,
+                    });
+                  } catch (e) {
+                    console.warn("[meta-webhook] campaign hooks", e);
+                  }
                 }
               }
             }

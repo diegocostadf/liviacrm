@@ -443,6 +443,40 @@ export async function getDefaultCloudAccount() {
   return data;
 }
 
+/**
+ * Cloud API não tem "instância" como a Evolution, mas o CRM (conversas/inbox)
+ * exige `conversations.instance_id`. Garante uma linha virtual em
+ * whatsapp_instances por phone_number_id da Cloud API.
+ */
+export async function ensureCloudInstance(args: {
+  phoneNumberId: string;
+  displayPhoneNumber?: string | null;
+  verifiedName?: string | null;
+}): Promise<{ id: string } | null> {
+  const evoName = `cloud:${args.phoneNumberId}`;
+  const { data: existing } = await supabaseAdmin
+    .from("whatsapp_instances")
+    .select("id")
+    .eq("evolution_instance_name", evoName)
+    .maybeSingle();
+  if (existing) return existing;
+  const { data } = await supabaseAdmin
+    .from("whatsapp_instances")
+    .upsert(
+      {
+        name: args.verifiedName || args.displayPhoneNumber || "WhatsApp Cloud",
+        evolution_instance_name: evoName,
+        status: "connected",
+        phone_number: args.displayPhoneNumber ?? null,
+        profile_name: args.verifiedName ?? null,
+      },
+      { onConflict: "evolution_instance_name" },
+    )
+    .select("id")
+    .single();
+  return data ?? null;
+}
+
 /** Sync templates list for an account, upserting into local table. */
 export async function syncTemplatesForAccount(accountId: string) {
   const { data: account, error } = await supabaseAdmin

@@ -341,10 +341,10 @@ export async function tickStep(stepId: string, batch = 1) {
   const provider = await getActiveProvider();
   type Inst = { id: string; evolution_instance_name: string };
   let instances: Inst[];
-  if (provider === "twilio") {
-    // Twilio não usa instância; usamos um "slot" sintético para reaproveitar
-    // a lógica de round-robin / quota.
-    instances = [{ id: "__twilio__", evolution_instance_name: "" }];
+  if (provider !== "evolution") {
+    // Twilio / WhatsApp Cloud / Z-API não usam instância Evolution; usamos um
+    // "slot" sintético para reaproveitar a lógica de round-robin / quota.
+    instances = [{ id: `__${provider}__`, evolution_instance_name: "" }];
   } else {
     const { data: instRows } = await supabaseAdmin
       .from("whatsapp_instances")
@@ -399,6 +399,41 @@ export async function tickStep(stepId: string, batch = 1) {
     quotas.set(inst.id, await getInstanceQuota(inst.id));
   }
 
+  // WhatsApp Cloud: fora da janela de 24h só template aprovado é aceito pela
+  // Meta. Resolve o template (step > campanha) uma vez por tick.
+  let cloudTemplate:
+    | { templateName: string; templateLanguage: string; varTemplates: string[] }
+    | undefined;
+  if (provider === "cloud") {
+    const tplId =
+      (s as unknown as { cloud_template_id?: string | null }).cloud_template_id ??
+      (c as unknown as { cloud_template_id?: string | null }).cloud_template_id ??
+      null;
+    if (tplId) {
+      const { data: tpl } = await supabaseAdmin
+        .from("whatsapp_cloud_templates")
+        .select("name, language, status")
+        .eq("id", tplId)
+        .maybeSingle();
+      if (tpl && tpl.status === "APPROVED") {
+        const rawVars =
+          ((s as unknown as { cloud_template_variables?: unknown }).cloud_template_variables as
+            | Record<string, unknown>
+            | null) ??
+          ((c as unknown as { cloud_template_variables?: unknown }).cloud_template_variables as
+            | Record<string, unknown>
+            | null) ??
+          null;
+        const varTemplates = rawVars
+          ? Object.keys(rawVars)
+              .sort((a, b) => Number(a) - Number(b))
+              .map((k) => String(rawVars[k] ?? ""))
+          : [];
+        cloudTemplate = { templateName: tpl.name, templateLanguage: tpl.language, varTemplates };
+      }
+    }
+  }
+
   let rrIdx = c.last_instance_idx ?? 0;
   function pickInstance(): { id: string; evolution_instance_name: string } | null {
     for (let k = 0; k < instances.length; k++) {
@@ -428,7 +463,7 @@ export async function tickStep(stepId: string, batch = 1) {
 
     const { data: candidates } = await supabaseAdmin
       .from("campaign_step_sends")
-      .select("id, target_id, phone, attempts")
+      .select("id, target_id, contact_id, phone, attempts")
       .eq("step_id", stepId)
       .eq("status", "pending")
       .or(`locked_until.is.null,locked_until.lt.${nowIso}`)
@@ -532,6 +567,16 @@ export async function tickStep(stepId: string, batch = 1) {
         toPhone: phone,
         text: rendered,
         evolutionInstanceName: provider === "evolution" ? inst.evolution_instance_name : null,
+        contactId: send.contact_id ?? undefined,
+        cloud: cloudTemplate
+          ? {
+              templateName: cloudTemplate.templateName,
+              templateLanguage: cloudTemplate.templateLanguage,
+              bodyVariables: cloudTemplate.varTemplates.length
+                ? cloudTemplate.varTemplates.map((t) => renderTemplate(t, fields).trim())
+                : [rendered],
+            }
+          : undefined,
       });
       await supabaseAdmin
         .from("campaign_step_sends")
@@ -543,7 +588,7 @@ export async function tickStep(stepId: string, batch = 1) {
           attempts: (send.attempts ?? 0) + 1,
           locked_until: null,
           error: null,
-          instance_id_used: provider === "twilio" ? null : inst.id,
+          instance_id_used: provider === "evolution" ? inst.id : null,
         })
         .eq("id", send.id);
       sent++;
