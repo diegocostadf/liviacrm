@@ -152,4 +152,16 @@ html.dark { color-scheme: dark; }
     font-family: ui-sans-serif, system-ui, -apple-system, "Inter", "Segoe UI", sans-serif;
     font-feature-settings: "cv11", "ss01";
   }
+
+  /* Páginas internas usam h-screen; dentro do shell (que já reserva o header
+     mobile) elas devem preencher apenas a área de conteúdo. */
+  main .h-screen {
+    height: 100%;
+  }
+
+  /* Números tabulares evitam "pulos" de largura em KPIs. */
+  .num {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
 }
