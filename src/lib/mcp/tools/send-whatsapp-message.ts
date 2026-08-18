@@ -42,7 +42,7 @@ export default defineTool({
       .maybeSingle();
     if (allowedErr) return fail(allowedErr.message);
     if (!allowed) return fail("Conversa não encontrada ou sem permissão.");
-    const convId: string = conversationId;
+    const convId = allowed.id as string;
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: conv, error: convErr } = await supabaseAdmin
