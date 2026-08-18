@@ -737,6 +737,11 @@ function RegisterPhoneDialog({ account, qc }: { account: Account; qc: ReturnType
     },
   });
 
+  const statusMut = useMutation({
+    mutationFn: () => api<{ ok: boolean; status: { id: string; display_phone_number?: string; verified_name?: string; quality_rating?: string; status?: string; code_verification_status?: string } }>("POST", { action: "check-phone-status", accountId: account.id }),
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro ao verificar status."),
+  });
+
   const likelyPending = !account.webhook_subscribed;
   return (
     <Dialog
@@ -803,6 +808,17 @@ function RegisterPhoneDialog({ account, qc }: { account: Account; qc: ReturnType
                 <span>{requestCodeMut.error instanceof Error ? requestCodeMut.error.message : "Erro ao solicitar código."}</span>
               </div>
             )}
+            {statusMut.data && (
+              <div className="rounded-md border bg-muted/30 p-3 text-xs space-y-1">
+                <div className="font-medium text-foreground">Status na Meta:</div>
+                <div>Status: <span className="font-mono">{statusMut.data.status?.status ?? "—"}</span></div>
+                <div>Verificação: <span className="font-mono">{statusMut.data.status?.code_verification_status ?? "—"}</span></div>
+                <div>Qualidade: <span className="font-mono">{statusMut.data.status?.quality_rating ?? "—"}</span></div>
+                {statusMut.data.status?.code_verification_status === "VERIFIED" && (
+                  <p className="text-emerald-700 font-medium mt-1">✓ Número já verificado pela Meta — clique em "Já está ativado" abaixo para marcar como ativo.</p>
+                )}
+              </div>
+            )}
             <p className="text-xs text-muted-foreground">
               A Meta enviará um código OTP de 6 dígitos para o número {account.display_phone_number ?? account.phone_number_id}. O código expira em poucos minutos.
             </p>
@@ -838,17 +854,43 @@ function RegisterPhoneDialog({ account, qc }: { account: Account; qc: ReturnType
           </div>
         )}
 
-        <DialogFooter>
+        <DialogFooter className="flex-col gap-2 sm:flex-row">
           <Button variant="ghost" onClick={() => { setOpen(false); reset(); }}>Cancelar</Button>
           {dialogStep === 1 ? (
-            <Button onClick={() => { requestCodeMut.reset(); requestCodeMut.mutate(); }} disabled={requestCodeMut.isPending}>
-              {requestCodeMut.isPending
-                ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                : requestCodeMut.isError
-                ? <AlertTriangle className="mr-2 h-4 w-4" />
-                : <Send className="mr-2 h-4 w-4" />}
-              {requestCodeMut.isPending ? "Enviando…" : requestCodeMut.isError ? "Tentar novamente" : "Enviar código"}
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                onClick={() => statusMut.mutate()}
+                disabled={statusMut.isPending}
+              >
+                {statusMut.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Verificar status
+              </Button>
+              {statusMut.data?.status?.code_verification_status === "VERIFIED" && (
+                <Button
+                  variant="secondary"
+                  onClick={async () => {
+                    await api("POST", { action: "subscribe-webhook", accountId: account.id }).catch(() => null);
+                    qc.invalidateQueries({ queryKey: ["wa-cloud"] });
+                    toast.success("Conta marcada como ativa.");
+                    setOpen(false);
+                    reset();
+                  }}
+                >
+                  Já está ativado
+                </Button>
+              )}
+              <Button
+                onClick={() => { requestCodeMut.reset(); requestCodeMut.mutate(); }}
+                disabled={requestCodeMut.isPending}
+              >
+                {requestCodeMut.isPending
+                  ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Enviando…</>
+                  : requestCodeMut.isError
+                  ? <><AlertTriangle className="mr-2 h-4 w-4" />Tentar novamente</>
+                  : "Enviar código"}
+              </Button>
+            </>
           ) : (
             <Button onClick={() => registerMut.mutate()} disabled={pin.length !== 6 || registerMut.isPending}>
               {registerMut.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
