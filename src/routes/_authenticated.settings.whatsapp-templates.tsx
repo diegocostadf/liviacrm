@@ -14,8 +14,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogT
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "sonner";
-import { Plus, RefreshCw, Trash2, Pencil, FileText, Loader2, X } from "lucide-react";
+import { Plus, RefreshCw, Trash2, Pencil, FileText, Loader2, X, AlertTriangle, MessageSquare } from "lucide-react";
 import { TemplatePreview } from "@/components/whatsapp/template-preview";
 
 type Tpl = {
@@ -89,14 +90,20 @@ function TemplatesPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["wa-templates", effectiveId],
     // Sincroniza automaticamente com a Meta quando os dados locais estão vazios ou antigos.
-    queryFn: () => listFn({ data: { accountId: effectiveId } }) as Promise<{ templates: Tpl[] }>,
+    queryFn: () => listFn({ data: { accountId: effectiveId } }) as Promise<{ templates: Tpl[]; syncErrors: string[] }>,
     enabled: !!effectiveId,
     refetchInterval: 60_000,
   });
+  const templates = data?.templates ?? [];
+  const syncErrors = data?.syncErrors ?? [];
 
   const syncMut = useMutation({
-    mutationFn: () => listFn({ data: { accountId: effectiveId, forceSync: true } }),
-    onSuccess: () => { toast.success("Sincronizado."); qc.invalidateQueries({ queryKey: ["wa-templates"] }); },
+    mutationFn: () => listFn({ data: { accountId: effectiveId, forceSync: true } }) as Promise<{ templates: Tpl[] }>,
+    onSuccess: (r) => {
+      const n = r?.templates?.length ?? templates.length;
+      toast.success(`Sincronizado — ${n} template${n !== 1 ? "s" : ""} encontrado${n !== 1 ? "s" : ""}.`);
+      qc.invalidateQueries({ queryKey: ["wa-templates"] });
+    },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
   });
   const delMut = useMutation({
@@ -123,9 +130,25 @@ function TemplatesPage() {
             <Button onClick={() => syncMut.mutate()} disabled={!effectiveId || syncMut.isPending} variant="outline">
               {syncMut.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />} Sincronizar
             </Button>
-            <CreateDialog accountId={effectiveId} onDone={() => qc.invalidateQueries({ queryKey: ["wa-templates"] })} />
+            <CreateDialog
+              accountId={effectiveId}
+              onDone={() => { qc.invalidateQueries({ queryKey: ["wa-templates"] }); if (effectiveId) syncMut.mutate(); }}
+            />
           </div>
         </header>
+
+        {syncErrors.length > 0 && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Erro ao sincronizar templates</AlertTitle>
+            <AlertDescription className="space-y-1">
+              {syncErrors.map((e, i) => (
+                <div key={i} className="text-xs">{e}</div>
+              ))}
+              <div className="mt-2 text-xs">Verifique o token de acesso da conta WhatsApp Cloud nas <a href="/settings/whatsapp-cloud" className="underline">configurações</a>.</div>
+            </AlertDescription>
+          </Alert>
+        )}
 
         {!accounts.length && <Card className="p-8 text-center text-sm text-muted-foreground">Conecte uma conta WhatsApp Cloud em <strong>Configurações → WhatsApp Cloud</strong> primeiro.</Card>}
 
@@ -138,7 +161,7 @@ function TemplatesPage() {
               </TableRow></TableHeader>
               <TableBody>
                 {isLoading && <TableRow><TableCell colSpan={7} className="text-center"><Loader2 className="mx-auto h-4 w-4 animate-spin" /></TableCell></TableRow>}
-                {data?.templates.map((t) => (
+                {templates.map((t) => (
                   <TableRow key={t.id}>
                     <TableCell className="font-mono text-xs">{t.name}</TableCell>
                     <TableCell>{t.language}</TableCell>
@@ -159,7 +182,26 @@ function TemplatesPage() {
                     </TableCell>
                   </TableRow>
                 ))}
-                {!isLoading && !data?.templates.length && <TableRow><TableCell colSpan={7} className="text-center text-sm text-muted-foreground">Nenhum template. Clique em <strong>Sincronizar</strong> ou crie um novo.</TableCell></TableRow>}
+                {!isLoading && !templates.length && (
+                  <TableRow>
+                    <TableCell colSpan={7}>
+                      {syncErrors.length > 0 ? (
+                        <p className="py-6 text-center text-sm text-muted-foreground">Não foi possível sincronizar. Clique em <strong>Sincronizar</strong> após corrigir a conexão.</p>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
+                          <MessageSquare className="h-10 w-10 text-muted-foreground/40" />
+                          <div>
+                            <p className="font-medium">Nenhum template encontrado</p>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                              Crie um template acima. Após criação, ele ficará "Em análise" até ser aprovado pela Meta.<br />
+                              Templates aprovados aparecem aqui automaticamente via webhook.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </Card>
@@ -190,6 +232,10 @@ function CreateDialog({ accountId, onDone }: { accountId?: string; onDone: () =>
     }),
     onSuccess: () => {
       toast.success("Template enviado!", { description: "A Meta pode levar até 24h para aprovar." });
+      toast.info(
+        "Template enviado para revisão da Meta. O prazo de aprovação é geralmente de alguns minutos a algumas horas. Quando aprovado, o status mudará automaticamente aqui.",
+        { duration: 8000 },
+      );
       onDone();
       setOpen(false);
     },

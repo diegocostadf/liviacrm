@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { AlertTriangle, Loader2, RefreshCcw, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Info, Loader2, RefreshCcw, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,10 +17,18 @@ type Tpl = {
   variables_count: number; components: unknown; last_synced_at: string | null;
 };
 
-function bodyText(components: unknown): string {
+function componentTexts(components: unknown): { body: string; header: string } {
   const arr = Array.isArray(components) ? (components as Array<Record<string, unknown>>) : [];
   const body = arr.find((c) => c.type === "BODY");
-  return typeof body?.text === "string" ? body.text : "";
+  const header = arr.find((c) => c.type === "HEADER" && c.format === "TEXT");
+  return {
+    body: typeof body?.text === "string" ? body.text : "",
+    header: typeof header?.text === "string" ? header.text : "",
+  };
+}
+
+function extractVars(text: string): string[] {
+  return Array.from(new Set((text.match(/\{\{\s*(\d+)\s*\}\}/g) ?? []).map((m) => m.replace(/\D/g, ""))));
 }
 
 export function CampaignCloudTemplateCard({
@@ -52,14 +60,13 @@ export function CampaignCloudTemplateCard({
 
   const templates = (data?.templates ?? []) as Tpl[];
   const tpl = templates.find((t) => t.id === selected);
-  const body = tpl ? bodyText(tpl.components) : "";
-  const varKeys = useMemo(
-    () => Array.from(new Set((body.match(/\{\{\s*(\d+)\s*\}\}/g) ?? []).map((m) => m.replace(/\D/g, "")))),
-    [body],
-  );
+  const { body, header } = tpl ? componentTexts(tpl.components) : { body: "", header: "" };
+  const headerVars = useMemo(() => extractVars(header), [header]);
+  const bodyVars = useMemo(() => extractVars(body), [body]);
+  const varKeys = useMemo(() => Array.from(new Set([...headerVars, ...bodyVars])), [headerVars, bodyVars]);
   const rendered = varKeys.reduce(
     (acc, k) => acc.replaceAll(new RegExp(`\\{\\{\\s*${k}\\s*\\}\\}`, "g"), vars[k] || `{{${k}}}`),
-    body,
+    header ? `${header}\n\n${body}` : body,
   );
 
   const errors = useMemo(() => {
@@ -170,6 +177,18 @@ export function CampaignCloudTemplateCard({
                     />
                   </div>
                 ))}
+                <div className="space-y-1.5 rounded-md border bg-muted/20 p-3 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-1.5 font-medium text-foreground">
+                    <Info className="h-3.5 w-3.5" />
+                    Tokens de personalização disponíveis
+                  </div>
+                  <div className="space-y-0.5 font-mono">
+                    <div><span className="text-blue-600 dark:text-blue-400">{"{{name}}"}</span> — nome do lead</div>
+                    <div><span className="text-blue-600 dark:text-blue-400">{"{{phone}}"}</span> — telefone do lead</div>
+                    <div className="italic text-muted-foreground/70">+ qualquer coluna do CSV importado (ex: {"{{empresa}}"}, {"{{cidade}}"})</div>
+                  </div>
+                  <div className="text-muted-foreground/70">Cole um token no campo de variável acima. Ele será substituído pelo valor real de cada lead ao enviar.</div>
+                </div>
                 <div className="whitespace-pre-wrap rounded-md bg-background p-3 text-sm">{rendered}</div>
                 {(errors.length > 0 || warnings.length > 0) && (
                   <div className="space-y-2">
