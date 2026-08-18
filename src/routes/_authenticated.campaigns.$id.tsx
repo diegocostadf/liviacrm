@@ -412,7 +412,7 @@ function CampaignDetailPage() {
   const pct = campaign.total_count ? Math.round((campaign.sent_count / campaign.total_count) * 100) : 0;
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-6 p-6">
+    <div className="mx-auto w-full max-w-6xl space-y-6 p-6 pb-16">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" asChild>
