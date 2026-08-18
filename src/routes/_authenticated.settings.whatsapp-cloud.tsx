@@ -100,56 +100,19 @@ function WhatsappCloudPage() {
 
   // Embedded Signup state
   const [accessToken, setAccessToken] = useState("");
-  const [businesses, setBusinesses] = useState<Array<{ businessId: string; businessName: string; wabas: Array<{ id: string; name: string }> }>>([]);
-  const [selectedWaba, setSelectedWaba] = useState<{ id: string; name?: string } | null>(null);
-  const [phones, setPhones] = useState<Array<{ id: string; display_phone_number: string; verified_name: string }>>([]);
-  const [selectedPhone, setSelectedPhone] = useState<string>("");
   const [sdkStatus, setSdkStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [signupIds, setSignupIds] = useState<{ wabaId: string; phoneNumberId: string } | null>(null);
+  const [manualWabaId, setManualWabaId] = useState("");
+  const [manualPhoneNumberId, setManualPhoneNumberId] = useState("");
   const isPreviewHost = typeof window !== "undefined" && /lovableproject\.com|lovable\.app/.test(window.location.hostname);
 
   // Wizard sempre começa no passo 1. O usuário navega manualmente pelo Stepper
   // ou pelos botões Voltar/Próximo — não pulamos etapas automaticamente.
   const exchangeMut = useMutation({
     mutationFn: (code: string) => api<{ accessToken: string; expiresIn: number | null }>("POST", { action: "exchange-code", code }),
-    onSuccess: async (r) => {
+    onSuccess: (r) => {
       setAccessToken(r.accessToken);
       toast.success("Code trocado por token!");
-      // Prefer IDs from the Embedded Signup postMessage — the signup token
-      // grants access to a *shared* WABA that doesn't appear in /me/businesses.
-      const b = await api<{ businesses: typeof businesses }>("POST", { action: "list-wabas", accessToken: r.accessToken })
-        .catch(() => ({ businesses: [] as typeof businesses }));
-      setBusinesses(b.businesses);
-    },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
-  });
-
-  const listPhonesMut = useMutation({
-    mutationFn: (wabaId: string) => api<{ phones: typeof phones }>("POST", { action: "list-phones", wabaId, accessToken }),
-    onSuccess: (r) => setPhones(r.phones),
-  });
-
-  const saveMut = useMutation({
-    mutationFn: () => {
-      const p = phones.find((x) => x.id === selectedPhone);
-      if (!selectedWaba || !p) throw new Error("Selecione WABA e número.");
-      const biz = businesses.find((b) => b.wabas.some((w) => w.id === selectedWaba.id));
-      return api<{ account: Account; subscribed: boolean; subscribeError: string | null }>("POST", {
-        action: "save-account", wabaId: selectedWaba.id, businessName: biz?.businessName,
-        phoneNumberId: p.id, displayPhoneNumber: p.display_phone_number, verifiedName: p.verified_name,
-        accessToken, setDefault: true,
-      });
-    },
-    onSuccess: async (r) => {
-      qc.invalidateQueries({ queryKey: ["wa-cloud"] });
-      await announceProviderActivation();
-      if (r.subscribed) {
-        toast.success("Conta salva e webhook inscrito automaticamente!");
-        setStep(4);
-      } else {
-        toast.warning(`Conta salva, mas falhou ao inscrever o webhook: ${r.subscribeError ?? "erro desconhecido"}. Tente novamente no passo 3.`);
-        setStep(3);
-      }
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
   });
@@ -169,11 +132,14 @@ function WhatsappCloudPage() {
       }
       if (r.subscribed) {
         toast.success("Conta conectada e webhook inscrito automaticamente!");
-        setStep(4);
       } else {
         toast.warning(`Conta conectada, mas falhou ao inscrever o webhook: ${r.subscribeError ?? "erro desconhecido"}.`);
-        setStep(3);
       }
+      setStep(3);
+      setAccessToken("");
+      setSignupIds(null);
+      setManualWabaId("");
+      setManualPhoneNumberId("");
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
   });
@@ -207,26 +173,6 @@ function WhatsappCloudPage() {
     window.addEventListener("message", onMsg);
     return () => window.removeEventListener("message", onMsg);
   }, []);
-
-  // Auto-select single WABA / single phone → save without extra clicks.
-  useEffect(() => {
-    if (!accessToken || selectedWaba) return;
-    const flat = businesses.flatMap((b) => b.wabas);
-    if (flat.length === 1) {
-      setSelectedWaba({ id: flat[0].id, name: flat[0].name });
-      listPhonesMut.mutate(flat[0].id);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [businesses, accessToken]);
-
-  useEffect(() => {
-    if (!selectedWaba || selectedPhone) return;
-    if (phones.length === 1) {
-      setSelectedPhone(phones[0].id);
-      setTimeout(() => saveMut.mutate(), 0);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phones, selectedWaba]);
 
   const saveMetaMut = useMutation({
     mutationFn: (v: { appId?: string; appSecret?: string; configId?: string; verifyToken?: string }) =>
