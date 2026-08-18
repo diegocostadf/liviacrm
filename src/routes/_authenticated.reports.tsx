@@ -19,7 +19,7 @@ const tabs = [
 function ReportsLayout() {
   const { location } = useRouterState();
   return (
-    <div className="flex h-screen flex-col overflow-hidden">
+    <div className="flex h-screen flex-col">
       <header className="border-b border-border px-6 pt-5 pb-0">
         <h1 className="text-2xl font-semibold tracking-tight">Relatórios</h1>
         <p className="mt-1 text-sm text-muted-foreground">Performance do CRM, listas customizadas e exportações.</p>
