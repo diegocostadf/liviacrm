@@ -17,6 +17,7 @@ import {
   addAppDomain,
   validateMetaCredentials,
   fetchSignupDetails,
+  registerPhoneNumber,
 } from "@/lib/whatsapp-cloud.server";
 import { invalidateMessagingCache } from "@/lib/messaging-broker.server";
 
