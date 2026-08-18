@@ -8,24 +8,32 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/login")({
   head: () => ({ meta: [{ title: "Entrar — Lívia CRM" }] }),
+  validateSearch: (s: Record<string, unknown>) => ({
+    next: typeof s.next === "string" && s.next.startsWith("/") && !s.next.startsWith("//") ? s.next : undefined,
+  }),
   component: LoginPage,
 });
 
 function LoginPage() {
   const navigate = useNavigate();
+  const { next } = Route.useSearch();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    const go = () => {
+      if (next) window.location.replace(next);
+      else navigate({ to: "/dashboard", replace: true });
+    };
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session) navigate({ to: "/dashboard", replace: true });
+      if (data.session) go();
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
-      if (session) navigate({ to: "/dashboard", replace: true });
+      if (session) go();
     });
     return () => sub.subscription.unsubscribe();
-  }, [navigate]);
+  }, [navigate, next]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
