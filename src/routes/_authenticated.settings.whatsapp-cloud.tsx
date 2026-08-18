@@ -830,7 +830,7 @@ function RegisterPhoneDialog({ account, qc }: { account: Account; qc: ReturnType
             <div className="space-y-1">
               <Label htmlFor={`pin-${account.id}`}>PIN de 6 dígitos</Label>
               <Input
-                id={`pin-${account.id}`}`
+                id={`pin-${account.id}`}
                 value={pin}
                 onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
                 placeholder="123456"
