@@ -137,8 +137,8 @@ function LeadsListPage() {
     <div className="h-screen overflow-y-auto p-6">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Leads</h1>
-          <p className="text-sm text-muted-foreground">Todos os contatos do CRM com histórico, intenção e jornada.</p>
+          <h1 className="text-2xl font-semibold tracking-tight">Contatos / Leads</h1>
+          <p className="text-sm text-muted-foreground">Gerencie seus contatos, acompanhe intenções e adicione-os a campanhas.</p>
         </div>
       </div>
 
