@@ -12,8 +12,8 @@ import { useEffect, useState, type ReactNode } from "react";
 
 const nav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/inbox", label: "Inbox", icon: MessageSquare },
-  { to: "/leads", label: "Leads", icon: Users },
+  { to: "/inbox", label: "Conversas", icon: MessageSquare },
+  { to: "/leads", label: "Contatos / Leads", icon: Users },
   { to: "/campaigns", label: "Campanhas", icon: Megaphone },
   { to: "/reports", label: "Relatórios", icon: BarChart3 },
   { to: "/settings", label: "Configurações", icon: Settings },
@@ -49,7 +49,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </div>
       <div className="min-w-0">
         <div className="truncate text-base font-semibold leading-tight">Lívia CRM</div>
-        <div className="truncate text-xs text-muted-foreground">WhatsApp Sales</div>
+        <div className="truncate text-xs text-muted-foreground">CRM & Disparos em Massa</div>
       </div>
     </div>
   );

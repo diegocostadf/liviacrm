@@ -152,7 +152,10 @@ export async function handleBotReply(conversationId: string): Promise<void> {
         landing_link_sent_count?: number | null;
       };
     }).contacts;
-    if (!instance?.evolution_instance_name || !contact?.phone) return;
+    if (!contact?.phone) return;
+    // Para Cloud: evolution_instance_name começa com "cloud:"
+    // providerSendText já trata isso corretamente
+    const instanceName = instance?.evolution_instance_name ?? "";
 
     // Load recent message history (last 20), respeitando ponto de reset (/resetar)
     const resetAt = (conv as unknown as { bot_context_reset_at: string | null }).bot_context_reset_at;
@@ -180,13 +183,13 @@ export async function handleBotReply(conversationId: string): Promise<void> {
         .eq("id", conversationId);
       await sendBotMessage(
         conversationId,
-        instance.evolution_instance_name,
+        instanceName,
         contact.phone,
         "Entendido! Vou chamar um humano da equipe pra continuar com você por aqui. 👋",
         undefined,
         bot.typing_indicator,
       );
-      await notifyHumanHandoff(bot, instance.evolution_instance_name, contact, "Palavra-chave de handoff detectada.");
+      await notifyHumanHandoff(bot, instanceName, contact, "Palavra-chave de handoff detectada.");
       return;
     }
 
@@ -194,7 +197,7 @@ export async function handleBotReply(conversationId: string): Promise<void> {
     if (!isWithinBusinessHours(bot) && bot.out_of_hours_message) {
       await sendBotMessage(
         conversationId,
-        instance.evolution_instance_name,
+        instanceName,
         contact.phone,
         bot.out_of_hours_message,
         undefined,
@@ -294,7 +297,7 @@ export async function handleBotReply(conversationId: string): Promise<void> {
     if (!call) {
       const txt = result.choices?.[0]?.message?.content?.trim();
       if (txt) {
-        await sendBotMessage(conversationId, instance.evolution_instance_name, contact.phone, txt);
+        await sendBotMessage(conversationId, instanceName, contact.phone, txt);
       }
       return;
     }
@@ -342,7 +345,7 @@ export async function handleBotReply(conversationId: string): Promise<void> {
     if (reply) {
       await sendBotMessage(
         conversationId,
-        instance.evolution_instance_name,
+        instanceName,
         contact.phone,
         reply,
         { intent: parsed.intent, temperature: parsed.temperature, score: parsed.score },
@@ -421,7 +424,7 @@ export async function handleBotReply(conversationId: string): Promise<void> {
         .from("conversations")
         .update({ bot_active: false })
         .eq("id", conversationId);
-      await notifyHumanHandoff(bot, instance.evolution_instance_name, contact, parsed.summary ?? parsed.next_step ?? "Lead solicitou atendimento humano.");
+      await notifyHumanHandoff(bot, instanceName, contact, parsed.summary ?? parsed.next_step ?? "Lead solicitou atendimento humano.");
     }
   } catch (e) {
     console.error("[handleBotReply] error", e);
