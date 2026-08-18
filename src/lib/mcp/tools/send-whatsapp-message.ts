@@ -42,12 +42,13 @@ export default defineTool({
       .maybeSingle();
     if (allowedErr) return fail(allowedErr.message);
     if (!allowed) return fail("Conversa não encontrada ou sem permissão.");
+    const convId: string = conversationId;
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: conv, error: convErr } = await supabaseAdmin
       .from("conversations")
       .select("id, contact_id, contacts(phone), whatsapp_instances(evolution_instance_name)")
-      .eq("id", conversationId)
+      .eq("id", convId)
       .single();
     if (convErr || !conv) return fail("Conversa não encontrada.");
     const contact = (conv as unknown as { contacts: { phone: string } }).contacts;
@@ -65,7 +66,7 @@ export default defineTool({
       const { data: msg, error: msgErr } = await supabaseAdmin
         .from("messages")
         .insert({
-          conversation_id: conversationId,
+          conversation_id: convId,
           direction: "out",
           type: "text",
           content: input.text,
@@ -83,7 +84,7 @@ export default defineTool({
           last_message_preview: input.text.slice(0, 120),
           unread_count: 0,
         })
-        .eq("id", conversationId);
+        .eq("id", convId);
       return ok(json({ provider: res.provider, message: msg }), { provider: res.provider, message: msg });
     } catch (e) {
       return fail(e instanceof Error ? e.message : "Falha ao enviar mensagem.");
