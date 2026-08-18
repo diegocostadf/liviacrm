@@ -428,13 +428,13 @@ function CampaignDetailPage() {
         </div>
         <div className="flex items-center gap-2">
           {campaign.status !== "running" && (
-            <Button onClick={() => changeStatus("running")} disabled={campaign.total_count === 0}>
-              <Play className="mr-2 h-4 w-4" /> Iniciar envio
+            <Button onClick={() => changeStatus("running")} disabled={campaign.total_count === 0 || statusBusy}>
+              {statusBusy ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Aguarde…</> : <><Play className="mr-2 h-4 w-4" />Iniciar envio</>}
             </Button>
           )}
           {campaign.status === "running" && (
-            <Button variant="outline" onClick={() => changeStatus("paused")}>
-              <Pause className="mr-2 h-4 w-4" /> Pausar
+            <Button variant="outline" onClick={() => changeStatus("paused")} disabled={statusBusy}>
+              {statusBusy ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Aguarde…</> : <><Pause className="mr-2 h-4 w-4" />Pausar</>}
             </Button>
           )}
         </div>
@@ -481,253 +481,325 @@ function CampaignDetailPage() {
         <div className="h-full bg-primary transition-all" style={{ width: `${pct}%` }} />
       </div>
 
-      <Tabs defaultValue="sequence">
-        <TabsList>
-          <TabsTrigger value="sequence">Sequência</TabsTrigger>
-          <TabsTrigger value="targets">Destinatários ({targetTotal})</TabsTrigger>
-          <TabsTrigger value="crm">Selecionar do CRM</TabsTrigger>
-          <TabsTrigger value="import">Importar lista</TabsTrigger>
-          <TabsTrigger value="message">Mensagem</TabsTrigger>
-          <TabsTrigger value="rules">Regras de disparo</TabsTrigger>
+      <Tabs defaultValue="targets">
+        <TabsList className="flex w-full flex-wrap justify-start">
+          <TabsTrigger value="targets"><Users className="mr-1.5 h-3.5 w-3.5" />1. Destinatários ({targetTotal})</TabsTrigger>
+          <TabsTrigger value="message"><FileText className="mr-1.5 h-3.5 w-3.5" />2. Mensagem</TabsTrigger>
+          <TabsTrigger value="rules"><ListOrdered className="mr-1.5 h-3.5 w-3.5" />3. Regras &amp; Limites</TabsTrigger>
+          <TabsTrigger value="review"><ClipboardCheck className="mr-1.5 h-3.5 w-3.5" />4. Revisar</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="sequence">
-          <CampaignSequence
-            campaign={{
-              id: campaign.id,
-              event_date: (campaign as { event_date?: string | null }).event_date ?? null,
-              opt_out_keywords: (campaign as { opt_out_keywords?: string[] | null }).opt_out_keywords ?? null,
-              opt_out_reply: (campaign as { opt_out_reply?: string | null }).opt_out_reply ?? null,
-            }}
-          />
-        </TabsContent>
+        {/* ---------------------------- DESTINATÁRIOS ---------------------------- */}
+        <TabsContent value="targets" className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <button type="button" onClick={() => setAddMode(addMode === "crm" ? null : "crm")} className="text-left">
+              <Card className={`h-full cursor-pointer p-4 transition hover:border-primary ${addMode === "crm" ? "border-primary bg-primary/5" : ""}`}>
+                <Users className="mb-2 h-5 w-5 text-primary" />
+                <div className="text-sm font-medium">Selecionar do CRM</div>
+                <p className="text-xs text-muted-foreground">Escolha contatos já cadastrados</p>
+              </Card>
+            </button>
+            <button type="button" onClick={() => setAddMode(addMode === "csv" ? null : "csv")} className="text-left">
+              <Card className={`h-full cursor-pointer p-4 transition hover:border-primary ${addMode === "csv" ? "border-primary bg-primary/5" : ""}`}>
+                <Upload className="mb-2 h-5 w-5 text-primary" />
+                <div className="text-sm font-medium">Importar CSV / Excel</div>
+                <p className="text-xs text-muted-foreground">Suba uma lista de contatos</p>
+              </Card>
+            </button>
+            <button type="button" onClick={() => setAddMode(addMode === "manual" ? null : "manual")} className="text-left">
+              <Card className={`h-full cursor-pointer p-4 transition hover:border-primary ${addMode === "manual" ? "border-primary bg-primary/5" : ""}`}>
+                <Plus className="mb-2 h-5 w-5 text-primary" />
+                <div className="text-sm font-medium">Adicionar manualmente</div>
+                <p className="text-xs text-muted-foreground">Digite os números um a um</p>
+              </Card>
+            </button>
+          </div>
 
-        <TabsContent value="targets">
-          <Card>
-            <CardContent className="p-0">
-              <div className="max-h-[480px] overflow-y-auto">
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-muted/50 text-xs uppercase text-muted-foreground">
-                    <tr>
-                      <th className="px-3 py-2 text-left">Telefone</th>
-                      <th className="px-3 py-2 text-left">Nome</th>
-                      <th className="px-3 py-2 text-left">Status</th>
-                      <th className="px-3 py-2 text-left">Tentativas</th>
-                      <th className="px-3 py-2"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {targets.map((t) => (
-                      <tr key={t.id} className="border-t border-border">
-                        <td className="px-3 py-2 font-mono text-xs">{t.phone}</td>
-                        <td className="px-3 py-2">{t.name ?? "—"}</td>
-                        <td className="px-3 py-2">
-                          <Badge variant="outline" className="text-[10px]">
-                            {t.status}
-                          </Badge>
-                          {t.error && <div className="mt-0.5 text-[10px] text-rose-600">{t.error}</div>}
-                        </td>
-                        <td className="px-3 py-2 text-xs">{t.attempts}</td>
-                        <td className="px-3 py-2 text-right">
-                          <Button variant="ghost" size="icon" onClick={async () => {
-                            await rmFn({ data: { id: t.id, campaignId: id } });
-                            if (targets.length === 1 && targetPage > 1) setTargetPage((p) => p - 1);
-                            qc.invalidateQueries({ queryKey: ["campaign", id] });
-                          }}>
-                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                    {targets.length === 0 && (
-                      <tr><td colSpan={5} className="px-3 py-8 text-center text-xs text-muted-foreground">Nenhum destinatário ainda. Importe uma lista (CSV/Excel) na próxima aba.</td></tr>
-                    )}
-                  </tbody>
-                </table>
-                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-3 py-2 text-xs text-muted-foreground">
-                  <span>{targetFrom}-{targetTo} de {targetTotal} destinatários</span>
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setTargetPage((p) => Math.max(1, p - 1))} disabled={targetPage <= 1 || isLoading}>
-                      <ChevronLeft className="h-3.5 w-3.5" /> Anterior
-                    </Button>
-                    <span>Página {targetPage} de {targetTotalPages}</span>
-                    <Button variant="outline" size="sm" onClick={() => setTargetPage((p) => Math.min(targetTotalPages, p + 1))} disabled={targetPage >= targetTotalPages || isLoading}>
-                      Próxima <ChevronRight className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+          {addMode === "crm" && <CampaignCrmPicker campaignId={id} />}
 
-        <TabsContent value="crm">
-          <CampaignCrmPicker campaignId={id} />
-        </TabsContent>
-
-        <TabsContent value="import">
-          <Card>
-            <CardHeader><CardTitle className="text-base">Importar lista (CSV / Excel)</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-xs text-muted-foreground">
-                Envie <code>.csv</code>, <code>.xlsx</code> ou <code>.xls</code> — ou cole o conteúdo abaixo. Aceitamos cabeçalhos em PT/EN (ex.: <code>telefone</code>, <code>celular</code>, <code>whatsapp</code>, <code>nome</code>) e ajustamos automaticamente para o modelo (<code>phone</code>, <code>name</code>). Qualquer outra coluna vira <code>{`{{coluna}}`}</code> no template.
-              </p>
-
-              <div
-                className="rounded-lg border border-dashed border-border bg-muted/30 p-6 text-center transition hover:bg-muted/50"
-                onDragOver={(e) => { e.preventDefault(); }}
-                onDrop={(e) => { e.preventDefault(); handleFile(e.dataTransfer.files?.[0]); }}
-              >
-                <FileUp className="mx-auto mb-2 h-6 w-6 text-muted-foreground" />
-                <div className="text-sm">Arraste um arquivo CSV / Excel aqui ou</div>
-                <div className="mt-2 flex items-center justify-center gap-2">
-                  <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
-                    Escolher arquivo
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={downloadTemplate}>
-                    Baixar modelo
-                  </Button>
-                </div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".csv,.xlsx,.xls,text/csv,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                  className="hidden"
-                  onChange={(e) => handleFile(e.target.files?.[0])}
+          {addMode === "manual" && (
+            <Card>
+              <CardHeader><CardTitle className="text-base">Adicionar números manualmente</CardTitle></CardHeader>
+              <CardContent className="space-y-3">
+                <Textarea
+                  rows={6}
+                  value={manualPhones}
+                  onChange={(e) => setManualPhones(e.target.value)}
+                  placeholder={"5511999999999 Maria\n5511888888888 João"}
+                  className="font-mono text-xs"
                 />
-                {fileName && (
-                  <div className="mt-3 text-xs text-muted-foreground">
-                    Arquivo: <span className="font-mono">{fileName}</span>
+                <p className="text-xs text-muted-foreground">Um contato por linha: telefone e, opcionalmente, o nome depois de um espaço.</p>
+                <Button onClick={handleManualAdd} disabled={addingManual || !manualPhones.trim()}>
+                  {addingManual ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Aguarde…</> : <><Plus className="mr-2 h-4 w-4" />Adicionar contatos</>}
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {addMode === "csv" && (
+            <Card>
+              <CardHeader><CardTitle className="text-base">Importar lista (CSV / Excel)</CardTitle></CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  Envie <code>.csv</code>, <code>.xlsx</code> ou <code>.xls</code> — ou cole o conteúdo abaixo. Aceitamos cabeçalhos em PT/EN (ex.: <code>telefone</code>, <code>celular</code>, <code>whatsapp</code>, <code>nome</code>) e ajustamos automaticamente para o modelo (<code>phone</code>, <code>name</code>). Qualquer outra coluna vira <code>{`{{coluna}}`}</code> no template.
+                </p>
+
+                <div
+                  className="rounded-lg border border-dashed border-border bg-muted/30 p-6 text-center transition hover:bg-muted/50"
+                  onDragOver={(e) => { e.preventDefault(); }}
+                  onDrop={(e) => { e.preventDefault(); handleFile(e.dataTransfer.files?.[0]); }}
+                >
+                  <FileUp className="mx-auto mb-2 h-6 w-6 text-muted-foreground" />
+                  <div className="text-sm">Arraste um arquivo CSV / Excel aqui ou</div>
+                  <div className="mt-2 flex items-center justify-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>Escolher arquivo</Button>
+                    <Button variant="ghost" size="sm" onClick={downloadTemplate}>Baixar modelo</Button>
+                  </div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".csv,.xlsx,.xls,text/csv,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    className="hidden"
+                    onChange={(e) => handleFile(e.target.files?.[0])}
+                  />
+                  {fileName && <div className="mt-3 text-xs text-muted-foreground">Arquivo: <span className="font-mono">{fileName}</span></div>}
+                </div>
+
+                <details className="rounded-md border border-border">
+                  <summary className="cursor-pointer px-3 py-2 text-xs text-muted-foreground">Ou cole/edite o conteúdo manualmente</summary>
+                  <div className="p-3">
+                    <Textarea
+                      rows={10}
+                      value={csv}
+                      onChange={(e) => { setCsv(e.target.value); setFileName(null); }}
+                      className="font-mono text-xs"
+                    />
+                  </div>
+                </details>
+
+                {parsed.length > 0 && (
+                  <div className="space-y-2 rounded-md border border-border p-3">
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      <Badge variant="outline">{parsed.length} linhas</Badge>
+                      {detectedColumns.map((c) => (
+                        <Badge key={c} variant={c === "phone" ? "default" : "outline"} className="text-[10px]">{c}</Badge>
+                      ))}
+                    </div>
+                    {!hasPhoneColumn && (
+                      <div className="text-xs text-rose-600">⚠ Falta a coluna obrigatória <code>phone</code>.</div>
+                    )}
+                    <div className="max-h-48 overflow-auto rounded border border-border">
+                      <table className="w-full text-xs">
+                        <thead className="bg-muted/50">
+                          <tr>{detectedColumns.map((c) => <th key={c} className="px-2 py-1 text-left font-medium">{c}</th>)}</tr>
+                        </thead>
+                        <tbody>
+                          {parsed.slice(0, 5).map((r, i) => (
+                            <tr key={i} className="border-t border-border">
+                              {detectedColumns.map((c) => <td key={c} className="px-2 py-1 font-mono">{r[c]}</td>)}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {parsed.length > 5 && (
+                        <div className="border-t border-border px-2 py-1 text-[11px] text-muted-foreground">
+                          + {parsed.length - 5} linha(s) não mostradas no preview
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
-              </div>
 
-              <details className="rounded-md border border-border">
-                <summary className="cursor-pointer px-3 py-2 text-xs text-muted-foreground">
-                  Ou cole/edite o conteúdo manualmente
-                </summary>
-                <div className="p-3">
-                  <Textarea
-                    rows={10}
-                    value={csv}
-                    onChange={(e) => { setCsv(e.target.value); setFileName(null); }}
-                    className="font-mono text-xs"
-                    placeholder="phone,name,curso&#10;5511999999999,Maria,OAB&#10;5511888888888,João,Federal"
-                  />
+                <div className="space-y-2 rounded-md border border-border bg-muted/20 p-3">
+                  <Label className="text-xs font-medium">Classificação inicial dos leads</Label>
+                  <Select value={initialIntent} onValueChange={(v) => setInitialIntent(v as typeof initialIntent)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="silencio">SILÊNCIO — não respondeu ainda (padrão)</SelectItem>
+                      <SelectItem value="interessado">INTERESSADO — demonstrou interesse</SelectItem>
+                      <SelectItem value="lead_quente">LEAD QUENTE — interesse alto</SelectItem>
+                      <SelectItem value="inscrito">INSCRITO — já confirmou inscrição</SelectItem>
+                      <SelectItem value="objecao">OBJEÇÃO — levantou dúvida/resistência</SelectItem>
+                      <SelectItem value="sem_interesse">SEM INTERESSE — pediu para sair</SelectItem>
+                      <SelectItem value="fora_escopo">FORA DE ESCOPO — assunto não relacionado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <input type="checkbox" checked={overwriteIntent} onChange={(e) => setOverwriteIntent(e.target.checked)} />
+                    Sobrescrever classificação se o contato já existir no CRM
+                  </label>
                 </div>
-              </details>
 
-              {parsed.length > 0 && (
-                <div className="space-y-2 rounded-md border border-border p-3">
-                  <div className="flex flex-wrap items-center gap-2 text-xs">
-                    <Badge variant="outline">{parsed.length} linhas</Badge>
-                    {detectedColumns.map((c) => (
-                      <Badge key={c} variant={c === "phone" ? "default" : "outline"} className="text-[10px]">
-                        {c}
-                      </Badge>
-                    ))}
-                  </div>
-                  {!hasPhoneColumn && (
-                    <div className="text-xs text-rose-600">
-                      ⚠ Falta a coluna obrigatória <code>phone</code>.
-                    </div>
-                  )}
-                  <div className="max-h-48 overflow-auto rounded border border-border">
-                    <table className="w-full text-xs">
-                      <thead className="bg-muted/50">
-                        <tr>
-                          {detectedColumns.map((c) => (
-                            <th key={c} className="px-2 py-1 text-left font-medium">{c}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {parsed.slice(0, 5).map((r, i) => (
-                          <tr key={i} className="border-t border-border">
-                            {detectedColumns.map((c) => (
-                              <td key={c} className="px-2 py-1 font-mono">{r[c]}</td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    {parsed.length > 5 && (
-                      <div className="border-t border-border px-2 py-1 text-[11px] text-muted-foreground">
-                        + {parsed.length - 5} linha(s) não mostradas no preview
-                      </div>
-                    )}
-                  </div>
+                <div className="flex items-center justify-end">
+                  <Button onClick={handleImport} disabled={importing || !parsed.length || !hasPhoneColumn}>
+                    {importing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Aguarde…</> : <><Upload className="mr-2 h-4 w-4" />Importar {parsed.length} contatos</>}
+                  </Button>
                 </div>
-              )}
+              </CardContent>
+            </Card>
+          )}
 
-              <div className="flex items-center justify-end">
-                <Button onClick={handleImport} disabled={importing || !parsed.length || !hasPhoneColumn}>
-                  <Upload className="mr-2 h-4 w-4" />
-                  {importing ? "Importando…" : `Importar ${parsed.length} contatos`}
-                </Button>
-              </div>
-
-              <div className="rounded-md border border-border bg-muted/20 p-3 space-y-2">
-                <Label className="text-xs font-medium">Classificação inicial dos leads</Label>
-                <Select value={initialIntent} onValueChange={(v) => setInitialIntent(v as typeof initialIntent)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="silencio">SILÊNCIO — não respondeu ainda (padrão)</SelectItem>
-                    <SelectItem value="interessado">INTERESSADO — demonstrou interesse</SelectItem>
-                    <SelectItem value="lead_quente">LEAD QUENTE — interesse alto</SelectItem>
-                    <SelectItem value="inscrito">INSCRITO — já confirmou inscrição</SelectItem>
-                    <SelectItem value="objecao">OBJEÇÃO — levantou dúvida/resistência</SelectItem>
-                    <SelectItem value="sem_interesse">SEM INTERESSE — pediu para sair</SelectItem>
-                    <SelectItem value="fora_escopo">FORA DE ESCOPO — assunto não relacionado</SelectItem>
-                  </SelectContent>
-                </Select>
-                <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <input
-                    type="checkbox"
-                    checked={overwriteIntent}
-                    onChange={(e) => setOverwriteIntent(e.target.checked)}
-                  />
-                  Sobrescrever classificação se o contato já existir no CRM
-                </label>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="message">
-          <div className="space-y-4">
           <Card>
-            <CardHeader><CardTitle className="text-base">Modelo da mensagem</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              <Textarea rows={6} value={template} onChange={(e) => setTemplate(e.target.value)} />
-              <div className="flex items-center gap-2">
-                <Button onClick={saveTemplate} disabled={template === savedTemplate}>
-                  <RefreshCcw className="mr-2 h-4 w-4" /> Salvar
-                </Button>
-                <Button variant="outline" onClick={doPreview}>
-                  <Eye className="mr-2 h-4 w-4" /> Pré-visualizar
-                </Button>
-              </div>
-              {previewText && (
-                <div className="rounded-md border border-border bg-muted/30 p-3 text-sm whitespace-pre-wrap">
-                  {previewText}
+            <CardHeader><CardTitle className="text-base">Base de envio ({targetTotal})</CardTitle></CardHeader>
+            <CardContent className="p-0">
+              {targets.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 px-6 py-12 text-center">
+                  <Users className="h-8 w-8 text-muted-foreground" />
+                  <div className="text-sm font-medium">Nenhum destinatário ainda</div>
+                  <p className="max-w-sm text-xs text-muted-foreground">
+                    Monte sua base escolhendo contatos do CRM, importando uma planilha ou digitando os números.
+                  </p>
+                  <div className="mt-2 flex flex-wrap justify-center gap-2">
+                    <Button size="sm" onClick={() => setAddMode("crm")}><Users className="mr-2 h-4 w-4" />Selecionar do CRM</Button>
+                    <Button size="sm" variant="outline" onClick={() => setAddMode("csv")}><Upload className="mr-2 h-4 w-4" />Importar CSV</Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="max-h-[480px] overflow-y-auto">
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 bg-muted/50 text-xs uppercase text-muted-foreground">
+                      <tr>
+                        <th className="px-3 py-2 text-left">Telefone</th>
+                        <th className="px-3 py-2 text-left">Nome</th>
+                        <th className="px-3 py-2 text-left">Status</th>
+                        <th className="px-3 py-2 text-left">Tentativas</th>
+                        <th className="px-3 py-2"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {targets.map((t) => (
+                        <tr key={t.id} className="border-t border-border">
+                          <td className="px-3 py-2 font-mono text-xs">{t.phone}</td>
+                          <td className="px-3 py-2">{t.name ?? "—"}</td>
+                          <td className="px-3 py-2">
+                            <Badge className={`text-[10px] ${TARGET_STATUS_TONE[t.status] ?? "bg-muted text-muted-foreground"}`}>
+                              {t.status}
+                            </Badge>
+                            {t.error && <div className="mt-0.5 text-[10px] text-rose-600">{t.error}</div>}
+                          </td>
+                          <td className="px-3 py-2 text-xs">{t.attempts}</td>
+                          <td className="px-3 py-2 text-right">
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="icon"><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Remover destinatário?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    {t.phone} deixará de receber as mensagens desta campanha.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                  <AlertDialogAction onClick={async () => {
+                                    await rmFn({ data: { id: t.id, campaignId: id } });
+                                    if (targets.length === 1 && targetPage > 1) setTargetPage((p) => p - 1);
+                                    qc.invalidateQueries({ queryKey: ["campaign", id] });
+                                  }}>Remover</AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-3 py-2 text-xs text-muted-foreground">
+                    <span>{targetFrom}-{targetTo} de {targetTotal} destinatários</span>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setTargetPage((p) => Math.max(1, p - 1))} disabled={targetPage <= 1 || isLoading}>
+                        <ChevronLeft className="h-3.5 w-3.5" /> Anterior
+                      </Button>
+                      <span>Página {targetPage} de {targetTotalPages}</span>
+                      <Button variant="outline" size="sm" onClick={() => setTargetPage((p) => Math.min(targetTotalPages, p + 1))} disabled={targetPage >= targetTotalPages || isLoading}>
+                        Próxima <ChevronRight className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               )}
-              <Label className="text-xs text-muted-foreground">
-                Variáveis: {`{{name}}`}, {`{{phone}}`} e qualquer coluna do CSV.
-              </Label>
             </CardContent>
           </Card>
-          <CampaignCloudTemplateCard
-            campaignId={campaign.id}
-            currentTemplateId={(campaign as { cloud_template_id?: string | null }).cloud_template_id ?? null}
-            currentVariables={(campaign as { cloud_template_variables?: Record<string, unknown> | null }).cloud_template_variables ?? null}
-            onSaved={() => qc.invalidateQueries({ queryKey: ["campaign", id] })}
-          />
-          </div>
         </TabsContent>
 
-        <TabsContent value="rules">
+        {/* ------------------------------ MENSAGEM ------------------------------ */}
+        <TabsContent value="message" className="space-y-4">
+          <div className="flex flex-wrap gap-1 rounded-lg border p-1">
+            <button
+              type="button"
+              onClick={() => setMessageMode("template")}
+              className={`rounded-md px-4 py-1.5 text-sm transition ${messageMode === "template" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent"}`}
+            >
+              <FileText className="mr-1.5 inline h-3.5 w-3.5" /> Template aprovado
+            </button>
+            <button
+              type="button"
+              onClick={() => setMessageMode("freetext")}
+              className={`rounded-md px-4 py-1.5 text-sm transition ${messageMode === "freetext" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent"}`}
+            >
+              <Pencil className="mr-1.5 inline h-3.5 w-3.5" /> Mensagem livre
+            </button>
+          </div>
+
+          {messageMode === "template" ? (
+            <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+              <CampaignCloudTemplateCard
+                campaignId={campaign.id}
+                currentTemplateId={(campaign as { cloud_template_id?: string | null }).cloud_template_id ?? null}
+                currentVariables={(campaign as { cloud_template_variables?: Record<string, unknown> | null }).cloud_template_variables ?? null}
+                onSaved={() => qc.invalidateQueries({ queryKey: ["campaign", id] })}
+              />
+              <Card>
+                <CardHeader><CardTitle className="text-base">Pré-visualização</CardTitle></CardHeader>
+                <CardContent>
+                  <div className="rounded-xl bg-[#e5ddd5] p-4 dark:bg-muted">
+                    <div className="max-w-[85%] rounded-lg rounded-tl-none bg-white p-3 text-sm shadow dark:bg-card">
+                      <div className="whitespace-pre-wrap">{previewText || template || "Sua mensagem aparecerá aqui."}</div>
+                      <div className="mt-1 text-right text-[10px] text-muted-foreground">agora</div>
+                    </div>
+                  </div>
+                  <Button variant="outline" size="sm" className="mt-3" onClick={doPreview}>
+                    <Eye className="mr-2 h-4 w-4" /> Atualizar preview
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+          ) : (
+            <Card>
+              <CardHeader><CardTitle className="text-base">Mensagem livre</CardTitle></CardHeader>
+              <CardContent className="space-y-3">
+                <Textarea rows={6} value={template} onChange={(e) => setTemplate(e.target.value)} />
+                <Label className="text-xs text-muted-foreground">
+                  Variáveis: {`{{name}}`}, {`{{phone}}`} e qualquer coluna do CSV.
+                </Label>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button onClick={saveTemplate} disabled={template === savedTemplate}>
+                    <RefreshCcw className="mr-2 h-4 w-4" /> Salvar
+                  </Button>
+                  <Button variant="outline" onClick={doPreview}><Eye className="mr-2 h-4 w-4" /> Pré-visualizar</Button>
+                </div>
+                {previewText && (
+                  <div className="rounded-md border border-border bg-muted/30 p-3 text-sm whitespace-pre-wrap">{previewText}</div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* --------------------------- REGRAS & LIMITES -------------------------- */}
+        <TabsContent value="rules" className="space-y-4">
+          <CampaignBestPracticesCard
+            campaignId={campaign.id}
+            initial={{
+              send_window_start_hour: campaign.window_start_hour,
+              send_window_end_hour: campaign.window_end_hour,
+              daily_limit: (campaign as { max_per_day?: number }).max_per_day ?? 500,
+              min_delay_seconds: campaign.throttle_min_seconds,
+              max_delay_seconds: campaign.throttle_max_seconds,
+              auto_optout_keywords: (campaign as { opt_out_keywords?: string[] | null }).opt_out_keywords ?? [],
+            }}
+          />
           <CampaignRulesCard
             campaign={{
               id: campaign.id,
@@ -746,8 +818,75 @@ function CampaignDetailPage() {
               window_end_hour: campaign.window_end_hour,
             }}
           />
+          <Card>
+            <CardHeader><CardTitle className="text-base">Sequência de disparos</CardTitle></CardHeader>
+            <CardContent>
+              <CampaignSequence
+                campaign={{
+                  id: campaign.id,
+                  event_date: (campaign as { event_date?: string | null }).event_date ?? null,
+                  opt_out_keywords: (campaign as { opt_out_keywords?: string[] | null }).opt_out_keywords ?? null,
+                  opt_out_reply: (campaign as { opt_out_reply?: string | null }).opt_out_reply ?? null,
+                }}
+              />
+            </CardContent>
+          </Card>
         </TabsContent>
+
+        {/* ------------------------------- REVISAR ------------------------------ */}
+        <TabsContent value="review" className="space-y-4">
+          <Card>
+            <CardHeader><CardTitle className="text-base">Resumo antes de iniciar</CardTitle></CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              <ReviewRow label="Destinatários" value={`${targetTotal} contatos`} />
+              <ReviewRow
+                label="Tipo"
+                value={(campaign as { cloud_template_id?: string | null }).cloud_template_id
+                  ? "Template aprovado da Meta"
+                  : "Mensagem livre"}
+              />
+              <ReviewRow label="Limite diário" value={`${(campaign as { max_per_day?: number }).max_per_day ?? 500} msg/dia`} />
+              <ReviewRow label="Intervalo entre mensagens" value={`${campaign.throttle_min_seconds}–${campaign.throttle_max_seconds}s`} />
+              <ReviewRow label="Janela de envio" value={`${String(campaign.window_start_hour).padStart(2, "0")}:00 – ${String(campaign.window_end_hour).padStart(2, "0")}:00`} />
+              <ReviewRow label="Status atual" value={s.label} />
+            </CardContent>
+          </Card>
+
+          {targetTotal === 0 && (
+            <Card className="flex flex-col items-center gap-2 p-8 text-center">
+              <Users className="h-7 w-7 text-muted-foreground" />
+              <div className="text-sm font-medium">Sua base está vazia</div>
+              <p className="text-xs text-muted-foreground">Adicione destinatários na aba 1 antes de iniciar a campanha.</p>
+            </Card>
+          )}
+
+          <div className="flex flex-wrap gap-3">
+            <Button size="lg" onClick={() => changeStatus("running")} disabled={campaign.status === "running" || targetTotal === 0 || statusBusy}>
+              {statusBusy ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Aguarde…</> : <><Play className="mr-2 h-4 w-4" />Iniciar campanha</>}
+            </Button>
+            <Button size="lg" variant="outline" onClick={() => changeStatus("paused")} disabled={campaign.status !== "running" || statusBusy}>
+              <Pause className="mr-2 h-4 w-4" /> Pausar
+            </Button>
+          </div>
+        </TabsContent>
+
       </Tabs>
+    </div>
+  );
+}
+const TARGET_STATUS_TONE: Record<string, string> = {
+  pending: "bg-amber-500/15 text-amber-600",
+  sent: "bg-emerald-500/15 text-emerald-600",
+  replied: "bg-blue-500/15 text-blue-600",
+  failed: "bg-rose-500/15 text-rose-600",
+  opt_out: "bg-muted text-muted-foreground",
+};
+
+function ReviewRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3 border-b border-border/60 pb-1.5 last:border-0">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-medium">{value}</span>
     </div>
   );
 }
