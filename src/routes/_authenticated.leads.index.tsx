@@ -221,7 +221,22 @@ function LeadsListPage() {
               <tr><td colSpan={8} className="px-3 py-6 text-center text-muted-foreground">Carregando…</td></tr>
             )}
             {!isLoading && leads.length === 0 && (
-              <tr><td colSpan={8} className="px-3 py-10 text-center text-muted-foreground">Nenhum lead encontrado.</td></tr>
+              <tr>
+                <td colSpan={8} className="px-3 py-12 text-center">
+                  <div className="flex flex-col items-center justify-center">
+                    <Users className="mb-3 h-10 w-10 text-muted-foreground/60" />
+                    <h3 className="text-base font-medium">Nenhum contato encontrado</h3>
+                    <p className="mb-3 max-w-sm text-sm text-muted-foreground">
+                      Ajuste os filtros ou importe contatos para começar a gerenciar sua base.
+                    </p>
+                    {(search || statusF !== "all" || tempF !== "all") && (
+                      <Button variant="outline" size="sm" onClick={() => { setSearch(""); setStatusF("all"); setTempF("all"); }}>
+                        Limpar filtros
+                      </Button>
+                    )}
+                  </div>
+                </td>
+              </tr>
             )}
             {leads.map((c) => (
               <tr key={c.id} className={`border-t border-border hover:bg-muted/30 ${selected.has(c.id) ? "bg-primary/5" : ""}`}>
