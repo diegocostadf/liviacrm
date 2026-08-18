@@ -19,7 +19,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Cloud, ChevronLeft, ChevronRight, CheckCircle2, AlertTriangle, Loader2, Copy, Send, Trash2, Star, Zap, ExternalLink, ShieldCheck, KeyRound } from "lucide-react";
+import { Cloud, ChevronLeft, ChevronRight, CheckCircle2, AlertTriangle, Loader2, Copy, Send, Trash2, Star, Zap, ExternalLink, ShieldCheck, KeyRound, Smartphone, Phone } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 type FieldCheck = { ok: boolean; message: string; detail?: string };
 type CredentialsCheck = {
