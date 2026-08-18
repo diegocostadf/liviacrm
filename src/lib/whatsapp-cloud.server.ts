@@ -324,8 +324,54 @@ export async function fetchSignupDetails(
   };
 }
 
+/**
+ * Discover the WABAs + phone numbers a user authorized during Embedded Signup,
+ * without relying on the (unstable) postMessage event. Uses `debug_token` to
+ * read `granular_scopes` and then lists phone numbers per WABA.
+ */
+export async function listSignupAccounts(
+  userToken: string,
+  appId: string,
+  appSecret: string,
+): Promise<Array<{ wabaId: string; phoneNumberId: string; displayPhone: string | null; verifiedName: string | null }>> {
+  const appTokenValue = `${appId}|${appSecret}`;
+  const dtRes = await fetch(
+    `https://graph.facebook.com/v21.0/debug_token?input_token=${encodeURIComponent(userToken)}&access_token=${encodeURIComponent(appTokenValue)}`,
+  );
+  const dtData = (await dtRes.json().catch(() => ({}))) as {
+    data?: { granular_scopes?: Array<{ scope: string; target_ids?: string[] }> };
+    error?: { message?: string };
+  };
+  if (!dtRes.ok) throw new Error(dtData.error?.message ?? "Falha ao inspecionar token.");
+
+  const wabaIds: string[] = [];
+  for (const gs of dtData.data?.granular_scopes ?? []) {
+    if (gs.scope === "whatsapp_business_management" && gs.target_ids) wabaIds.push(...gs.target_ids);
+  }
+  if (!wabaIds.length) return [];
+
+  const results: Array<{ wabaId: string; phoneNumberId: string; displayPhone: string | null; verifiedName: string | null }> = [];
+  for (const wabaId of Array.from(new Set(wabaIds))) {
+    const pnRes = await fetch(
+      `https://graph.facebook.com/v21.0/${wabaId}/phone_numbers?fields=id,display_phone_number,verified_name&access_token=${encodeURIComponent(userToken)}`,
+    );
+    if (!pnRes.ok) continue;
+    const pnData = (await pnRes.json().catch(() => ({}))) as {
+      data?: Array<{ id: string; display_phone_number?: string; verified_name?: string }>;
+    };
+    for (const pn of pnData.data ?? []) {
+      results.push({
+        wabaId,
+        phoneNumberId: pn.id,
+        displayPhone: pn.display_phone_number ?? null,
+        verifiedName: pn.verified_name ?? null,
+      });
+    }
+  }
+  return results;
+}
+
 export async function subscribeWaba(
-*** MARKER ***
   wabaId: string,
   token: string,
   opts?: { overrideCallbackUri?: string; verifyToken?: string },
