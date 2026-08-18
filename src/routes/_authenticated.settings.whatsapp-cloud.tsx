@@ -709,6 +709,7 @@ function RegisterPhoneDialog({ account, qc }: { account: Account; qc: ReturnType
     setPin("");
     requestCodeMut.reset();
     registerMut.reset();
+    statusMut.reset();
   };
 
   const requestCodeMut = useMutation({
