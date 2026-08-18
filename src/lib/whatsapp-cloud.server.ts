@@ -432,6 +432,28 @@ export async function sendFreeText(args: { phoneNumberId: string; token: string;
   return { id: r.messages?.[0]?.id ?? null };
 }
 
+export async function registerPhoneNumber(
+  phoneNumberId: string,
+  token: string,
+  pin: string,
+): Promise<{ success: boolean }> {
+  const res = await fetch(
+    `https://graph.facebook.com/v21.0/${phoneNumberId}/register`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ messaging_product: "whatsapp", pin }),
+    },
+  );
+  const data = await res.json();
+  if (!res.ok) {
+    const msg = (data as { error?: { message?: string } }).error?.message ?? "Falha ao registrar número.";
+    throw new Error(msg);
+  }
+  return { success: true };
+}
+
+
 /** Pull current default account row (admin context). */
 export async function getDefaultCloudAccount() {
   const { data, error } = await supabaseAdmin
