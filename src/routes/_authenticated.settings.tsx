@@ -5,15 +5,15 @@ export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "Configurações — Lívia CRM" }] }),
   beforeLoad: ({ location }) => {
     if (location.pathname === "/settings" || location.pathname === "/settings/") {
-      throw redirect({ to: "/settings/whatsapp" });
+      throw redirect({ to: "/settings/whatsapp-cloud" });
     }
   },
   component: SettingsLayout,
 });
 
 const items = [
-  { to: "/settings/whatsapp", label: "WhatsApp", icon: MessageSquare, desc: "Escolha o provedor (Evolution, Twilio ou Cloud API)" },
-  { to: "/settings/whatsapp-templates", label: "Templates WhatsApp", icon: FileText, desc: "Gerencie templates da Meta (Cloud API)" },
+  { to: "/settings/whatsapp-cloud", label: "WhatsApp Cloud API", icon: MessageSquare, desc: "Conexão e configuração oficial da Meta" },
+  { to: "/settings/whatsapp-templates", label: "Templates WhatsApp", icon: FileText, desc: "Gerencie templates aprovados pela Meta" },
   { to: "/settings/ai-providers", label: "Provedores de IA", icon: Sparkles, desc: "Lovable AI, Claude, OpenAI, Google" },
   { to: "/settings/bot", label: "Bot Júlia", icon: Bot, desc: "Persona, modelo e regras por instância" },
   { to: "/settings/knowledge", label: "Base de conhecimento", icon: BookOpen, desc: "Documentos para RAG" },

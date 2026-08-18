@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -19,7 +18,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Cloud, ChevronLeft, ChevronRight, CheckCircle2, AlertTriangle, Loader2, Copy, Send, Trash2, Star, Zap, ExternalLink, ShieldCheck, KeyRound, Smartphone, Phone } from "lucide-react";
+import { Cloud, ChevronLeft, ChevronRight, CheckCircle2, AlertTriangle, Loader2, Copy, Send, Trash2, Star, ShieldCheck, KeyRound, Smartphone, Phone } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 type FieldCheck = { ok: boolean; message: string; detail?: string };
@@ -292,8 +291,6 @@ function WhatsappCloudPage() {
 
         <Stepper step={step} onStep={setStep} />
 
-        <ManualConnectCard onConnected={async () => { await qc.refetchQueries({ queryKey: ["wa-cloud"], type: "all" }); setStep(3); }} />
-
         {isLoading ? <Card className="p-8 text-center text-muted-foreground"><Loader2 className="mx-auto h-5 w-5 animate-spin" /></Card> : (
           <>
             {step === 1 && (
@@ -365,83 +362,6 @@ function WhatsappCloudPage() {
 
 function Stepper({ step, onStep }: { step: number; onStep: (n: number) => void }) {
   return StepperInner({ step, onStep });
-}
-
-function ManualConnectCard({ onConnected }: { onConnected: () => void | Promise<void> }) {
-  const [wabaId, setWabaId] = useState("");
-  const [phoneNumberId, setPhoneNumberId] = useState("");
-  const [token, setToken] = useState("");
-  const connectMut = useMutation({
-    mutationFn: () =>
-      api<{ account: Account; subscribed: boolean; subscribeError: string | null }>("POST", {
-        action: "save-account",
-        wabaId: wabaId.trim(),
-        phoneNumberId: phoneNumberId.trim(),
-        accessToken: token.trim(),
-        setDefault: true,
-      }),
-    onSuccess: async (r) => {
-      toast.success("Conta conectada!", { description: `WABA ${r.account.waba_id} · número ${r.account.display_phone_number ?? r.account.phone_number_id}` });
-      if (!r.subscribed) toast.warning(`Webhook não inscrito: ${r.subscribeError ?? "erro desconhecido"}. Preencha App ID/Secret/Verify Token na configuração completa.`);
-      await announceProviderActivation();
-      setToken("");
-      await onConnected();
-    },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
-  });
-  const ready = wabaId.trim().length > 3 && phoneNumberId.trim().length > 3 && token.trim().length > 10;
-  return (
-    <Card className="space-y-4 border-primary/40 p-6">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="flex items-center gap-2 text-lg font-semibold"><Zap className="h-5 w-5 text-primary" /> Conectar conta existente (conexão rápida)</h2>
-          <p className="text-sm text-muted-foreground">
-            Já tem um número no WhatsApp Manager? Cole os 3 dados abaixo e conecte agora — não precisa de App ID, App Secret nem Embedded Signup.
-          </p>
-        </div>
-        <Badge variant="outline">Seção A</Badge>
-      </div>
-      <div className="grid gap-3 md:grid-cols-3">
-        <div className="space-y-1">
-          <Label>WABA ID</Label>
-          <Input value={wabaId} onChange={(e) => setWabaId(e.target.value.trim())} placeholder="123456789012345" className="font-mono" />
-        </div>
-        <div className="space-y-1">
-          <Label>Phone Number ID</Label>
-          <Input value={phoneNumberId} onChange={(e) => setPhoneNumberId(e.target.value.trim())} placeholder="987654321098765" className="font-mono" />
-        </div>
-        <div className="space-y-1">
-          <Label>System User Access Token</Label>
-          <Input value={token} onChange={(e) => setToken(e.target.value)} placeholder="EAAG..." type="password" className="font-mono" />
-        </div>
-      </div>
-      <div className="flex flex-wrap items-center gap-3">
-        <Button onClick={() => connectMut.mutate()} disabled={!ready || connectMut.isPending}>
-          {connectMut.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4" />}
-          Conectar
-        </Button>
-        <a
-          href="https://business.facebook.com/wa/manage/"
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1 text-xs text-primary underline-offset-2 hover:underline"
-        >
-          Como obter o Phone Number ID e token? → Meta Business Suite → WhatsApp Manager → API Setup
-          <ExternalLink className="h-3 w-3" />
-        </a>
-      </div>
-      <Accordion type="single" collapsible>
-        <AccordionItem value="full" className="border-b-0">
-          <AccordionTrigger className="text-sm">Seção B — Configuração completa (Embedded Signup + Webhooks) é opcional</AccordionTrigger>
-          <AccordionContent className="text-sm text-muted-foreground">
-            Use o wizard abaixo apenas se quiser <strong>receber</strong> mensagens por webhook ou conectar contas de clientes via Embedded Signup.
-            Nesse caso preencha App ID, App Secret, Login Configuration ID e Verify Token no passo 1. Para apenas <strong>enviar</strong>,
-            a conexão rápida acima já é suficiente.
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
-    </Card>
-  );
 }
 
 function StepperInner({ step, onStep }: { step: number; onStep: (n: number) => void }) {
