@@ -453,6 +453,28 @@ export async function registerPhoneNumber(
   return { success: true };
 }
 
+export async function requestPhoneCode(
+  phoneNumberId: string,
+  token: string,
+  codeMethod: "SMS" | "VOICE" = "SMS",
+  language = "pt_BR",
+): Promise<{ success: boolean }> {
+  const res = await fetch(
+    `https://graph.facebook.com/v21.0/${phoneNumberId}/request_code`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ code_method: codeMethod, language }),
+    },
+  );
+  const data = await res.json();
+  if (!res.ok) {
+    const msg = (data as { error?: { message?: string } }).error?.message ?? "Falha ao solicitar código.";
+    throw new Error(msg);
+  }
+  return { success: true };
+}
+
 
 /** Pull current default account row (admin context). */
 export async function getDefaultCloudAccount() {
