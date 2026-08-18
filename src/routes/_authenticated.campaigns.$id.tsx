@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Play, Pause, Upload, Trash2, Eye, RefreshCcw, FileUp, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, Play, Pause, Upload, Trash2, Eye, RefreshCcw, FileUp, ChevronLeft, ChevronRight, Users, Plus, FileText, Pencil, ClipboardCheck, Loader2, ListOrdered } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,11 @@ import { CampaignSequence } from "@/components/campaign-sequence";
 import { CampaignRulesCard } from "@/components/campaign-rules";
 import { CampaignCrmPicker } from "@/components/campaign-crm-picker";
 import { CampaignCloudTemplateCard } from "@/components/campaign-cloud-template";
+import { CampaignBestPracticesCard } from "@/components/campaign-best-practices";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import {
   getCampaign, addCampaignTargets, removeCampaignTarget,
   setCampaignStatus, tickCampaignFn, previewCampaignMessage, updateCampaign,
