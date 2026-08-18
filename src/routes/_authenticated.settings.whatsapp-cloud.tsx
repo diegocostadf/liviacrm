@@ -811,7 +811,10 @@ function RegisterPhoneDialog({ account, qc }: { account: Account; qc: ReturnType
       setOpen(false);
       reset();
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
+    onError: (e) => {
+      console.error("[RegisterPhoneDialog] register-phone error:", e);
+      toast.error(e instanceof Error ? e.message : "Erro ao ativar número.");
+    },
   });
 
   const likelyPending = !account.webhook_subscribed;
