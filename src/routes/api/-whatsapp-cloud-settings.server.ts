@@ -351,6 +351,20 @@ export async function handlePost(request: Request) {
         const r = await sendFreeText({ phoneNumberId: acc.phone_number_id, token: acc.access_token, to, text: body.text ?? "Teste Lívia CRM" });
         return json({ ok: true, id: r.id });
       }
+      case "register-phone": {
+        const { data: acc } = await supabaseAdmin
+          .from("whatsapp_cloud_accounts")
+          .select("phone_number_id, access_token")
+          .eq("id", body.accountId)
+          .maybeSingle();
+        if (!acc) throw new Error("Conta não encontrada.");
+        await registerPhoneNumber(acc.phone_number_id, acc.access_token, body.pin);
+        await supabaseAdmin
+          .from("whatsapp_cloud_accounts")
+          .update({ webhook_subscribed: true })
+          .eq("id", body.accountId);
+        return json({ ok: true });
+      }
     }
   } catch (e) {
     const msg = e instanceof z.ZodError ? e.issues.map((i) => i.message).join("; ") : (e instanceof Error ? e.message : String(e));
