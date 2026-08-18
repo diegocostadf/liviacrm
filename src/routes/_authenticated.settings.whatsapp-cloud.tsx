@@ -103,6 +103,7 @@ function WhatsappCloudPage() {
   const [accessToken, setAccessToken] = useState("");
   const [sdkStatus, setSdkStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [signupIds, setSignupIds] = useState<{ wabaId: string; phoneNumberId: string } | null>(null);
+  const [signupOptions, setSignupOptions] = useState<Array<{ wabaId: string; phoneNumberId: string; displayPhone: string | null; verifiedName: string | null }>>([]);
   const [manualWabaId, setManualWabaId] = useState("");
   const [manualPhoneNumberId, setManualPhoneNumberId] = useState("");
   const isPreviewHost = typeof window !== "undefined" && /lovableproject\.com|lovable\.app/.test(window.location.hostname);
@@ -111,9 +112,26 @@ function WhatsappCloudPage() {
   // ou pelos botões Voltar/Próximo — não pulamos etapas automaticamente.
   const exchangeMut = useMutation({
     mutationFn: (code: string) => api<{ accessToken: string; expiresIn: number | null }>("POST", { action: "exchange-code", code }),
-    onSuccess: (r) => {
+    onSuccess: async (r) => {
       setAccessToken(r.accessToken);
       toast.success("Code trocado por token!");
+      setSignupOptions([]);
+      try {
+        const res = await api<{ accounts: Array<{ wabaId: string; phoneNumberId: string; displayPhone: string | null; verifiedName: string | null }> }>("POST", {
+          action: "list-signup-accounts",
+          accessToken: r.accessToken,
+        });
+        if (res.accounts.length === 1) {
+          saveFromSignupMut.mutate({ wabaId: res.accounts[0].wabaId, phoneNumberId: res.accounts[0].phoneNumberId, accessToken: r.accessToken });
+        } else if (res.accounts.length > 1) {
+          setSignupOptions(res.accounts);
+          toast.info("Encontramos mais de uma conta. Escolha abaixo qual conectar.");
+        } else {
+          toast.warning("Não encontramos WABAs associados a este token. Preencha manualmente.");
+        }
+      } catch {
+        toast.warning("Não foi possível listar contas automaticamente. Preencha manualmente se necessário.");
+      }
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
   });
@@ -139,15 +157,17 @@ function WhatsappCloudPage() {
       setStep(3);
       setAccessToken("");
       setSignupIds(null);
+      setSignupOptions([]);
       setManualWabaId("");
       setManualPhoneNumberId("");
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
   });
 
-  // Auto-save assim que temos IDs do postMessage + token do exchange-code.
+  // Fallback: se a Meta enviar o postMessage e o auto-save via Graph API ainda
+  // não tiver acontecido, usamos os IDs do evento.
   useEffect(() => {
-    if (!signupIds || !accessToken || saveFromSignupMut.isPending) return;
+    if (!signupIds || !accessToken || saveFromSignupMut.isPending || saveFromSignupMut.isSuccess) return;
     saveFromSignupMut.mutate({ ...signupIds, accessToken });
     setSignupIds(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -298,6 +318,12 @@ function WhatsappCloudPage() {
                 loggingIn={exchangeMut.isPending}
                 saving={saveFromSignupMut.isPending}
                 hasSignupIds={!!signupIds}
+                signupOptions={signupOptions}
+                onPickSignupOption={(o) => {
+                  if (!accessToken) return;
+                  setSignupOptions([]);
+                  saveFromSignupMut.mutate({ wabaId: o.wabaId, phoneNumberId: o.phoneNumberId, accessToken });
+                }}
                 manualWabaId={manualWabaId}
                 manualPhoneNumberId={manualPhoneNumberId}
                 onManualWabaIdChange={setManualWabaId}
@@ -654,6 +680,8 @@ function Step2(props: {
   onLogin: () => void; loggingIn: boolean;
   saving: boolean;
   hasSignupIds: boolean;
+  signupOptions: Array<{ wabaId: string; phoneNumberId: string; displayPhone: string | null; verifiedName: string | null }>;
+  onPickSignupOption: (o: { wabaId: string; phoneNumberId: string }) => void;
   manualWabaId: string;
   manualPhoneNumberId: string;
   onManualWabaIdChange: (v: string) => void;
@@ -661,7 +689,8 @@ function Step2(props: {
   onManualSave: () => void;
   saveSuccess: boolean;
 }) {
-  const showManualForm = props.accessToken && !props.saveSuccess && !props.hasSignupIds && !props.saving;
+  const showManualForm =
+    props.accessToken && !props.saveSuccess && !props.hasSignupIds && !props.saving && props.signupOptions.length === 0;
   return (
     <Card className="space-y-4 p-6">
       <h2 className="text-lg font-semibold">2. Embedded Signup</h2>
@@ -698,6 +727,25 @@ function Step2(props: {
             <div className="flex items-center gap-2 rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
               {props.hasSignupIds ? "Conta e número recebidos da Meta — salvando…" : "Salvando conta…"}
+            </div>
+          ) : props.signupOptions.length > 0 ? (
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">Encontramos mais de uma conta autorizada. Escolha qual conectar:</p>
+              {props.signupOptions.map((o) => (
+                <button
+                  key={`${o.wabaId}-${o.phoneNumberId}`}
+                  type="button"
+                  onClick={() => props.onPickSignupOption(o)}
+                  className="flex w-full items-center justify-between rounded-md border p-3 text-left text-sm transition-colors hover:bg-accent"
+                >
+                  <span>
+                    <span className="font-medium">Conectar {o.displayPhone ?? o.phoneNumberId}</span>
+                    {o.verifiedName && <span className="text-muted-foreground"> · {o.verifiedName}</span>}
+                    <span className="block font-mono text-xs text-muted-foreground">WABA {o.wabaId}</span>
+                  </span>
+                  <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+                </button>
+              ))}
             </div>
           ) : showManualForm ? (
             <div className="space-y-3">

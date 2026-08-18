@@ -19,6 +19,7 @@ import {
   fetchSignupDetails,
   registerPhoneNumber,
   requestPhoneCode,
+  listSignupAccounts,
 } from "@/lib/whatsapp-cloud.server";
 import { invalidateMessagingCache } from "@/lib/messaging-broker.server";
 
@@ -44,6 +45,7 @@ async function requireAdmin(request: Request) {
 
 const exchangeSchema = z.object({ action: z.literal("exchange-code"), code: z.string().min(5), redirectUri: z.string().url().optional() });
 const listWabasSchema = z.object({ action: z.literal("list-wabas"), accessToken: z.string().min(10) });
+const listSignupAccountsSchema = z.object({ action: z.literal("list-signup-accounts"), accessToken: z.string().min(10) });
 const listPhonesSchema = z.object({ action: z.literal("list-phones"), wabaId: z.string().min(3), accessToken: z.string().min(10) });
 const saveAccountSchema = z.object({
   action: z.literal("save-account"),
@@ -99,7 +101,7 @@ const validateCredsSchema = z.object({
   configId: z.string().trim().optional(),
   verifyToken: z.string().trim().optional(),
 });
-const postSchema = z.union([exchangeSchema, listWabasSchema, listPhonesSchema, saveAccountSchema, saveFromSignupSchema, setDefaultSchema, deleteAccountSchema, subscribeSchema, syncTemplatesSchema, sendTestSchema, registerPhoneSchema, requestCodeSchema, checkDomainSchema, addDomainSchema, verifyWebhookSchema, saveMetaSchema, configureAppWebhookSchema, validateCredsSchema]);
+const postSchema = z.union([exchangeSchema, listWabasSchema, listSignupAccountsSchema, listPhonesSchema, saveAccountSchema, saveFromSignupSchema, setDefaultSchema, deleteAccountSchema, subscribeSchema, syncTemplatesSchema, sendTestSchema, registerPhoneSchema, requestCodeSchema, checkDomainSchema, addDomainSchema, verifyWebhookSchema, saveMetaSchema, configureAppWebhookSchema, validateCredsSchema]);
 
 export async function handleGet(request: Request) {
   try {
@@ -213,6 +215,12 @@ export async function handlePost(request: Request) {
       case "list-wabas": {
         const r = await listWabasForToken(body.accessToken);
         return json({ businesses: r });
+      }
+      case "list-signup-accounts": {
+        const cfg = await getMetaConfig();
+        if (!cfg.appId || !cfg.appSecret) throw new Error("App ID e App Secret são necessários para listar contas.");
+        const accounts = await listSignupAccounts(body.accessToken, cfg.appId, cfg.appSecret);
+        return json({ accounts });
       }
       case "list-phones": {
         const r = await listPhoneNumbers(body.wabaId, body.accessToken);
