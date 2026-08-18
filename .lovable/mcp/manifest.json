@@ -1,0 +1,734 @@
+{
+  "version": 1,
+  "sdk_version": "0.26.2",
+  "path": "/mcp",
+  "auth": {
+    "type": "oauth",
+    "issuer": "https://ycymsfhdhtamdvmtenlm.supabase.co/auth/v1",
+    "accepted_audiences": [
+      "authenticated"
+    ]
+  },
+  "mcp": {
+    "server": {
+      "name": "livia-crm",
+      "version": "1.0.0",
+      "title": "Livia CRM"
+    },
+    "tools": [
+      {
+        "name": "crm_overview",
+        "title": "Panorama do CRM",
+        "description": "Resumo operacional: total de leads por status, mensagens enviadas/recebidas/com erro no período, campanhas ativas e conversas em aberto.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "days": {
+              "default": 7,
+              "description": "Janela de análise em dias.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 365
+            }
+          }
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_contacts",
+        "title": "Listar contatos",
+        "description": "Lista/busca contatos (leads) do CRM com filtros por texto, status do lead, tags, opt-out e origem.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "search": {
+              "description": "Busca por nome, telefone ou e-mail.",
+              "type": "string"
+            },
+            "lead_status": {
+              "type": "string",
+              "enum": [
+                "novo",
+                "engajado",
+                "inscrito",
+                "perdido"
+              ]
+            },
+            "tag": {
+              "description": "Filtra contatos que possuem esta tag.",
+              "type": "string"
+            },
+            "opted_out": {
+              "type": "boolean"
+            },
+            "source": {
+              "type": "string"
+            },
+            "limit": {
+              "default": 25,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            },
+            "offset": {
+              "default": 0,
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          }
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_contact",
+        "title": "Detalhes do contato",
+        "description": "Retorna um contato completo por id ou telefone, com conversas, últimas mensagens e eventos de intenção.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "contact_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "phone": {
+              "description": "Telefone com DDI+DDD, apenas dígitos.",
+              "type": "string"
+            }
+          }
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "upsert_contact",
+        "title": "Criar ou atualizar contato",
+        "description": "Cria um contato novo ou atualiza um existente (chave: telefone). Use para cadastrar leads e ajustar status, tags e dados.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "phone": {
+              "type": "string",
+              "minLength": 8,
+              "description": "Telefone com DDI+DDD."
+            },
+            "name": {
+              "type": "string"
+            },
+            "email": {
+              "type": "string",
+              "format": "email",
+              "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+            },
+            "company": {
+              "type": "string"
+            },
+            "job_title": {
+              "type": "string"
+            },
+            "city": {
+              "type": "string"
+            },
+            "state": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string"
+            },
+            "tags": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "lead_status": {
+              "type": "string",
+              "enum": [
+                "novo",
+                "engajado",
+                "inscrito",
+                "perdido"
+              ]
+            },
+            "history": {
+              "description": "Anotação/histórico livre do contato.",
+              "type": "string"
+            },
+            "opted_out": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "phone"
+          ]
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_conversations",
+        "title": "Listar conversas",
+        "description": "Lista conversas do inbox com contato, status, bot ligado/desligado e prévia da última mensagem.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "open",
+                "archived"
+              ]
+            },
+            "only_unread": {
+              "type": "boolean"
+            },
+            "bot_active": {
+              "type": "boolean"
+            },
+            "limit": {
+              "default": 20,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_messages",
+        "title": "Ler mensagens da conversa",
+        "description": "Retorna o histórico de mensagens de uma conversa em ordem cronológica.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "conversation_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "limit": {
+              "default": 50,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          "required": [
+            "conversation_id"
+          ]
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "send_whatsapp_message",
+        "title": "Enviar mensagem no WhatsApp",
+        "description": "Envia uma mensagem de texto pelo provedor ativo (Evolution, Twilio, WhatsApp Cloud ou Z-API) para uma conversa existente ou para um telefone, e registra no histórico do CRM.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": true
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "conversation_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "phone": {
+              "description": "Alternativa ao conversation_id: telefone com DDI+DDD.",
+              "type": "string"
+            },
+            "text": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            }
+          },
+          "required": [
+            "text"
+          ]
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "set_conversation_bot",
+        "title": "Ligar/desligar o bot na conversa",
+        "description": "Ativa ou pausa a assistente automática (Júlia) em uma conversa específica, para permitir atendimento humano.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "conversation_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "bot_active": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "conversation_id",
+            "bot_active"
+          ]
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "add_internal_note",
+        "title": "Adicionar nota interna",
+        "description": "Registra uma nota interna (não enviada ao cliente) em uma conversa.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "conversation_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "content": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4000
+            }
+          },
+          "required": [
+            "conversation_id",
+            "content"
+          ]
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_campaigns",
+        "title": "Listar campanhas",
+        "description": "Lista campanhas com status, contadores de envio, agendamento e template usado.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "draft",
+                "scheduled",
+                "running",
+                "paused",
+                "completed",
+                "failed"
+              ]
+            },
+            "limit": {
+              "default": 20,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_campaign",
+        "title": "Detalhes da campanha",
+        "description": "Retorna a campanha completa com regras de envio e resumo dos destinatários por status.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "campaign_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "include_targets": {
+              "default": false,
+              "description": "Inclui até 100 destinatários.",
+              "type": "boolean"
+            },
+            "target_status": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "sent",
+                "failed",
+                "replied",
+                "opt_out"
+              ]
+            }
+          },
+          "required": [
+            "campaign_id"
+          ]
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "create_campaign",
+        "title": "Criar campanha",
+        "description": "Cria uma campanha em rascunho com template de mensagem e regras de janela/throttle. Depois use add_campaign_targets e set_campaign_status.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 120
+            },
+            "template": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Mensagem com variáveis no formato {{nome}}."
+            },
+            "cloud_template_id": {
+              "description": "Template aprovado do WhatsApp Cloud, quando aplicável.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "cloud_template_variables": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "scheduled_at": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+            },
+            "window_start_hour": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 23
+            },
+            "window_end_hour": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 23
+            },
+            "max_per_hour": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000
+            },
+            "max_per_day": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100000
+            },
+            "throttle_min_seconds": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 3600
+            },
+            "throttle_max_seconds": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 3600
+            },
+            "pause_on_reply": {
+              "type": "boolean"
+            },
+            "opt_out_keywords": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "instance_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          },
+          "required": [
+            "name",
+            "template"
+          ]
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "add_campaign_targets",
+        "title": "Adicionar destinatários à campanha",
+        "description": "Adiciona destinatários a uma campanha: por telefones explícitos e/ou por filtro de contatos do CRM (status, tag, origem). Ignora contatos com opt-out.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "campaign_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "phones": {
+              "maxItems": 2000,
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "from_filter": {
+              "type": "object",
+              "properties": {
+                "lead_status": {
+                  "type": "string",
+                  "enum": [
+                    "novo",
+                    "engajado",
+                    "inscrito",
+                    "perdido"
+                  ]
+                },
+                "tag": {
+                  "type": "string"
+                },
+                "source": {
+                  "type": "string"
+                },
+                "limit": {
+                  "default": 500,
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 2000
+                }
+              }
+            }
+          },
+          "required": [
+            "campaign_id"
+          ]
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "set_campaign_status",
+        "title": "Alterar status da campanha",
+        "description": "Inicia, pausa, retoma, agenda, conclui ou volta a campanha para rascunho. Iniciar significa começar a disparar mensagens reais.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "campaign_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "draft",
+                "scheduled",
+                "running",
+                "paused",
+                "completed"
+              ]
+            },
+            "scheduled_at": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+            }
+          },
+          "required": [
+            "campaign_id",
+            "status"
+          ]
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "run_campaign_batch",
+        "title": "Disparar lote da campanha",
+        "description": "Processa imediatamente um lote de envios pendentes de uma campanha em execução (respeitando janela, throttle, opt-out e janela de 24h).",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": false,
+          "openWorldHint": true
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "campaign_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "batch": {
+              "default": 5,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 25
+            }
+          },
+          "required": [
+            "campaign_id"
+          ]
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_whatsapp_templates",
+        "title": "Listar templates do WhatsApp",
+        "description": "Lista os templates do WhatsApp Cloud sincronizados com a Meta, com status de aprovação e categoria.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "status": {
+              "description": "Ex.: APPROVED, PENDING, REJECTED.",
+              "type": "string"
+            },
+            "limit": {
+              "default": 50,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_channels",
+        "title": "Listar canais e provedor ativo",
+        "description": "Mostra as instâncias/canais de WhatsApp cadastrados, contas do WhatsApp Cloud e qual provedor de envio está ativo.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {}
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "search_knowledge",
+        "title": "Buscar na base de conhecimento",
+        "description": "Busca semântica nos documentos da base de conhecimento do CRM e retorna os trechos mais relevantes.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "minLength": 2
+            },
+            "limit": {
+              "default": 5,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10
+            }
+          },
+          "required": [
+            "query"
+          ]
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}

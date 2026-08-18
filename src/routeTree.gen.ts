@@ -46,6 +46,7 @@ import { Route as AuthenticatedReportsListsRouteImport } from './routes/_authent
 import { Route as AuthenticatedReportsExportsRouteImport } from './routes/_authenticated.reports.exports'
 import { Route as AuthenticatedLeadsIdRouteImport } from './routes/_authenticated.leads.$id'
 import { Route as AuthenticatedCampaignsIdRouteImport } from './routes/_authenticated.campaigns.$id'
+import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as ApiPublicWebhooksZapiRouteImport } from './routes/api/public/webhooks/zapi'
 import { Route as ApiPublicWebhooksMetaWhatsappRouteImport } from './routes/api/public/webhooks/meta-whatsapp'
 import { Route as ApiPublicWebhooksEvolutionRouteImport } from './routes/api/public/webhooks/evolution'
@@ -256,6 +257,11 @@ const AuthenticatedCampaignsIdRoute =
     path: '/$id',
     getParentRoute: () => AuthenticatedCampaignsRoute,
   } as any)
+const DotlovableOauthConsentRoute = DotlovableOauthConsentRouteImport.update({
+  id: '/.lovable/oauth/consent',
+  path: '/.lovable/oauth/consent',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicWebhooksZapiRoute = ApiPublicWebhooksZapiRouteImport.update({
   id: '/api/public/webhooks/zapi',
   path: '/api/public/webhooks/zapi',
@@ -303,6 +309,7 @@ export interface FileRoutesByFullPath {
   '/api/whatsapp-cloud-settings': typeof ApiWhatsappCloudSettingsRoute
   '/api/whatsapp-cloud-templates': typeof ApiWhatsappCloudTemplatesRoute
   '/api/zapi-settings': typeof ApiZapiSettingsRoute
+  '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/campaigns/$id': typeof AuthenticatedCampaignsIdRoute
   '/leads/$id': typeof AuthenticatedLeadsIdRoute
   '/reports/exports': typeof AuthenticatedReportsExportsRoute
@@ -344,6 +351,7 @@ export interface FileRoutesByTo {
   '/api/whatsapp-cloud-templates': typeof ApiWhatsappCloudTemplatesRoute
   '/api/zapi-settings': typeof ApiZapiSettingsRoute
   '/': typeof AuthenticatedIndexRoute
+  '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/campaigns/$id': typeof AuthenticatedCampaignsIdRoute
   '/leads/$id': typeof AuthenticatedLeadsIdRoute
   '/reports/exports': typeof AuthenticatedReportsExportsRoute
@@ -389,6 +397,7 @@ export interface FileRoutesById {
   '/api/whatsapp-cloud-templates': typeof ApiWhatsappCloudTemplatesRoute
   '/api/zapi-settings': typeof ApiZapiSettingsRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/_authenticated/campaigns/$id': typeof AuthenticatedCampaignsIdRoute
   '/_authenticated/leads/$id': typeof AuthenticatedLeadsIdRoute
   '/_authenticated/reports/exports': typeof AuthenticatedReportsExportsRoute
@@ -434,6 +443,7 @@ export interface FileRouteTypes {
     | '/api/whatsapp-cloud-settings'
     | '/api/whatsapp-cloud-templates'
     | '/api/zapi-settings'
+    | '/.lovable/oauth/consent'
     | '/campaigns/$id'
     | '/leads/$id'
     | '/reports/exports'
@@ -475,6 +485,7 @@ export interface FileRouteTypes {
     | '/api/whatsapp-cloud-templates'
     | '/api/zapi-settings'
     | '/'
+    | '/.lovable/oauth/consent'
     | '/campaigns/$id'
     | '/leads/$id'
     | '/reports/exports'
@@ -519,6 +530,7 @@ export interface FileRouteTypes {
     | '/api/whatsapp-cloud-templates'
     | '/api/zapi-settings'
     | '/_authenticated/'
+    | '/.lovable/oauth/consent'
     | '/_authenticated/campaigns/$id'
     | '/_authenticated/leads/$id'
     | '/_authenticated/reports/exports'
@@ -555,6 +567,7 @@ export interface RootRouteChildren {
   ApiWhatsappCloudSettingsRoute: typeof ApiWhatsappCloudSettingsRoute
   ApiWhatsappCloudTemplatesRoute: typeof ApiWhatsappCloudTemplatesRoute
   ApiZapiSettingsRoute: typeof ApiZapiSettingsRoute
+  DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   ApiPublicCampaignsTickRoute: typeof ApiPublicCampaignsTickRoute
   ApiPublicWebhooksEvolutionRoute: typeof ApiPublicWebhooksEvolutionRoute
   ApiPublicWebhooksMetaWhatsappRoute: typeof ApiPublicWebhooksMetaWhatsappRoute
@@ -822,6 +835,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCampaignsIdRouteImport
       parentRoute: typeof AuthenticatedCampaignsRoute
     }
+    '/.lovable/oauth/consent': {
+      id: '/.lovable/oauth/consent'
+      path: '/.lovable/oauth/consent'
+      fullPath: '/.lovable/oauth/consent'
+      preLoaderRoute: typeof DotlovableOauthConsentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/webhooks/zapi': {
       id: '/api/public/webhooks/zapi'
       path: '/api/public/webhooks/zapi'
@@ -994,6 +1014,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWhatsappCloudSettingsRoute: ApiWhatsappCloudSettingsRoute,
   ApiWhatsappCloudTemplatesRoute: ApiWhatsappCloudTemplatesRoute,
   ApiZapiSettingsRoute: ApiZapiSettingsRoute,
+  DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   ApiPublicCampaignsTickRoute: ApiPublicCampaignsTickRoute,
   ApiPublicWebhooksEvolutionRoute: ApiPublicWebhooksEvolutionRoute,
   ApiPublicWebhooksMetaWhatsappRoute: ApiPublicWebhooksMetaWhatsappRoute,
