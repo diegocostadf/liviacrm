@@ -1,24 +1,28 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
+import { getMyProfile } from "@/lib/auth.functions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
-import { Cloud, ChevronLeft, ChevronRight, CheckCircle2, AlertTriangle, Loader2, Copy, Send, Trash2, Star, ShieldCheck, KeyRound, Smartphone, Phone } from "lucide-react";
+import {
+  Cloud, CheckCircle2, AlertTriangle, Loader2, Copy, Send, Star, ShieldCheck,
+  KeyRound, Smartphone, Phone, ExternalLink, Bot, Megaphone, FileText, Check, RotateCcw, ChevronRight,
+} from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 type FieldCheck = { ok: boolean; message: string; detail?: string };
@@ -68,7 +72,7 @@ async function activateCloudProvider(): Promise<boolean> {
 async function announceProviderActivation() {
   const ok = await activateCloudProvider();
   if (ok) toast.success("Provedor de mensagens ativado: WhatsApp Cloud.");
-  else toast.warning("Conta conectada! Ative o provedor em Configurações → Provedor de mensagens → WhatsApp Cloud.");
+  else toast.warning("Conta conectada! Ative o provedor em Configurações → WhatsApp Cloud API.");
 }
 
 export const Route = createFileRoute("/_authenticated/settings/whatsapp-cloud")({
@@ -76,17 +80,20 @@ export const Route = createFileRoute("/_authenticated/settings/whatsapp-cloud")(
   component: WhatsappCloudPage,
 });
 
-const STEPS = [
-  { n: 1, label: "Credenciais Meta" },
-  { n: 2, label: "Conectar conta" },
-  { n: 3, label: "Contas & Webhook" },
-  { n: 4, label: "Testes" },
-  { n: 5, label: "Resumo" },
+const WIZARD_STEPS = [
+  { n: 1, label: "Conectar Meta" },
+  { n: 2, label: "Selecionar número" },
+  { n: 3, label: "Ativar número" },
+  { n: 4, label: "Conectado" },
 ] as const;
 
 function WhatsappCloudPage() {
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: ["wa-cloud"], queryFn: () => api<State>("GET") });
+  const profileFn = useServerFn(getMyProfile);
+  const { data: me } = useQuery({ queryKey: ["me"], queryFn: () => profileFn() });
+  const isAdmin = (me?.roles ?? []).includes("admin");
+
   const currentHost = typeof window !== "undefined" ? window.location.hostname : "";
   const domainCheck = useQuery({
     queryKey: ["wa-cloud-domain", currentHost],
@@ -94,7 +101,7 @@ function WhatsappCloudPage() {
     enabled: !!currentHost,
     staleTime: 60_000,
   });
-  const [step, setStep] = useState(1);
+
   const accounts = data?.accounts ?? [];
   const defaultAcc = accounts.find((a) => a.is_default) ?? accounts[0];
 
@@ -103,17 +110,29 @@ function WhatsappCloudPage() {
   const [sdkStatus, setSdkStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [signupIds, setSignupIds] = useState<{ wabaId: string; phoneNumberId: string } | null>(null);
   const [signupOptions, setSignupOptions] = useState<Array<{ wabaId: string; phoneNumberId: string; displayPhone: string | null; verifiedName: string | null }>>([]);
+  const [pickedOption, setPickedOption] = useState<string | null>(null);
   const [manualWabaId, setManualWabaId] = useState("");
   const [manualPhoneNumberId, setManualPhoneNumberId] = useState("");
   const isPreviewHost = typeof window !== "undefined" && /lovableproject\.com|lovable\.app/.test(window.location.hostname);
 
-  // Wizard sempre começa no passo 1. O usuário navega manualmente pelo Stepper
-  // ou pelos botões Voltar/Próximo — não pulamos etapas automaticamente.
+  /** Passo detectado a partir do estado do banco. */
+  const detectedStep: number = !accounts.length
+    ? 1
+    : !defaultAcc?.phone_number_id
+      ? 2
+      : !defaultAcc?.webhook_subscribed
+        ? 3
+        : 4;
+
+  const [manualStep, setManualStep] = useState<number | null>(null);
+  const step = manualStep ?? detectedStep;
+  // Ao mudar de estado no banco, volta a seguir a detecção automática.
+  useEffect(() => { setManualStep(null); }, [detectedStep]);
+
   const exchangeMut = useMutation({
     mutationFn: (code: string) => api<{ accessToken: string; expiresIn: number | null }>("POST", { action: "exchange-code", code }),
     onSuccess: async (r) => {
       setAccessToken(r.accessToken);
-      toast.success("Code trocado por token!");
       setSignupOptions([]);
       try {
         const res = await api<{ accounts: Array<{ wabaId: string; phoneNumberId: string; displayPhone: string | null; verifiedName: string | null }> }>("POST", {
@@ -124,12 +143,15 @@ function WhatsappCloudPage() {
           saveFromSignupMut.mutate({ wabaId: res.accounts[0].wabaId, phoneNumberId: res.accounts[0].phoneNumberId, accessToken: r.accessToken });
         } else if (res.accounts.length > 1) {
           setSignupOptions(res.accounts);
-          toast.info("Encontramos mais de uma conta. Escolha abaixo qual conectar.");
+          setManualStep(2);
+          toast.info("Encontramos mais de um número. Escolha qual conectar.");
         } else {
+          setManualStep(2);
           toast.warning("Não encontramos WABAs associados a este token. Preencha manualmente.");
         }
       } catch {
-        toast.warning("Não foi possível listar contas automaticamente. Preencha manualmente se necessário.");
+        setManualStep(2);
+        toast.warning("Não foi possível listar contas automaticamente. Preencha manualmente abaixo.");
       }
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
@@ -141,30 +163,20 @@ function WhatsappCloudPage() {
     onSuccess: async (r) => {
       await qc.refetchQueries({ queryKey: ["wa-cloud"], type: "all" });
       await announceProviderActivation();
-      const state = qc.getQueryData<State>(["wa-cloud"]);
-      const def = state?.accounts.find((a) => a.is_default) ?? state?.accounts[0];
-      if (def) {
-        toast.success("Conta padrão configurada", {
-          description: `${def.business_name ?? def.display_phone_number ?? def.phone_number_id} (${def.waba_id})`,
-        });
-      }
-      if (r.subscribed) {
-        toast.success("Conta conectada e webhook inscrito automaticamente!");
-      } else {
-        toast.warning(`Conta conectada, mas falhou ao inscrever o webhook: ${r.subscribeError ?? "erro desconhecido"}.`);
-      }
-      setStep(3);
+      if (r.subscribed) toast.success("Conta conectada e webhook inscrito automaticamente!");
+      else toast.warning(`Conta conectada, mas falhou ao inscrever o webhook: ${r.subscribeError ?? "erro desconhecido"}.`);
       setAccessToken("");
       setSignupIds(null);
       setSignupOptions([]);
+      setPickedOption(null);
       setManualWabaId("");
       setManualPhoneNumberId("");
+      setManualStep(null);
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
   });
 
-  // Fallback: se a Meta enviar o postMessage e o auto-save via Graph API ainda
-  // não tiver acontecido, usamos os IDs do evento.
+  // Fallback: usa os IDs vindos do postMessage se o auto-save ainda não rodou.
   useEffect(() => {
     if (!signupIds || !accessToken || saveFromSignupMut.isPending || saveFromSignupMut.isSuccess) return;
     saveFromSignupMut.mutate({ ...signupIds, accessToken });
@@ -172,7 +184,6 @@ function WhatsappCloudPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [signupIds, accessToken]);
 
-  // Captura WABA/phone diretamente do Embedded Signup (postMessage).
   useEffect(() => {
     function onMsg(ev: MessageEvent) {
       if (ev.origin !== "https://www.facebook.com" && ev.origin !== "https://web.facebook.com") return;
@@ -182,7 +193,6 @@ function WhatsappCloudPage() {
       }
       const p = payload as { type?: string; event?: string; data?: { waba_id?: string; phone_number_id?: string } };
       if (p?.type !== "WA_EMBEDDED_SIGNUP") return;
-      console.log("[wa-cloud] WA_EMBEDDED_SIGNUP", p);
       if (p.event === "FINISH" && p.data?.waba_id && p.data?.phone_number_id) {
         setSignupIds({ wabaId: p.data.waba_id, phoneNumberId: p.data.phone_number_id });
         toast.success("Conta e número recebidos da Meta — salvando…");
@@ -217,16 +227,18 @@ function WhatsappCloudPage() {
   });
   const syncMut = useMutation({
     mutationFn: (id: string) => api<{ count: number }>("POST", { action: "sync-templates", accountId: id }),
-    onSuccess: (r) => toast.success(`${r.count} templates sincronizados.`),
+    onSuccess: (r) => toast.success(`Sincronizado — ${r.count} templates encontrados.`),
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
   });
   const setDefaultMut = useMutation({
     mutationFn: (id: string) => api("POST", { action: "set-default", accountId: id }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["wa-cloud"] }),
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
   });
   const deleteMut = useMutation({
     mutationFn: (id: string) => api("POST", { action: "delete-account", accountId: id }),
-    onSuccess: () => { toast.success("Removida."); qc.invalidateQueries({ queryKey: ["wa-cloud"] }); },
+    onSuccess: () => { toast.success("Conta removida."); qc.invalidateQueries({ queryKey: ["wa-cloud"] }); },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
   });
 
   // Facebook SDK
@@ -248,7 +260,7 @@ function WhatsappCloudPage() {
       }
     };
     s.onerror = (err) => {
-      console.error("[wa-cloud] Falha ao carregar SDK do Facebook (bloqueado por extensão ou rede?)", err);
+      console.error("[wa-cloud] Falha ao carregar SDK do Facebook", err);
       setSdkStatus("error");
     };
     document.body.appendChild(s);
@@ -256,18 +268,14 @@ function WhatsappCloudPage() {
 
   function launchEmbeddedSignup() {
     const w = window as unknown as { FB?: { login: (cb: (r: { authResponse?: { code?: string }; status?: string }) => void, o: Record<string, unknown>) => void } };
-    if (!data?.meta.appId) return toast.error("Configure o App ID no passo 1.");
-    if (!data?.meta.configId) return toast.error("Configure o Login Configuration ID no passo 1.");
-    if (!w.FB) {
-      toast.error("SDK do Facebook não carregou. Verifique adblockers ou rede.");
-      return;
-    }
+    if (!data?.meta.appId) return toast.error("Configure o App ID nas credenciais avançadas.");
+    if (!data?.meta.configId) return toast.error("Configure o Login Configuration ID nas credenciais avançadas.");
+    if (!w.FB) return toast.error("SDK do Facebook não carregou. Verifique adblockers ou rede.");
     try {
       w.FB.login((r) => {
-        console.log("[wa-cloud] FB.login response", r);
         const code = r?.authResponse?.code;
         if (!code) {
-          toast.error(`Login não retornou code (status: ${r?.status ?? "desconhecido"}). Verifique se o domínio está na allowlist do app Meta.`);
+          toast.error(`Login não retornou code (status: ${r?.status ?? "desconhecido"}). Verifique se o domínio está autorizado no app Meta.`);
           return;
         }
         exchangeMut.mutate(code);
@@ -279,105 +287,149 @@ function WhatsappCloudPage() {
   }
 
   return (
-    <div className="h-screen overflow-y-auto p-6">
+    <div className="h-screen overflow-y-auto p-4 sm:p-6">
       <div className="mx-auto max-w-4xl space-y-6">
-        <header className="flex items-center justify-between">
+        <header className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h1 className="flex items-center gap-2 text-2xl font-semibold"><Cloud className="h-6 w-6" /> WhatsApp Cloud API</h1>
-            <p className="text-sm text-muted-foreground">Conecte uma conta oficial da Meta para enviar mensagens via Graph API.</p>
+            <p className="text-sm text-muted-foreground">Conecte uma conta oficial da Meta para enviar e receber mensagens.</p>
           </div>
-          {defaultAcc && <Badge variant="default" className="gap-1"><CheckCircle2 className="h-3 w-3" /> Conta padrão: {defaultAcc.display_phone_number ?? defaultAcc.phone_number_id}</Badge>}
+          {step === 4 && (
+            <Badge className="gap-1 bg-emerald-500/15 text-emerald-600">
+              <CheckCircle2 className="h-3 w-3" /> Conectado
+            </Badge>
+          )}
         </header>
 
-        <Stepper step={step} onStep={setStep} />
+        <ProgressStepper current={step} detected={detectedStep} onPick={(n) => setManualStep(n)} />
 
-        {isLoading ? <Card className="p-8 text-center text-muted-foreground"><Loader2 className="mx-auto h-5 w-5 animate-spin" /></Card> : (
+        {isLoading ? (
+          <Card className="p-8 text-center text-muted-foreground"><Loader2 className="mx-auto h-5 w-5 animate-spin" /></Card>
+        ) : (
           <>
             {step === 1 && (
-              <Step1Credentials
-                meta={data!.meta}
-                onSave={(v) => saveMetaMut.mutate(v)}
-                saving={saveMetaMut.isPending}
-                onConfigureAppWebhook={() => appWebhookMut.mutate()}
-                configuringWebhook={appWebhookMut.isPending}
-              />
-            )}
-            {step === 2 && (
-              <Step2
+              <StepConnect
                 meta={data!.meta}
                 sdkStatus={sdkStatus}
                 isPreviewHost={isPreviewHost}
                 domainCheck={domainCheck.data}
                 domainCheckLoading={domainCheck.isLoading}
                 onRecheckDomain={() => domainCheck.refetch()}
-                accessToken={accessToken}
                 onLogin={launchEmbeddedSignup}
-                loggingIn={exchangeMut.isPending}
+                busy={exchangeMut.isPending || saveFromSignupMut.isPending}
+                error={exchangeMut.error instanceof Error ? exchangeMut.error.message : null}
+                onSaveMeta={(v) => saveMetaMut.mutate(v)}
+                savingMeta={saveMetaMut.isPending}
+                onConfigureAppWebhook={() => appWebhookMut.mutate()}
+                configuringWebhook={appWebhookMut.isPending}
+              />
+            )}
+
+            {step === 2 && (
+              <StepPickNumber
+                accounts={accounts}
+                options={signupOptions}
+                picked={pickedOption}
+                onPick={setPickedOption}
                 saving={saveFromSignupMut.isPending}
-                hasSignupIds={!!signupIds}
-                signupOptions={signupOptions}
-                onPickSignupOption={(o) => {
-                  if (!accessToken) return;
-                  setSignupOptions([]);
+                error={saveFromSignupMut.error instanceof Error ? saveFromSignupMut.error.message : null}
+                onContinue={() => {
+                  const o = signupOptions.find((x) => `${x.wabaId}-${x.phoneNumberId}` === pickedOption);
+                  if (!o || !accessToken) { toast.error("Selecione um número."); return; }
                   saveFromSignupMut.mutate({ wabaId: o.wabaId, phoneNumberId: o.phoneNumberId, accessToken });
                 }}
+                canManual={!!accessToken}
                 manualWabaId={manualWabaId}
                 manualPhoneNumberId={manualPhoneNumberId}
                 onManualWabaIdChange={setManualWabaId}
                 onManualPhoneNumberIdChange={setManualPhoneNumberId}
                 onManualSave={() => {
-                  if (!accessToken) return;
-                  if (!manualWabaId.trim() || !manualPhoneNumberId.trim()) {
-                    toast.error("Preencha WABA ID e Phone Number ID.");
-                    return;
-                  }
+                  if (!accessToken) { toast.error("Conecte-se à Meta primeiro (passo 1)."); return; }
+                  if (!manualWabaId.trim() || !manualPhoneNumberId.trim()) { toast.error("Preencha WABA ID e Phone Number ID."); return; }
                   saveFromSignupMut.mutate({ wabaId: manualWabaId.trim(), phoneNumberId: manualPhoneNumberId.trim(), accessToken });
                 }}
-                saveSuccess={saveFromSignupMut.isSuccess}
+                onSetDefault={(id) => setDefaultMut.mutate(id)}
+                settingDefault={setDefaultMut.isPending}
+                onBack={() => setManualStep(1)}
               />
             )}
+
             {step === 3 && (
-              <Step3
+              <StepActivate
                 accounts={accounts}
+                qc={qc}
                 onSubscribe={(id) => subscribeMut.mutate(id)}
                 subscribing={subscribeMut.isPending}
-                onDefault={(id) => setDefaultMut.mutate(id)}
-                onDelete={(id) => deleteMut.mutate(id)}
-                qc={qc}
+                subscribeError={subscribeMut.error instanceof Error ? subscribeMut.error.message : null}
               />
             )}
-            {step === 4 && <Step4 accounts={accounts} onSync={(id) => syncMut.mutate(id)} syncing={syncMut.isPending} />}
-            {step === 5 && <Step5 accounts={accounts} />}
+
+            {step === 4 && defaultAcc && (
+              <StepConnected
+                account={defaultAcc}
+                accounts={accounts}
+                isAdmin={isAdmin}
+                onSync={() => syncMut.mutate(defaultAcc.id)}
+                syncing={syncMut.isPending}
+                onReset={() => accounts.forEach((a) => deleteMut.mutate(a.id))}
+                resetting={deleteMut.isPending}
+                onSetDefault={(id) => setDefaultMut.mutate(id)}
+              />
+            )}
           </>
         )}
-
-        <div className="flex justify-between">
-          <Button variant="ghost" disabled={step <= 1} onClick={() => setStep((s) => Math.max(1, s - 1))}><ChevronLeft className="mr-1 h-4 w-4" /> Voltar</Button>
-          <Button variant="default" disabled={step >= STEPS.length} onClick={() => setStep((s) => Math.min(STEPS.length, s + 1))}>Próximo <ChevronRight className="ml-1 h-4 w-4" /></Button>
-        </div>
       </div>
     </div>
   );
 }
 
-function Stepper({ step, onStep }: { step: number; onStep: (n: number) => void }) {
-  return StepperInner({ step, onStep });
+function ProgressStepper({ current, detected, onPick }: { current: number; detected: number; onPick: (n: number) => void }) {
+  return (
+    <div className="rounded-lg border bg-card p-4">
+      <div className="flex items-start">
+        {WIZARD_STEPS.map((s, i) => {
+          const done = detected > s.n;
+          const active = current === s.n;
+          return (
+            <div key={s.n} className="flex flex-1 items-start">
+              <button
+                type="button"
+                onClick={() => onPick(s.n)}
+                className="flex min-w-0 flex-1 flex-col items-center gap-1.5 text-center"
+              >
+                <span
+                  className={`grid h-9 w-9 shrink-0 place-items-center rounded-full border-2 text-sm font-semibold transition ${
+                    done
+                      ? "border-emerald-500 bg-emerald-500 text-white"
+                      : active
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {done ? <Check className="h-4 w-4" /> : s.n}
+                </span>
+                <span className={`truncate text-[11px] sm:text-xs ${active ? "font-medium text-foreground" : "text-muted-foreground"}`}>
+                  {s.label}
+                </span>
+              </button>
+              {i < WIZARD_STEPS.length - 1 && (
+                <div className={`mt-4 h-0.5 w-full flex-1 ${detected > s.n ? "bg-emerald-500" : "bg-border"}`} />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
-function StepperInner({ step, onStep }: { step: number; onStep: (n: number) => void }) {
+function InlineError({ message }: { message: string | null }) {
+  if (!message) return null;
   return (
-    <div className="flex items-center gap-1 rounded-lg border bg-card p-2">
-      {STEPS.map((s, i) => {
-        const active = step === s.n; const done = step > s.n;
-        return (
-          <button key={s.n} onClick={() => onStep(s.n)} className={`flex flex-1 items-center justify-center gap-2 rounded-md px-2 py-2 text-xs transition ${active ? "bg-primary text-primary-foreground" : done ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-accent/50"}`}>
-            <span className={`grid h-5 w-5 place-items-center rounded-full text-[10px] ${active || done ? "bg-background/30" : "bg-muted"}`}>{s.n}</span>
-            <span className="hidden sm:inline">{s.label}</span>
-            {i < STEPS.length - 1 && <ChevronRight className="hidden h-3 w-3 opacity-50 md:inline" />}
-          </button>
-        );
-      })}
-    </div>
+    <Alert variant="destructive">
+      <AlertTriangle className="h-4 w-4" />
+      <AlertDescription className="text-xs">{message}</AlertDescription>
+    </Alert>
   );
 }
 
@@ -403,7 +455,7 @@ function DomainCheckBanner({ check, loading, onRecheck }: { check?: { ok: boolea
       <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
         <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
         <div className="flex-1">
-          Não consegui consultar o app Meta para verificar domínios autorizados ({check.error ?? "erro desconhecido"}). Confirme as secrets <code>META_APP_ID</code> e <code>META_APP_SECRET</code>.
+          Não consegui consultar o app Meta para verificar domínios autorizados ({check.error ?? "erro desconhecido"}).
         </div>
         <Button size="sm" variant="ghost" onClick={onRecheck}>Tentar de novo</Button>
       </div>
@@ -413,7 +465,7 @@ function DomainCheckBanner({ check, loading, onRecheck }: { check?: { ok: boolea
     return (
       <div className="flex items-center gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 p-3 text-xs">
         <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-        <span>Domínio <strong>{check.host}</strong> autorizado no app Meta. ✅</span>
+        <span>Domínio <strong>{check.host}</strong> autorizado no app Meta.</span>
       </div>
     );
   }
@@ -422,18 +474,14 @@ function DomainCheckBanner({ check, loading, onRecheck }: { check?: { ok: boolea
       <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />
       <div className="flex-1 space-y-1">
         <div>
-          O domínio <strong>{check.host}</strong> <strong>não está</strong> na lista de <em>App Domains</em> do seu app Meta. O Embedded Signup vai falhar silenciosamente (popup retorna sem code).
+          O domínio <strong>{check.host}</strong> <strong>não está</strong> na lista de <em>App Domains</em> do seu app Meta — o Embedded Signup vai falhar silenciosamente.
         </div>
         <div className="text-muted-foreground">
           Domínios atuais: {check.domains.length ? check.domains.map((d) => <code key={d} className="mr-1">{d}</code>) : <em>nenhum configurado</em>}
         </div>
-        <div className="text-muted-foreground">
-          Posso adicionar <code>{check.host}</code> automaticamente na lista de <em>App Domains</em> do seu app Meta (usando <code>META_APP_ID</code> + <code>META_APP_SECRET</code>).
-        </div>
-        <div className="mt-1 flex gap-2">
+        <div className="mt-1 flex flex-wrap gap-2">
           <Button size="sm" onClick={() => addDomainMut.mutate(check.host)} disabled={addDomainMut.isPending}>
-            {addDomainMut.isPending ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
-            Autorizar {check.host} automaticamente
+            {addDomainMut.isPending ? <><Loader2 className="mr-1 h-3 w-3 animate-spin" />Aguarde…</> : `Autorizar ${check.host}`}
           </Button>
           <Button size="sm" variant="outline" onClick={onRecheck}>Verificar de novo</Button>
         </div>
@@ -454,7 +502,88 @@ function CopyableField({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Step1Credentials(props: {
+/* ------------------------------- PASSO 1 -------------------------------- */
+
+function StepConnect(props: {
+  meta: State["meta"];
+  sdkStatus: "idle" | "loading" | "ready" | "error";
+  isPreviewHost: boolean;
+  domainCheck?: { ok: boolean; allowed: boolean; host: string; domains: string[]; error?: string };
+  domainCheckLoading: boolean;
+  onRecheckDomain: () => void;
+  onLogin: () => void;
+  busy: boolean;
+  error: string | null;
+  onSaveMeta: (v: { appId?: string; appSecret?: string; configId?: string; verifyToken?: string }) => void;
+  savingMeta: boolean;
+  onConfigureAppWebhook: () => void;
+  configuringWebhook: boolean;
+}) {
+  return (
+    <div className="space-y-4">
+      <Card className="space-y-4 p-6">
+        <div>
+          <h2 className="text-lg font-semibold">Conecte sua conta Meta Business</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Você precisa de uma conta Meta Business ativa e um número de telefone que possa receber
+            WhatsApp. Ao clicar abaixo, a Meta abre o Embedded Signup para autorizar o Lívia CRM.
+          </p>
+        </div>
+
+        <DomainCheckBanner check={props.domainCheck} loading={props.domainCheckLoading} onRecheck={props.onRecheckDomain} />
+
+        {props.isPreviewHost && (
+          <div className="flex gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
+            <div>Você está no domínio de preview. A Meta costuma bloquear o Embedded Signup em domínios não cadastrados — publique e abra pelo domínio final.</div>
+          </div>
+        )}
+        {props.sdkStatus === "error" && (
+          <InlineError message="SDK do Facebook não carregou (bloqueado por extensão, ad-blocker ou rede)." />
+        )}
+        <InlineError message={props.error} />
+
+        <Button size="lg" onClick={props.onLogin} disabled={props.busy || !props.meta.appId} className="w-full gap-2 sm:w-auto">
+          {props.busy ? <><Loader2 className="h-4 w-4 animate-spin" /> Aguarde…</> : <><Cloud className="h-4 w-4" /> Conectar com Meta</>}
+          {props.sdkStatus === "loading" && !props.busy && " (carregando SDK…)"}
+        </Button>
+      </Card>
+
+      <Card className="flex items-start gap-3 p-5">
+        <ExternalLink className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+        <div className="space-y-1 text-sm">
+          <div className="font-medium">Ainda não tem uma conta Meta Business?</div>
+          <p className="text-xs text-muted-foreground">
+            Crie o Business Manager, adicione o número de WhatsApp e finalize a verificação do negócio antes de conectar aqui.
+          </p>
+          <a
+            className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+            href="https://business.facebook.com/overview"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Como criar uma conta Meta Business <ExternalLink className="h-3 w-3" />
+          </a>
+        </div>
+      </Card>
+
+      <details className="rounded-lg border bg-card">
+        <summary className="cursor-pointer px-5 py-3 text-sm font-medium">Inserir credenciais manualmente (avançado)</summary>
+        <div className="border-t p-5">
+          <MetaCredentialsForm
+            meta={props.meta}
+            onSave={props.onSaveMeta}
+            saving={props.savingMeta}
+            onConfigureAppWebhook={props.onConfigureAppWebhook}
+            configuringWebhook={props.configuringWebhook}
+          />
+        </div>
+      </details>
+    </div>
+  );
+}
+
+function MetaCredentialsForm(props: {
   meta: State["meta"];
   onSave: (v: { appId?: string; appSecret?: string; configId?: string; verifyToken?: string }) => void;
   saving: boolean;
@@ -470,7 +599,7 @@ function Step1Credentials(props: {
     setConfigId(props.meta.configId);
     setVerify(props.meta.verifyToken);
   }, [props.meta.appId, props.meta.configId, props.meta.verifyToken]);
-  const missing = !props.meta.appId || !props.meta.configId || !props.meta.verifyToken;
+
   const validateMut = useMutation({
     mutationFn: (v: { appId?: string; appSecret?: string; configId?: string; verifyToken?: string }) =>
       api<{ ok: boolean; check: CredentialsCheck }>("POST", { action: "validate-credentials", ...v }),
@@ -481,18 +610,9 @@ function Step1Credentials(props: {
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
   });
   const check = validateMut.data?.check;
+
   return (
-    <Card className="space-y-4 p-6">
-      <h2 className="text-lg font-semibold">1. Credenciais do App Meta</h2>
-      <p className="text-sm text-muted-foreground">
-        Cole os dados do seu App Meta abaixo. Depois de salvar, um clique conecta o webhook direto na Meta e você não precisa mexer no App Dashboard.
-      </p>
-      {missing && (
-        <div className="flex gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
-          <AlertTriangle className="h-4 w-4 text-amber-500" />
-          Preencha App ID, Login Configuration ID e (opcional) o Verify Token — deixe em branco para gerarmos automaticamente.
-        </div>
-      )}
+    <div className="space-y-4">
       <div className="grid gap-3 md:grid-cols-2">
         <div className="space-y-1">
           <Label>App ID</Label>
@@ -521,8 +641,7 @@ function Step1Credentials(props: {
           })}
           disabled={props.saving || !appId.trim() || !configId.trim() || (!props.meta.hasAppSecret && !appSecret.trim())}
         >
-          {props.saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-          Salvar credenciais
+          {props.saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Aguarde…</> : "Salvar credenciais"}
         </Button>
         <Button
           variant="secondary"
@@ -533,10 +652,8 @@ function Step1Credentials(props: {
             verifyToken: verify.trim() || undefined,
           })}
           disabled={validateMut.isPending || (!appId.trim() && !props.meta.appId)}
-          title="Testa cada campo direto na Meta Graph API, sem salvar."
         >
-          {validateMut.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
-          Validar credenciais na Meta
+          {validateMut.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Aguarde…</> : <><CheckCircle2 className="mr-2 h-4 w-4" />Validar na Meta</>}
         </Button>
         <Button
           variant="outline"
@@ -544,22 +661,18 @@ function Step1Credentials(props: {
           disabled={props.configuringWebhook || !props.meta.appId || !props.meta.hasAppSecret || !props.meta.verifyToken}
           title={!props.meta.hasAppSecret ? "Salve o App Secret primeiro" : ""}
         >
-          {props.configuringWebhook ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
-          Registrar webhook automaticamente na Meta
+          {props.configuringWebhook ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Aguarde…</> : <><CheckCircle2 className="mr-2 h-4 w-4" />Registrar webhook na Meta</>}
         </Button>
       </div>
       {check && (
         <div className="space-y-2 rounded-md border bg-muted/30 p-3">
           <div className="text-xs font-medium uppercase text-muted-foreground">
-            Resultado da validação {check.overall && <span className="text-emerald-500">— tudo OK ✅</span>}
+            Resultado da validação {check.overall && <span className="text-emerald-500">— tudo OK</span>}
           </div>
           <CredentialCheckRow label="App ID" c={check.appId} />
           <CredentialCheckRow label="App Secret" c={check.appSecret} />
           <CredentialCheckRow label="Login Configuration ID" c={check.configId} />
           <CredentialCheckRow label="Verify Token" c={check.verifyToken} />
-          <p className="pt-1 text-[11px] text-muted-foreground">
-            App ID/Secret são testados com <code>GET /{"{"}app-id{"}"}</code> usando o app access token. O Config ID é lido em <code>GET /{"{"}config-id{"}"}</code> e conferimos se pertence a este App.
-          </p>
         </div>
       )}
       <Separator />
@@ -567,10 +680,7 @@ function Step1Credentials(props: {
         <CopyableField label="Verify Token (Webhook)" value={props.meta.verifyToken} />
         <CopyableField label="Webhook URL" value={props.meta.webhookUrl} />
       </div>
-      <p className="text-xs text-muted-foreground">
-        O botão &quot;Registrar webhook&quot; chama <code>POST /{"{"}app-id{"}"}/subscriptions</code> na Meta com a URL e o Verify Token acima — substitui totalmente o passo manual no App Dashboard.
-      </p>
-    </Card>
+    </div>
   );
 }
 
@@ -590,109 +700,166 @@ function CredentialCheckRow({ label, c }: { label: string; c: FieldCheck }) {
   );
 }
 
-function Step2(props: {
-  meta: State["meta"]; accessToken: string;
-  sdkStatus: "idle" | "loading" | "ready" | "error";
-  isPreviewHost: boolean;
-  domainCheck?: { ok: boolean; allowed: boolean; host: string; domains: string[]; error?: string };
-  domainCheckLoading: boolean;
-  onRecheckDomain: () => void;
-  onLogin: () => void; loggingIn: boolean;
+/* ------------------------------- PASSO 2 -------------------------------- */
+
+function StepPickNumber(props: {
+  accounts: Account[];
+  options: Array<{ wabaId: string; phoneNumberId: string; displayPhone: string | null; verifiedName: string | null }>;
+  picked: string | null;
+  onPick: (v: string) => void;
   saving: boolean;
-  hasSignupIds: boolean;
-  signupOptions: Array<{ wabaId: string; phoneNumberId: string; displayPhone: string | null; verifiedName: string | null }>;
-  onPickSignupOption: (o: { wabaId: string; phoneNumberId: string }) => void;
+  error: string | null;
+  onContinue: () => void;
+  canManual: boolean;
   manualWabaId: string;
   manualPhoneNumberId: string;
   onManualWabaIdChange: (v: string) => void;
   onManualPhoneNumberIdChange: (v: string) => void;
   onManualSave: () => void;
-  saveSuccess: boolean;
+  onSetDefault: (id: string) => void;
+  settingDefault: boolean;
+  onBack: () => void;
 }) {
-  const showManualForm =
-    props.accessToken && !props.saveSuccess && !props.hasSignupIds && !props.saving && props.signupOptions.length === 0;
   return (
-    <Card className="space-y-4 p-6">
-      <h2 className="text-lg font-semibold">2. Embedded Signup</h2>
-      <p className="text-sm text-muted-foreground">Clique para abrir o login da Meta e escolher seu negócio + número WhatsApp.</p>
-      <DomainCheckBanner check={props.domainCheck} loading={props.domainCheckLoading} onRecheck={props.onRecheckDomain} />
-      {props.isPreviewHost && (
-        <div className="flex gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
-          <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
-          <div>
-            Você está no domínio de preview do Lovable. A Meta normalmente bloqueia o Embedded Signup em domínios não cadastrados — o popup pode não retornar nada. Publique o app e abra pelo domínio publicado.
-          </div>
+    <div className="space-y-4">
+      <Card className="space-y-4 p-6">
+        <div>
+          <h2 className="text-lg font-semibold">Selecione seu número de WhatsApp</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Escolha qual conta do WhatsApp Business (WABA) e número o Lívia CRM vai usar para enviar mensagens.
+          </p>
         </div>
-      )}
-      {props.sdkStatus === "error" && (
-        <div className="flex gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs">
-          <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />
-          <div>SDK do Facebook não carregou (bloqueado por extensão, ad-blocker ou rede).</div>
-        </div>
-      )}
-      <Button onClick={props.onLogin} disabled={props.loggingIn || props.saving || !props.meta.appId} className="gap-2">
-        {(props.loggingIn || props.saving) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Cloud className="h-4 w-4" />}
-        Conectar com a Meta {props.sdkStatus === "loading" && "(carregando SDK…)"}
-      </Button>
 
-      {props.accessToken && (
-        <>
-          <Separator />
-          {props.saveSuccess ? (
-            <div className="flex items-center gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm">
-              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-              Conta conectada! Avance para o passo 3 para gerenciar webhooks.
-            </div>
-          ) : props.saving || props.hasSignupIds ? (
-            <div className="flex items-center gap-2 rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              {props.hasSignupIds ? "Conta e número recebidos da Meta — salvando…" : "Salvando conta…"}
-            </div>
-          ) : props.signupOptions.length > 0 ? (
-            <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">Encontramos mais de uma conta autorizada. Escolha qual conectar:</p>
-              {props.signupOptions.map((o) => (
+        <InlineError message={props.error} />
+
+        {props.options.length > 0 ? (
+          <div className="space-y-2">
+            {props.options.map((o) => {
+              const key = `${o.wabaId}-${o.phoneNumberId}`;
+              const active = props.picked === key;
+              return (
                 <button
-                  key={`${o.wabaId}-${o.phoneNumberId}`}
+                  key={key}
                   type="button"
-                  onClick={() => props.onPickSignupOption(o)}
-                  className="flex w-full items-center justify-between rounded-md border p-3 text-left text-sm transition-colors hover:bg-accent"
+                  onClick={() => props.onPick(key)}
+                  className={`flex w-full items-center justify-between rounded-md border p-3 text-left text-sm transition ${active ? "border-primary bg-primary/5" : "hover:bg-accent"}`}
                 >
                   <span>
-                    <span className="font-medium">Conectar {o.displayPhone ?? o.phoneNumberId}</span>
+                    <span className="font-medium">{o.displayPhone ?? o.phoneNumberId}</span>
                     {o.verifiedName && <span className="text-muted-foreground"> · {o.verifiedName}</span>}
                     <span className="block font-mono text-xs text-muted-foreground">WABA {o.wabaId}</span>
                   </span>
-                  <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+                  {active && <CheckCircle2 className="h-4 w-4 text-primary" />}
                 </button>
-              ))}
-            </div>
-          ) : showManualForm ? (
-            <div className="space-y-3">
-              <div className="flex gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
-                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
-                <div>
-                  Não recebemos o <code>waba_id</code> e <code>phone_number_id</code> automaticamente do popup. Cole-os abaixo para continuar.
-                </div>
-              </div>
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className="space-y-1">
-                  <Label>WABA ID</Label>
-                  <Input value={props.manualWabaId} onChange={(e) => props.onManualWabaIdChange(e.target.value.trim())} placeholder="123456789012345" className="font-mono" />
-                </div>
-                <div className="space-y-1">
-                  <Label>Phone Number ID</Label>
-                  <Input value={props.manualPhoneNumberId} onChange={(e) => props.onManualPhoneNumberIdChange(e.target.value.trim())} placeholder="987654321098765" className="font-mono" />
-                </div>
-              </div>
-              <Button onClick={props.onManualSave} disabled={!props.manualWabaId.trim() || !props.manualPhoneNumberId.trim() || props.saving}>
-                {props.saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
-                Salvar conta
+              );
+            })}
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="ghost" onClick={props.onBack}>Voltar</Button>
+              <Button onClick={props.onContinue} disabled={!props.picked || props.saving}>
+                {props.saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Aguarde…</> : <>Continuar <ChevronRight className="ml-1 h-4 w-4" /></>}
               </Button>
             </div>
-          ) : null}
-        </>
+          </div>
+        ) : props.accounts.length ? (
+          <div className="space-y-2">
+            {props.accounts.map((a) => (
+              <div key={a.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3 text-sm">
+                <div>
+                  <div className="font-medium">{a.display_phone_number ?? a.phone_number_id} {a.is_default && <Badge className="ml-1">Padrão</Badge>}</div>
+                  <div className="text-xs text-muted-foreground">{a.business_name ?? "—"} · WABA {a.waba_id}</div>
+                </div>
+                {!a.is_default && (
+                  <Button size="sm" variant="outline" onClick={() => props.onSetDefault(a.id)} disabled={props.settingDefault}>
+                    {props.settingDefault ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Star className="mr-1 h-3 w-3" />}
+                    Usar este
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-md border border-dashed p-8 text-center">
+            <Smartphone className="mx-auto mb-2 h-6 w-6 text-muted-foreground" />
+            <div className="text-sm font-medium">Nenhum número disponível ainda</div>
+            <p className="mx-auto mt-1 max-w-sm text-xs text-muted-foreground">
+              Volte ao passo 1 e conclua o login com a Meta para listarmos suas contas e números.
+            </p>
+            <Button className="mt-3" variant="outline" onClick={props.onBack}>Voltar ao passo 1</Button>
+          </div>
+        )}
+      </Card>
+
+      {props.canManual && (
+        <Card className="space-y-3 p-5">
+          <h3 className="text-sm font-semibold">Informar IDs manualmente</h3>
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="space-y-1">
+              <Label>WABA ID</Label>
+              <Input value={props.manualWabaId} onChange={(e) => props.onManualWabaIdChange(e.target.value.trim())} placeholder="123456789012345" className="font-mono" />
+            </div>
+            <div className="space-y-1">
+              <Label>Phone Number ID</Label>
+              <Input value={props.manualPhoneNumberId} onChange={(e) => props.onManualPhoneNumberIdChange(e.target.value.trim())} placeholder="987654321098765" className="font-mono" />
+            </div>
+          </div>
+          <Button onClick={props.onManualSave} disabled={!props.manualWabaId.trim() || !props.manualPhoneNumberId.trim() || props.saving}>
+            {props.saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Aguarde…</> : <><CheckCircle2 className="mr-2 h-4 w-4" />Salvar conta</>}
+          </Button>
+        </Card>
       )}
+    </div>
+  );
+}
+
+/* ------------------------------- PASSO 3 -------------------------------- */
+
+function StepActivate(props: {
+  accounts: Account[];
+  qc: ReturnType<typeof useQueryClient>;
+  onSubscribe: (id: string) => void;
+  subscribing: boolean;
+  subscribeError: string | null;
+}) {
+  return (
+    <Card className="space-y-4 p-6">
+      <div>
+        <h2 className="text-lg font-semibold">Ative seu número</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Este passo é necessário para enviar e receber mensagens. A Meta envia um código de 6 dígitos
+          por SMS ou ligação para confirmar que o número pertence a você.
+        </p>
+      </div>
+
+      <Alert>
+        <AlertTriangle className="h-4 w-4" />
+        <AlertDescription className="text-xs">
+          Status <strong>&quot;Em análise&quot;</strong> é normal para contas novas e pode levar até 48h.
+          Se o status <strong>&quot;Pendente&quot;</strong> persistir, conclua o registro via PIN abaixo.
+        </AlertDescription>
+      </Alert>
+
+      <InlineError message={props.subscribeError} />
+
+      {props.accounts.map((a) => (
+        <div key={a.id} className="flex flex-col gap-3 rounded-md border p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex flex-wrap items-center gap-2 font-medium">
+              {a.display_phone_number ?? a.phone_number_id}
+              {a.is_default && <Badge>Padrão</Badge>}
+              {a.webhook_subscribed
+                ? <Badge className="gap-1 bg-emerald-500/15 text-emerald-600"><CheckCircle2 className="h-3 w-3" />Ativo</Badge>
+                : <Badge className="gap-1 bg-amber-500/15 text-amber-600"><AlertTriangle className="h-3 w-3" />Pendente</Badge>}
+            </div>
+            <div className="text-xs text-muted-foreground">{a.business_name ?? "—"} · WABA {a.waba_id}</div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <RegisterPhoneDialog account={a} qc={props.qc} />
+            <Button size="sm" variant="outline" onClick={() => props.onSubscribe(a.id)} disabled={props.subscribing}>
+              {props.subscribing ? <><Loader2 className="mr-1 h-3 w-3 animate-spin" />Aguarde…</> : "Inscrever webhook"}
+            </Button>
+          </div>
+        </div>
+      ))}
     </Card>
   );
 }
@@ -702,15 +869,6 @@ function RegisterPhoneDialog({ account, qc }: { account: Account; qc: ReturnType
   const [dialogStep, setDialogStep] = useState<1 | 2>(1);
   const [codeMethod, setCodeMethod] = useState<"SMS" | "VOICE">("SMS");
   const [pin, setPin] = useState("");
-
-  const reset = () => {
-    setDialogStep(1);
-    setCodeMethod("SMS");
-    setPin("");
-    requestCodeMut.reset();
-    registerMut.reset();
-    statusMut.reset();
-  };
 
   const requestCodeMut = useMutation({
     mutationFn: () => api("POST", { action: "request-code", accountId: account.id, codeMethod }),
@@ -727,10 +885,9 @@ function RegisterPhoneDialog({ account, qc }: { account: Account; qc: ReturnType
   const registerMut = useMutation({
     mutationFn: () => api("POST", { action: "register-phone", accountId: account.id, pin: pin.trim() }),
     onSuccess: () => {
-      toast.success("Número ativado com sucesso! Agora você pode enviar mensagens.");
+      toast.success("Número ativado com sucesso!");
       qc.invalidateQueries({ queryKey: ["wa-cloud"] });
       setOpen(false);
-      reset();
     },
     onError: (e) => {
       console.error("[RegisterPhoneDialog] register-phone error:", e);
@@ -743,19 +900,22 @@ function RegisterPhoneDialog({ account, qc }: { account: Account; qc: ReturnType
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro ao verificar status."),
   });
 
-  const likelyPending = !account.webhook_subscribed;
+  function reset() {
+    setDialogStep(1);
+    setCodeMethod("SMS");
+    setPin("");
+    requestCodeMut.reset();
+    registerMut.reset();
+    statusMut.reset();
+  }
+
+  const pending = !account.webhook_subscribed;
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(v) => {
-        setOpen(v);
-        if (!v) reset();
-      }}
-    >
+    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) reset(); }}>
       <DialogTrigger asChild>
-        <Button size="sm" variant={likelyPending ? "secondary" : "outline"} className={likelyPending ? "gap-1 border-amber-500/40 bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 hover:text-amber-800" : "gap-1"}>
-          {likelyPending ? <AlertTriangle className="h-3 w-3" /> : <ShieldCheck className="h-3 w-3" />}
-          Ativar número
+        <Button size="sm" variant={pending ? "default" : "outline"} className="gap-1">
+          {pending ? <AlertTriangle className="h-3 w-3" /> : <ShieldCheck className="h-3 w-3" />}
+          Enviar código de verificação
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
@@ -771,7 +931,7 @@ function RegisterPhoneDialog({ account, qc }: { account: Account; qc: ReturnType
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <span className={`grid h-5 w-5 place-items-center rounded-full text-[10px] ${dialogStep === 1 ? "bg-primary text-primary-foreground" : "bg-emerald-500 text-white"}`}>1</span>
           <span className={dialogStep === 1 ? "font-medium text-foreground" : ""}>Solicitar código</span>
-          <span className="text-muted-foreground">→</span>
+          <span>→</span>
           <span className={`grid h-5 w-5 place-items-center rounded-full text-[10px] ${dialogStep === 2 ? "bg-primary text-primary-foreground" : "bg-muted"}`}>2</span>
           <span className={dialogStep === 2 ? "font-medium text-foreground" : ""}>Inserir PIN</span>
         </div>
@@ -780,58 +940,35 @@ function RegisterPhoneDialog({ account, qc }: { account: Account; qc: ReturnType
           <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label>Como deseja receber o código?</Label>
-              <RadioGroup
-                value={codeMethod}
-                onValueChange={(v) => setCodeMethod(v as "SMS" | "VOICE")}
-                className="grid grid-cols-2 gap-3"
-              >
+              <RadioGroup value={codeMethod} onValueChange={(v) => setCodeMethod(v as "SMS" | "VOICE")} className="grid grid-cols-2 gap-3">
                 <label className={`flex cursor-pointer items-center gap-3 rounded-md border p-3 transition hover:bg-accent ${codeMethod === "SMS" ? "border-primary bg-primary/5" : ""}`}>
                   <RadioGroupItem value="SMS" id={`sms-${account.id}`} />
                   <Smartphone className="h-4 w-4 text-muted-foreground" />
-                  <div className="text-sm">
-                    <div className="font-medium">SMS</div>
-                    <div className="text-xs text-muted-foreground">Receba por mensagem</div>
-                  </div>
+                  <div className="text-sm"><div className="font-medium">SMS</div><div className="text-xs text-muted-foreground">Por mensagem</div></div>
                 </label>
                 <label className={`flex cursor-pointer items-center gap-3 rounded-md border p-3 transition hover:bg-accent ${codeMethod === "VOICE" ? "border-primary bg-primary/5" : ""}`}>
                   <RadioGroupItem value="VOICE" id={`voice-${account.id}`} />
                   <Phone className="h-4 w-4 text-muted-foreground" />
-                  <div className="text-sm">
-                    <div className="font-medium">Ligação</div>
-                    <div className="text-xs text-muted-foreground">Receba por chamada</div>
-                  </div>
+                  <div className="text-sm"><div className="font-medium">Ligação</div><div className="text-xs text-muted-foreground">Por chamada</div></div>
                 </label>
               </RadioGroup>
             </div>
-            {requestCodeMut.isError && (
-              <div className="flex items-start gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-xs text-destructive">
-                <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                <span>{requestCodeMut.error instanceof Error ? requestCodeMut.error.message : "Erro ao solicitar código."}</span>
-              </div>
-            )}
+            <InlineError message={requestCodeMut.isError ? (requestCodeMut.error instanceof Error ? requestCodeMut.error.message : "Erro ao solicitar código.") : null} />
             {statusMut.data && (
-              <div className="rounded-md border bg-muted/30 p-3 text-xs space-y-1">
+              <div className="space-y-1 rounded-md border bg-muted/30 p-3 text-xs">
                 <div className="font-medium text-foreground">Status na Meta:</div>
                 <div>Status: <span className="font-mono">{statusMut.data.status?.status ?? "—"}</span></div>
                 <div>Verificação: <span className="font-mono">{statusMut.data.status?.code_verification_status ?? "—"}</span></div>
                 <div>Qualidade: <span className="font-mono">{statusMut.data.status?.quality_rating ?? "—"}</span></div>
                 {statusMut.data.status?.code_verification_status === "VERIFIED" && (
-                  <p className="text-emerald-700 font-medium mt-1">✓ Número já verificado pela Meta — clique em "Já está ativado" abaixo para marcar como ativo.</p>
+                  <p className="mt-1 font-medium text-emerald-600">Número já verificado — clique em &quot;Número já ativo&quot;.</p>
                 )}
               </div>
             )}
-            <p className="text-xs text-muted-foreground">
-              A Meta enviará um código OTP de 6 dígitos para o número {account.display_phone_number ?? account.phone_number_id}. O código expira em poucos minutos.
-            </p>
           </div>
         ) : (
           <div className="space-y-4 py-2">
-            {registerMut.isError && (
-              <div className="flex items-start gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-xs text-destructive">
-                <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                <span>{registerMut.error instanceof Error ? registerMut.error.message : "Erro ao ativar número."}</span>
-              </div>
-            )}
+            <InlineError message={registerMut.isError ? (registerMut.error instanceof Error ? registerMut.error.message : "Erro ao ativar número.") : null} />
             <div className="space-y-1">
               <Label htmlFor={`pin-${account.id}`}>PIN de 6 dígitos</Label>
               <Input
@@ -841,15 +978,11 @@ function RegisterPhoneDialog({ account, qc }: { account: Account; qc: ReturnType
                 placeholder="123456"
                 maxLength={6}
                 inputMode="numeric"
-                className="font-mono text-center text-lg tracking-widest"
+                className="text-center font-mono text-lg tracking-widest"
                 autoFocus
               />
             </div>
-            <button
-              type="button"
-              onClick={() => setDialogStep(1)}
-              className="text-xs text-primary underline-offset-2 hover:underline"
-            >
+            <button type="button" onClick={() => setDialogStep(1)} className="text-xs text-primary underline-offset-2 hover:underline">
               Reenviar código
             </button>
           </div>
@@ -859,13 +992,8 @@ function RegisterPhoneDialog({ account, qc }: { account: Account; qc: ReturnType
           <Button variant="ghost" onClick={() => { setOpen(false); reset(); }}>Cancelar</Button>
           {dialogStep === 1 ? (
             <>
-              <Button
-                variant="outline"
-                onClick={() => statusMut.mutate()}
-                disabled={statusMut.isPending}
-              >
-                {statusMut.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Verificar status
+              <Button variant="outline" onClick={() => statusMut.mutate()} disabled={statusMut.isPending}>
+                {statusMut.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Aguarde…</> : "Verificar status"}
               </Button>
               {statusMut.data?.status?.code_verification_status === "VERIFIED" && (
                 <Button
@@ -873,29 +1001,25 @@ function RegisterPhoneDialog({ account, qc }: { account: Account; qc: ReturnType
                   onClick={async () => {
                     await api("POST", { action: "subscribe-webhook", accountId: account.id }).catch(() => null);
                     qc.invalidateQueries({ queryKey: ["wa-cloud"] });
-                    toast.success("Conta marcada como ativa.");
+                    toast.success("Número marcado como ativo.");
                     setOpen(false);
                     reset();
                   }}
                 >
-                  Já está ativado
+                  Número já ativo — concluir
                 </Button>
               )}
-              <Button
-                onClick={() => { requestCodeMut.reset(); requestCodeMut.mutate(); }}
-                disabled={requestCodeMut.isPending}
-              >
+              <Button onClick={() => { requestCodeMut.reset(); requestCodeMut.mutate(); }} disabled={requestCodeMut.isPending}>
                 {requestCodeMut.isPending
-                  ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Enviando…</>
+                  ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Aguarde…</>
                   : requestCodeMut.isError
-                  ? <><AlertTriangle className="mr-2 h-4 w-4" />Tentar novamente</>
-                  : "Enviar código"}
+                    ? <><AlertTriangle className="mr-2 h-4 w-4" />Tentar novamente</>
+                    : "Enviar código"}
               </Button>
             </>
           ) : (
             <Button onClick={() => registerMut.mutate()} disabled={pin.length !== 6 || registerMut.isPending}>
-              {registerMut.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
-              Ativar número
+              {registerMut.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Aguarde…</> : <><ShieldCheck className="mr-2 h-4 w-4" />Ativar número</>}
             </Button>
           )}
         </DialogFooter>
@@ -904,126 +1028,159 @@ function RegisterPhoneDialog({ account, qc }: { account: Account; qc: ReturnType
   );
 }
 
-function Step3(props: { accounts: Account[]; onSubscribe: (id: string) => void; subscribing: boolean; onDefault: (id: string) => void; onDelete: (id: string) => void; qc: ReturnType<typeof useQueryClient> }) {
-  const hasPending = props.accounts.some((a) => !a.webhook_subscribed);
+/* ------------------------------- PASSO 4 -------------------------------- */
+
+function StepConnected(props: {
+  account: Account;
+  accounts: Account[];
+  isAdmin: boolean;
+  onSync: () => void;
+  syncing: boolean;
+  onReset: () => void;
+  resetting: boolean;
+  onSetDefault: (id: string) => void;
+}) {
+  const { account } = props;
+  const statusQuery = useQuery({
+    queryKey: ["wa-cloud-phone-status", account.id],
+    queryFn: () => api<{ ok: boolean; status: { quality_rating?: string; status?: string; verified_name?: string; code_verification_status?: string } }>("POST", { action: "check-phone-status", accountId: account.id }),
+    staleTime: 60_000,
+    retry: false,
+  });
+  const quality = statusQuery.data?.status?.quality_rating ?? "—";
+
   return (
-    <Card className="space-y-4 p-6">
-      <h2 className="text-lg font-semibold">3. Webhook & contas</h2>
-      <p className="text-sm text-muted-foreground">
-        Se o seu número aparece como &quot;Pendente&quot; no painel da Meta, clique em <strong>Ativar número</strong> e insira o código de 6 dígitos que a Meta enviou por SMS ou ligação.
-      </p>
-      {hasPending && (
-        <div className="flex items-start gap-2 rounded-md border bg-muted/40 p-3 text-xs">
-          <span className="text-base">ℹ️</span>
-          <div className="text-foreground">
-            Status <strong>&quot;Em análise&quot;</strong> significa que a Meta está revisando sua conta — isso é normal para contas novas e pode levar até 48h. Se o status <strong>&quot;Pendente&quot;</strong> persistir por mais de 48h, use o botão <strong>Ativar número</strong> para concluir o registro via PIN.
-          </div>
+    <div className="space-y-4">
+      <div className="flex items-start gap-3 rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-4">
+        <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
+        <div>
+          <div className="font-semibold text-emerald-700 dark:text-emerald-400">WhatsApp Cloud API integrado com sucesso</div>
+          <p className="text-sm text-muted-foreground">Seu CRM já pode enviar e receber mensagens por este número.</p>
         </div>
-      )}
-      {!props.accounts.length && <p className="text-sm text-muted-foreground">Nenhuma conta conectada. Volte ao passo anterior.</p>}
-      {props.accounts.map((a) => (
-        <div key={a.id} className="flex flex-col gap-3 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="flex items-center gap-2 font-medium">
-              {a.display_phone_number ?? a.phone_number_id}
-              {a.is_default && <Badge>Padrão</Badge>}
-              {a.webhook_subscribed ? <Badge variant="default" className="gap-1"><CheckCircle2 className="h-3 w-3" />Webhook OK</Badge> : <Badge variant="outline" className="gap-1 text-amber-600"><AlertTriangle className="h-3 w-3" />Pendente</Badge>}
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Card className="p-4">
+          <div className="text-xs text-muted-foreground">Número conectado</div>
+          <div className="mt-1 text-lg font-semibold">{account.display_phone_number ?? account.phone_number_id}</div>
+          <div className="text-xs text-muted-foreground">{account.verified_name ?? "—"}</div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-xs text-muted-foreground">Conta (WABA)</div>
+          <div className="mt-1 truncate text-lg font-semibold">{account.business_name ?? "—"}</div>
+          <div className="truncate font-mono text-xs text-muted-foreground">{account.waba_id}</div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-xs text-muted-foreground">Qualidade do número</div>
+          <div className="mt-1 flex items-center gap-2 text-lg font-semibold">
+            {statusQuery.isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : (
+              <span className={
+                quality === "GREEN" ? "text-emerald-600"
+                  : quality === "YELLOW" ? "text-amber-600"
+                    : quality === "RED" ? "text-rose-600" : ""
+              }>{quality}</span>
+            )}
+          </div>
+          <div className="text-xs text-muted-foreground">Status: {statusQuery.data?.status?.status ?? "—"}</div>
+        </Card>
+      </div>
+
+      <Card className="space-y-3 p-5">
+        <h3 className="text-sm font-semibold">Próximos passos</h3>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline"><Link to="/settings/whatsapp-templates"><FileText className="mr-2 h-4 w-4" />Ir para Templates</Link></Button>
+          <Button asChild variant="outline"><Link to="/campaigns"><Megaphone className="mr-2 h-4 w-4" />Ir para Campanhas</Link></Button>
+          <Button asChild variant="outline"><Link to="/settings/bot"><Bot className="mr-2 h-4 w-4" />Configurar Bot</Link></Button>
+          <Button asChild variant="ghost"><Link to="/settings/whatsapp-cloud/dashboard">Painel de mensagens</Link></Button>
+        </div>
+        <Separator />
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" onClick={props.onSync} disabled={props.syncing}>
+            {props.syncing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Aguarde…</> : "Sincronizar templates da Meta"}
+          </Button>
+          <TestSendCard accountId={account.id} />
+        </div>
+      </Card>
+
+      {props.accounts.length > 1 && (
+        <Card className="space-y-2 p-5">
+          <h3 className="text-sm font-semibold">Outras contas conectadas</h3>
+          {props.accounts.filter((a) => a.id !== account.id).map((a) => (
+            <div key={a.id} className="flex items-center justify-between gap-2 rounded-md border p-3 text-sm">
+              <div>
+                <div className="font-medium">{a.display_phone_number ?? a.phone_number_id}</div>
+                <div className="text-xs text-muted-foreground">WABA {a.waba_id}</div>
+              </div>
+              <Button size="sm" variant="outline" onClick={() => props.onSetDefault(a.id)}><Star className="mr-1 h-3 w-3" />Tornar padrão</Button>
             </div>
-            <div className="text-xs text-muted-foreground">{a.business_name} · WABA {a.waba_id}</div>
+          ))}
+        </Card>
+      )}
+
+      {props.isAdmin && (
+        <Card className="flex flex-wrap items-center justify-between gap-3 p-5">
+          <div>
+            <div className="text-sm font-semibold">Redefinir integração</div>
+            <p className="text-xs text-muted-foreground">Remove todas as contas conectadas e reinicia o wizard do zero.</p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <RegisterPhoneDialog account={a} qc={props.qc} />
-            {!a.is_default && <Button size="sm" variant="outline" onClick={() => props.onDefault(a.id)}><Star className="mr-1 h-3 w-3" />Tornar padrão</Button>}
-            <Button size="sm" onClick={() => props.onSubscribe(a.id)} disabled={props.subscribing}>Inscrever webhook</Button>
-            <Button size="sm" variant="ghost" onClick={() => props.onDelete(a.id)}><Trash2 className="h-3 w-3" /></Button>
-          </div>
-        </div>
-      ))}
-    </Card>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" disabled={props.resetting}>
+                {props.resetting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Aguarde…</> : <><RotateCcw className="mr-2 h-4 w-4" />Redefinir integração</>}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Redefinir a integração?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Todas as contas do WhatsApp Cloud conectadas serão removidas do CRM. Você precisará refazer o wizard para voltar a enviar mensagens.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={props.onReset}>Sim, redefinir</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </Card>
+      )}
+    </div>
   );
 }
 
-function Step4({ accounts, onSync, syncing }: { accounts: Account[]; onSync: (id: string) => void; syncing: boolean }) {
+function TestSendCard({ accountId }: { accountId: string }) {
+  const [open, setOpen] = useState(false);
   const [to, setTo] = useState("");
   const [text, setText] = useState("Teste do Lívia CRM");
   const [tplName, setTplName] = useState("");
-  const [accId, setAccId] = useState(accounts.find((a) => a.is_default)?.id ?? accounts[0]?.id ?? "");
   const sendMut = useMutation({
-    mutationFn: () => api("POST", { action: "send-test", accountId: accId, toPhone: to, ...(tplName ? { templateName: tplName, templateLanguage: "pt_BR" } : { text }) }),
+    mutationFn: () => api("POST", { action: "send-test", accountId, toPhone: to, ...(tplName ? { templateName: tplName, templateLanguage: "pt_BR" } : { text }) }),
     onSuccess: () => toast.success("Mensagem enviada!"),
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
   });
-  const verifyMut = useMutation({
-    mutationFn: () => api<{ ok: boolean; status?: number; url: string; expected?: string; got?: string; error?: string | null }>("POST", { action: "verify-webhook" }),
-    onSuccess: (r) => {
-      if (r.ok) toast.success(`Webhook verificado! Meta consegue chamar ${r.url} (HTTP ${r.status}).`);
-      else toast.error(`Falha no verify: ${r.error ?? "desconhecido"}${r.got ? ` — resposta: ${r.got}` : ""}`);
-    },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
-  });
-  if (!accounts.length) return <Card className="p-6 text-sm text-muted-foreground">Conecte uma conta primeiro.</Card>;
   return (
-    <Card className="space-y-4 p-6">
-      <h2 className="text-lg font-semibold">4. Testes</h2>
-      <div className="flex flex-wrap gap-2">
-        <Button onClick={() => onSync(accId)} disabled={syncing} variant="outline">{syncing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Sincronizar templates da Meta</Button>
-        <Button onClick={() => verifyMut.mutate()} disabled={verifyMut.isPending} variant="outline">
-          {verifyMut.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
-          Testar verify do webhook
-        </Button>
-      </div>
-      <p className="text-xs text-muted-foreground">O teste envia um GET com <code>hub.mode=subscribe</code> + <code>hub.verify_token</code> + <code>hub.challenge</code> pra sua URL pública e confere se o CRM devolve o challenge — é exatamente o que a Meta faz ao registrar o webhook.</p>
-      <Separator />
-      <div className="grid gap-3 md:grid-cols-2">
-        <div><Label>Telefone (E.164)</Label><Input value={to} onChange={(e) => setTo(e.target.value)} placeholder="+5511999999999" /></div>
-        <div><Label>Template (opcional — deixe vazio para texto livre)</Label><Input value={tplName} onChange={(e) => setTplName(e.target.value)} placeholder="ex.: hello_world" /></div>
-        {!tplName && <div className="md:col-span-2"><Label>Mensagem</Label><Input value={text} onChange={(e) => setText(e.target.value)} /></div>}
-      </div>
-      <Button onClick={() => sendMut.mutate()} disabled={!to || sendMut.isPending} className="gap-2">
-        {sendMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Enviar teste
-      </Button>
-      <p className="text-xs text-muted-foreground">Texto livre só funciona se o número destino tiver enviado mensagem nas últimas 24h. Caso contrário use um template aprovado.</p>
-    </Card>
+    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) sendMut.reset(); }}>
+      <DialogTrigger asChild>
+        <Button variant="outline"><Send className="mr-2 h-4 w-4" />Enviar mensagem de teste</Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Teste de envio</DialogTitle>
+          <DialogDescription>Texto livre só funciona se o destino tiver falado com você nas últimas 24h. Caso contrário use um template aprovado.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1"><Label>Telefone (E.164)</Label><Input value={to} onChange={(e) => setTo(e.target.value)} placeholder="+5511999999999" /></div>
+          <div className="space-y-1"><Label>Template (opcional)</Label><Input value={tplName} onChange={(e) => setTplName(e.target.value)} placeholder="ex.: hello_world" /></div>
+          {!tplName && <div className="space-y-1"><Label>Mensagem</Label><Input value={text} onChange={(e) => setText(e.target.value)} /></div>}
+          <InlineError message={sendMut.isError ? (sendMut.error instanceof Error ? sendMut.error.message : "Erro no envio.") : null} />
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setOpen(false)}>Fechar</Button>
+          <Button onClick={() => sendMut.mutate()} disabled={!to || sendMut.isPending}>
+            {sendMut.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Aguarde…</> : <><Send className="mr-2 h-4 w-4" />Enviar teste</>}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
-
-function Step5({ accounts }: { accounts: Account[] }) {
-  const def = accounts.find((a) => a.is_default);
-  const checks = [
-    { ok: !!def, label: "Conta conectada" },
-    { ok: !!def?.webhook_subscribed, label: "Webhook inscrito" },
-    { ok: !!def?.display_phone_number, label: "Número identificado" },
-  ];
-  return (
-    <Card className="space-y-3 p-6">
-      <h2 className="text-lg font-semibold">5. Resumo</h2>
-      {!def ? <p className="text-sm text-muted-foreground">Nenhuma conta padrão configurada.</p> : (
-        <>
-          <div className="space-y-1 text-sm">
-            <div><strong>Negócio:</strong> {def.business_name ?? "-"}</div>
-            <div><strong>Número:</strong> {def.display_phone_number ?? def.phone_number_id}</div>
-            <div><strong>WABA ID:</strong> <code className="text-xs">{def.waba_id}</code></div>
-          </div>
-          <Separator />
-          <div className="space-y-1">
-            {checks.map((c) => (
-              <div key={c.label} className="flex items-center gap-2 text-sm">
-                {c.ok ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <AlertTriangle className="h-4 w-4 text-amber-500" />}
-                <span>{c.label}</span>
-              </div>
-            ))}
-          </div>
-          <Separator />
-          <div className="flex flex-wrap gap-2">
-            <Button asChild variant="outline"><Link to="/settings/whatsapp-templates">Gerenciar templates</Link></Button>
-            <Button asChild><Link to="/settings/whatsapp-cloud/dashboard">Abrir painel de mensagens</Link></Button>
-          </div>
-        </>
-      )}
-      <p className="text-xs text-muted-foreground">Para ativar este provedor em todo o sistema, vá em <strong>Configurações → WhatsApp</strong> e selecione <em>WhatsApp Cloud API</em>.</p>
-    </Card>
-  );
-}
-
-function useStateOnce<T>(v: T) { return useMemo(() => v, [v]); }
-void useStateOnce;

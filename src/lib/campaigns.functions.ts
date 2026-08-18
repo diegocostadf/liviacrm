@@ -81,6 +81,7 @@ const rulesSchema = z.object({
   allowed_instance_ids: z.array(z.string().uuid()).max(20).optional(),
   retry_max_attempts: z.number().int().min(1).max(10).optional(),
   retry_backoff_seconds: z.number().int().min(10).max(3600).optional(),
+  opt_out_keywords: z.array(z.string().trim().min(1).max(40)).max(30).optional(),
 });
 
 export const createCampaign = createServerFn({ method: "POST" })
