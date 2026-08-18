@@ -731,20 +731,45 @@ function Step2(props: {
 
 function RegisterPhoneDialog({ account, qc }: { account: Account; qc: ReturnType<typeof useQueryClient> }) {
   const [open, setOpen] = useState(false);
+  const [dialogStep, setDialogStep] = useState<1 | 2>(1);
+  const [codeMethod, setCodeMethod] = useState<"SMS" | "VOICE">("SMS");
   const [pin, setPin] = useState("");
+
+  const reset = () => {
+    setDialogStep(1);
+    setCodeMethod("SMS");
+    setPin("");
+  };
+
+  const requestCodeMut = useMutation({
+    mutationFn: () => api("POST", { action: "request-code", accountId: account.id, codeMethod }),
+    onSuccess: () => {
+      toast.success(`Código enviado por ${codeMethod === "SMS" ? "SMS" : "ligação"}.`);
+      setDialogStep(2);
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
+  });
+
   const registerMut = useMutation({
     mutationFn: () => api("POST", { action: "register-phone", accountId: account.id, pin: pin.trim() }),
     onSuccess: () => {
       toast.success("Número ativado com sucesso! Agora você pode enviar mensagens.");
       qc.invalidateQueries({ queryKey: ["wa-cloud"] });
       setOpen(false);
-      setPin("");
+      reset();
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
   });
+
   const likelyPending = !account.webhook_subscribed;
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        setOpen(v);
+        if (!v) reset();
+      }}
+    >
       <DialogTrigger asChild>
         <Button size="sm" variant={likelyPending ? "secondary" : "outline"} className={likelyPending ? "gap-1 border-amber-500/40 bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 hover:text-amber-800" : "gap-1"}>
           {likelyPending ? <AlertTriangle className="h-3 w-3" /> : <ShieldCheck className="h-3 w-3" />}
@@ -755,33 +780,89 @@ function RegisterPhoneDialog({ account, qc }: { account: Account; qc: ReturnType
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><KeyRound className="h-4 w-4" /> Ativar número do WhatsApp</DialogTitle>
           <DialogDescription>
-            A Meta enviou um código de 6 dígitos por SMS ou ligação para <strong>{account.display_phone_number ?? account.phone_number_id}</strong>.
-            Digite o PIN abaixo para concluir o registro do número.
+            {dialogStep === 1
+              ? `Solicite um código de 6 dígitos para ${account.display_phone_number ?? account.phone_number_id}.`
+              : `Digite o código de 6 dígitos que a Meta enviou para ${account.display_phone_number ?? account.phone_number_id}.`}
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div className="space-y-1">
-            <Label htmlFor={`pin-${account.id}`}>PIN de 6 dígitos</Label>
-            <Input
-              id={`pin-${account.id}`}
-              value={pin}
-              onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              placeholder="123456"
-              maxLength={6}
-              inputMode="numeric"
-              className="font-mono text-center text-lg tracking-widest"
-            />
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Se não recebeu, peça para a Meta reenviar o código pelo WhatsApp Manager. O PIN expira em poucos minutos.
-          </p>
+
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span className={`grid h-5 w-5 place-items-center rounded-full text-[10px] ${dialogStep === 1 ? "bg-primary text-primary-foreground" : "bg-emerald-500 text-white"}`}>1</span>
+          <span className={dialogStep === 1 ? "font-medium text-foreground" : ""}>Solicitar código</span>
+          <span className="text-muted-foreground">→</span>
+          <span className={`grid h-5 w-5 place-items-center rounded-full text-[10px] ${dialogStep === 2 ? "bg-primary text-primary-foreground" : "bg-muted"}`}>2</span>
+          <span className={dialogStep === 2 ? "font-medium text-foreground" : ""}>Inserir PIN</span>
         </div>
+
+        {dialogStep === 1 ? (
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Como deseja receber o código?</Label>
+              <RadioGroup
+                value={codeMethod}
+                onValueChange={(v) => setCodeMethod(v as "SMS" | "VOICE")}
+                className="grid grid-cols-2 gap-3"
+              >
+                <label className={`flex cursor-pointer items-center gap-3 rounded-md border p-3 transition hover:bg-accent ${codeMethod === "SMS" ? "border-primary bg-primary/5" : ""}`}>
+                  <RadioGroupItem value="SMS" id={`sms-${account.id}`} />
+                  <Smartphone className="h-4 w-4 text-muted-foreground" />
+                  <div className="text-sm">
+                    <div className="font-medium">SMS</div>
+                    <div className="text-xs text-muted-foreground">Receba por mensagem</div>
+                  </div>
+                </label>
+                <label className={`flex cursor-pointer items-center gap-3 rounded-md border p-3 transition hover:bg-accent ${codeMethod === "VOICE" ? "border-primary bg-primary/5" : ""}`}>
+                  <RadioGroupItem value="VOICE" id={`voice-${account.id}`} />
+                  <Phone className="h-4 w-4 text-muted-foreground" />
+                  <div className="text-sm">
+                    <div className="font-medium">Ligação</div>
+                    <div className="text-xs text-muted-foreground">Receba por chamada</div>
+                  </div>
+                </label>
+              </RadioGroup>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              A Meta enviará um código OTP de 6 dígitos para o número {account.display_phone_number ?? account.phone_number_id}. O código expira em poucos minutos.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4 py-2">
+            <div className="space-y-1">
+              <Label htmlFor={`pin-${account.id}`}>PIN de 6 dígitos</Label>
+              <Input
+                id={`pin-${account.id}`}`
+                value={pin}
+                onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                placeholder="123456"
+                maxLength={6}
+                inputMode="numeric"
+                className="font-mono text-center text-lg tracking-widest"
+                autoFocus
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => setDialogStep(1)}
+              className="text-xs text-primary underline-offset-2 hover:underline"
+            >
+              Reenviar código
+            </button>
+          </div>
+        )}
+
         <DialogFooter>
-          <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-          <Button onClick={() => registerMut.mutate()} disabled={pin.length !== 6 || registerMut.isPending}>
-            {registerMut.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
-            Ativar
-          </Button>
+          <Button variant="ghost" onClick={() => { setOpen(false); reset(); }}>Cancelar</Button>
+          {dialogStep === 1 ? (
+            <Button onClick={() => requestCodeMut.mutate()} disabled={requestCodeMut.isPending}>
+              {requestCodeMut.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+              Enviar código
+            </Button>
+          ) : (
+            <Button onClick={() => registerMut.mutate()} disabled={pin.length !== 6 || registerMut.isPending}>
+              {registerMut.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
+              Ativar número
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
