@@ -227,6 +227,11 @@ function CampaignDetailPage() {
   const [overwriteIntent, setOverwriteIntent] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [previewText, setPreviewText] = useState("");
+  const [addMode, setAddMode] = useState<"crm" | "csv" | "manual" | null>(null);
+  const [messageMode, setMessageMode] = useState<"template" | "freetext">("template");
+  const [manualPhones, setManualPhones] = useState("");
+  const [addingManual, setAddingManual] = useState(false);
+  const [statusBusy, setStatusBusy] = useState(false);
   const [template, setTemplate] = useState("");
   const [savedTemplate, setSavedTemplate] = useState("");
   const tickTimer = useRef<number | null>(null);
@@ -343,9 +348,46 @@ function CampaignDetailPage() {
   }
 
   async function changeStatus(s: "running" | "paused" | "draft" | "completed") {
-    await statusFn({ data: { id, status: s } });
-    qc.invalidateQueries({ queryKey: ["campaign", id] });
-    qc.invalidateQueries({ queryKey: ["campaigns"] });
+    setStatusBusy(true);
+    try {
+      await statusFn({ data: { id, status: s } });
+      qc.invalidateQueries({ queryKey: ["campaign", id] });
+      qc.invalidateQueries({ queryKey: ["campaigns"] });
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setStatusBusy(false);
+    }
+  }
+
+  /** Adiciona números digitados manualmente (um por linha ou separados por vírgula). */
+  async function handleManualAdd() {
+    const items = manualPhones
+      .split(/[\n,;]+/)
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const [phone, ...rest] = line.split(/\s+/);
+        const name = rest.join(" ").trim();
+        return { phone: phone.replace(/\D/g, ""), name: name || undefined, custom_fields: {} };
+      })
+      .filter((t) => t.phone.length >= 8);
+    if (!items.length) { toast.error("Digite pelo menos um telefone válido."); return; }
+    setAddingManual(true);
+    try {
+      const res = await addFn({ data: {
+        campaignId: id, targets: items, dedupe: true,
+        initial_intent: initialIntent, overwrite_intent: overwriteIntent,
+      } });
+      toast.success(`${res.inserted} contatos adicionados`);
+      setManualPhones("");
+      setTargetPage(1);
+      qc.invalidateQueries({ queryKey: ["campaign", id] });
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setAddingManual(false);
+    }
   }
 
   async function saveTemplate() {
