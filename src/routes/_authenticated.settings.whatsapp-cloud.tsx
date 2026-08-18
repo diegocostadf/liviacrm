@@ -293,16 +293,23 @@ function WhatsappCloudPage() {
                 domainCheckLoading={domainCheck.isLoading}
                 onRecheckDomain={() => domainCheck.refetch()}
                 accessToken={accessToken}
-                businesses={businesses}
                 onLogin={launchEmbeddedSignup}
                 loggingIn={exchangeMut.isPending}
-                onChooseWaba={(w) => { setSelectedWaba(w); listPhonesMut.mutate(w.id); }}
-                selectedWaba={selectedWaba}
-                phones={phones}
-                selectedPhone={selectedPhone}
-                onChoosePhone={setSelectedPhone}
-                onSave={() => saveMut.mutate()}
-                saving={saveMut.isPending}
+                saving={saveFromSignupMut.isPending}
+                hasSignupIds={!!signupIds}
+                manualWabaId={manualWabaId}
+                manualPhoneNumberId={manualPhoneNumberId}
+                onManualWabaIdChange={setManualWabaId}
+                onManualPhoneNumberIdChange={setManualPhoneNumberId}
+                onManualSave={() => {
+                  if (!accessToken) return;
+                  if (!manualWabaId.trim() || !manualPhoneNumberId.trim()) {
+                    toast.error("Preencha WABA ID e Phone Number ID.");
+                    return;
+                  }
+                  saveFromSignupMut.mutate({ wabaId: manualWabaId.trim(), phoneNumberId: manualPhoneNumberId.trim(), accessToken });
+                }}
+                saveSuccess={saveFromSignupMut.isSuccess}
               />
             )}
             {step === 3 && (
