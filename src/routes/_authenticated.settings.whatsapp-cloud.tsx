@@ -131,8 +131,9 @@ function WhatsappCloudPage() {
         accessToken, setDefault: true,
       });
     },
-    onSuccess: (r) => {
+    onSuccess: async (r) => {
       qc.invalidateQueries({ queryKey: ["wa-cloud"] });
+      await announceProviderActivation();
       if (r.subscribed) {
         toast.success("Conta salva e webhook inscrito automaticamente!");
         setStep(4);
@@ -149,6 +150,7 @@ function WhatsappCloudPage() {
       api<{ account: Account; subscribed: boolean; subscribeError: string | null }>("POST", { action: "save-from-signup", ...v }),
     onSuccess: async (r) => {
       await qc.refetchQueries({ queryKey: ["wa-cloud"], type: "all" });
+      await announceProviderActivation();
       const state = qc.getQueryData<State>(["wa-cloud"]);
       const def = state?.accounts.find((a) => a.is_default) ?? state?.accounts[0];
       if (def) {
@@ -313,6 +315,8 @@ function WhatsappCloudPage() {
         </header>
 
         <Stepper step={step} onStep={setStep} />
+
+        <ManualConnectCard onConnected={async () => { await qc.refetchQueries({ queryKey: ["wa-cloud"], type: "all" }); setStep(3); }} />
 
         {isLoading ? <Card className="p-8 text-center text-muted-foreground"><Loader2 className="mx-auto h-5 w-5 animate-spin" /></Card> : (
           <>
