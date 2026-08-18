@@ -1,16 +1,13 @@
 import { useEffect, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Save, Clock, ShieldCheck, Layers, Repeat } from "lucide-react";
+import { Save, Clock, ShieldCheck, Repeat } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { updateCampaign } from "@/lib/campaigns.functions";
-import { listInstances } from "@/lib/evolution.functions";
-import { getMessagingProvider } from "@/lib/messaging.functions";
 
 export type CampaignRules = {
   id: string;
@@ -19,14 +16,12 @@ export type CampaignRules = {
   max_per_day: number;
   pause_on_reply: boolean;
   dedupe_skip_days: number;
-  allowed_instance_ids: string[];
   retry_max_attempts: number;
   retry_backoff_seconds: number;
   throttle_min_seconds: number;
   throttle_max_seconds: number;
   window_start_hour: number;
   window_end_hour: number;
-  instance_id: string | null;
 };
 
 const WEEKDAYS = [
@@ -42,21 +37,6 @@ const WEEKDAYS = [
 export function CampaignRulesCard({ campaign }: { campaign: CampaignRules }) {
   const qc = useQueryClient();
   const updateFn = useServerFn(updateCampaign);
-  const listInst = useServerFn(listInstances);
-
-  const { data: instData } = useQuery({
-    queryKey: ["instances"],
-    queryFn: () => listInst(),
-  });
-  const instances = (instData ?? []) as Array<{ id: string; name: string; status?: string | null }>;
-
-  const providerFn = useServerFn(getMessagingProvider);
-  const { data: providerData } = useQuery({
-    queryKey: ["messaging-provider"],
-    queryFn: () => providerFn(),
-  });
-  const provider = providerData?.provider ?? "evolution";
-  const isTwilio = provider === "twilio";
 
   const [weekdays, setWeekdays] = useState<number[]>(campaign.allowed_weekdays ?? [1, 2, 3, 4, 5]);
   const [winStart, setWinStart] = useState(campaign.window_start_hour);
@@ -69,13 +49,6 @@ export function CampaignRulesCard({ campaign }: { campaign: CampaignRules }) {
   const [dedupeDays, setDedupeDays] = useState(campaign.dedupe_skip_days);
   const [retryMax, setRetryMax] = useState(campaign.retry_max_attempts);
   const [retryBackoff, setRetryBackoff] = useState(campaign.retry_backoff_seconds);
-  const [instanceIds, setInstanceIds] = useState<string[]>(
-    campaign.allowed_instance_ids?.length
-      ? campaign.allowed_instance_ids
-      : campaign.instance_id
-        ? [campaign.instance_id]
-        : [],
-  );
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -90,30 +63,15 @@ export function CampaignRulesCard({ campaign }: { campaign: CampaignRules }) {
     setDedupeDays(campaign.dedupe_skip_days);
     setRetryMax(campaign.retry_max_attempts);
     setRetryBackoff(campaign.retry_backoff_seconds);
-    setInstanceIds(
-      campaign.allowed_instance_ids?.length
-        ? campaign.allowed_instance_ids
-        : campaign.instance_id
-          ? [campaign.instance_id]
-          : [],
-    );
   }, [campaign.id]);
 
   function toggleWeekday(v: number) {
     setWeekdays((cur) => (cur.includes(v) ? cur.filter((x) => x !== v) : [...cur, v].sort()));
   }
 
-  function toggleInstance(id: string) {
-    setInstanceIds((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
-  }
-
   async function save() {
     if (!weekdays.length) {
       toast.error("Selecione pelo menos um dia da semana");
-      return;
-    }
-    if (!isTwilio && !instanceIds.length) {
-      toast.error("Selecione pelo menos uma instância");
       return;
     }
     if (winEnd <= winStart) {
@@ -136,7 +94,7 @@ export function CampaignRulesCard({ campaign }: { campaign: CampaignRules }) {
           dedupe_skip_days: dedupeDays,
           retry_max_attempts: retryMax,
           retry_backoff_seconds: retryBackoff,
-          allowed_instance_ids: instanceIds,
+          allowed_instance_ids: [],
         },
       });
       toast.success("Regras salvas");
@@ -257,49 +215,6 @@ export function CampaignRulesCard({ campaign }: { campaign: CampaignRules }) {
           </div>
         </CardContent>
       </Card>
-
-      {!isTwilio && (
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Layers className="h-4 w-4 text-primary" /> Instâncias para envio (round-robin)
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {instances.length === 0 && (
-            <p className="text-xs text-muted-foreground">
-              Nenhuma instância encontrada. Cadastre em Configurações → Conexões.
-            </p>
-          )}
-          <div className="flex flex-wrap gap-2">
-            {instances.map((i) => {
-              const active = instanceIds.includes(i.id);
-              return (
-                <button
-                  key={i.id}
-                  type="button"
-                  onClick={() => toggleInstance(i.id)}
-                  className={`flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs transition ${
-                    active
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border bg-background text-muted-foreground hover:bg-muted"
-                  }`}
-                >
-                  <span className={`h-1.5 w-1.5 rounded-full ${
-                    i.status === "open" || i.status === "connected" ? "bg-emerald-500" : "bg-muted-foreground/40"
-                  }`} />
-                  {i.name}
-                  {active && <Badge variant="outline" className="ml-1 text-[9px]">selecionada</Badge>}
-                </button>
-              );
-            })}
-          </div>
-          <p className="text-[10px] text-muted-foreground">
-            Os disparos serão distribuídos entre as instâncias selecionadas em rodízio, respeitando os limites de cada uma.
-          </p>
-        </CardContent>
-      </Card>
-      )}
 
       <Card>
         <CardHeader className="pb-3">
