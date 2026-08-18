@@ -8,8 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { toast } from "sonner";
-import { Cloud, ChevronLeft, ChevronRight, CheckCircle2, AlertTriangle, Loader2, Copy, Send, Trash2, Star } from "lucide-react";
+import { Cloud, ChevronLeft, ChevronRight, CheckCircle2, AlertTriangle, Loader2, Copy, Send, Trash2, Star, Zap, ExternalLink } from "lucide-react";
 
 type FieldCheck = { ok: boolean; message: string; detail?: string };
 type CredentialsCheck = {
@@ -37,6 +38,28 @@ async function api<T>(method: "GET" | "POST", body?: Record<string, unknown>): P
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(typeof json.error === "string" ? json.error : "Erro");
   return json as T;
+}
+
+/** Ativa o provedor de mensagens "cloud" após conectar uma conta. */
+async function activateCloudProvider(): Promise<boolean> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) return false;
+    const res = await fetch("/api/messaging-provider", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ provider: "cloud" }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function announceProviderActivation() {
+  const ok = await activateCloudProvider();
+  if (ok) toast.success("Provedor de mensagens ativado: WhatsApp Cloud.");
+  else toast.warning("Conta conectada! Ative o provedor em Configurações → Provedor de mensagens → WhatsApp Cloud.");
 }
 
 export const Route = createFileRoute("/_authenticated/settings/whatsapp-cloud")({
