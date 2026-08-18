@@ -766,22 +766,85 @@ function Step2(props: {
   );
 }
 
-function Step3(props: { accounts: Account[]; onSubscribe: (id: string) => void; subscribing: boolean; onDefault: (id: string) => void; onDelete: (id: string) => void }) {
+function RegisterPhoneDialog({ account, qc }: { account: Account; qc: ReturnType<typeof useQueryClient> }) {
+  const [open, setOpen] = useState(false);
+  const [pin, setPin] = useState("");
+  const registerMut = useMutation({
+    mutationFn: () => api("POST", { action: "register-phone", accountId: account.id, pin: pin.trim() }),
+    onSuccess: () => {
+      toast.success("Número ativado com sucesso! Agora você pode enviar mensagens.");
+      qc.invalidateQueries({ queryKey: ["wa-cloud"] });
+      setOpen(false);
+      setPin("");
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
+  });
+  const likelyPending = !account.webhook_subscribed;
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant={likelyPending ? "secondary" : "outline"} className={likelyPending ? "gap-1 border-amber-500/40 bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 hover:text-amber-800" : "gap-1"}>
+          {likelyPending ? <AlertTriangle className="h-3 w-3" /> : <ShieldCheck className="h-3 w-3" />}
+          Ativar número
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><KeyRound className="h-4 w-4" /> Ativar número do WhatsApp</DialogTitle>
+          <DialogDescription>
+            A Meta enviou um código de 6 dígitos por SMS ou ligação para <strong>{account.display_phone_number ?? account.phone_number_id}</strong>.
+            Digite o PIN abaixo para concluir o registro do número.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-1">
+            <Label htmlFor={`pin-${account.id}`}>PIN de 6 dígitos</Label>
+            <Input
+              id={`pin-${account.id}`}
+              value={pin}
+              onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              placeholder="123456"
+              maxLength={6}
+              inputMode="numeric"
+              className="font-mono text-center text-lg tracking-widest"
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Se não recebeu, peça para a Meta reenviar o código pelo WhatsApp Manager. O PIN expira em poucos minutos.
+          </p>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
+          <Button onClick={() => registerMut.mutate()} disabled={pin.length !== 6 || registerMut.isPending}>
+            {registerMut.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
+            Ativar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function Step3(props: { accounts: Account[]; onSubscribe: (id: string) => void; subscribing: boolean; onDefault: (id: string) => void; onDelete: (id: string) => void; qc: ReturnType<typeof useQueryClient> }) {
   return (
     <Card className="space-y-4 p-6">
       <h2 className="text-lg font-semibold">3. Webhook & contas</h2>
+      <p className="text-sm text-muted-foreground">
+        Se o seu número aparece como &quot;Pendente&quot; no painel da Meta, clique em <strong>Ativar número</strong> e insira o código de 6 dígitos que a Meta enviou por SMS ou ligação.
+      </p>
       {!props.accounts.length && <p className="text-sm text-muted-foreground">Nenhuma conta conectada. Volte ao passo anterior.</p>}
       {props.accounts.map((a) => (
-        <div key={a.id} className="flex items-center justify-between rounded-md border p-3">
+        <div key={a.id} className="flex flex-col gap-3 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="flex items-center gap-2 font-medium">
               {a.display_phone_number ?? a.phone_number_id}
               {a.is_default && <Badge>Padrão</Badge>}
-              {a.webhook_subscribed ? <Badge variant="default" className="gap-1"><CheckCircle2 className="h-3 w-3" />Webhook OK</Badge> : <Badge variant="outline">Sem webhook</Badge>}
+              {a.webhook_subscribed ? <Badge variant="default" className="gap-1"><CheckCircle2 className="h-3 w-3" />Webhook OK</Badge> : <Badge variant="outline" className="gap-1 text-amber-600"><AlertTriangle className="h-3 w-3" />Pendente</Badge>}
             </div>
             <div className="text-xs text-muted-foreground">{a.business_name} · WABA {a.waba_id}</div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <RegisterPhoneDialog account={a} qc={props.qc} />
             {!a.is_default && <Button size="sm" variant="outline" onClick={() => props.onDefault(a.id)}><Star className="mr-1 h-3 w-3" />Tornar padrão</Button>}
             <Button size="sm" onClick={() => props.onSubscribe(a.id)} disabled={props.subscribing}>Inscrever webhook</Button>
             <Button size="sm" variant="ghost" onClick={() => props.onDelete(a.id)}><Trash2 className="h-3 w-3" /></Button>
