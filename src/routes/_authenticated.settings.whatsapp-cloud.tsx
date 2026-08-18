@@ -366,6 +366,7 @@ function WhatsappCloudPage() {
                 subscribing={subscribeMut.isPending}
                 onDefault={(id) => setDefaultMut.mutate(id)}
                 onDelete={(id) => deleteMut.mutate(id)}
+                qc={qc}
               />
             )}
             {step === 4 && <Step4 accounts={accounts} onSync={(id) => syncMut.mutate(id)} syncing={syncMut.isPending} />}
