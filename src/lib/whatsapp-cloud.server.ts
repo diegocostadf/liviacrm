@@ -325,6 +325,7 @@ export async function fetchSignupDetails(
 }
 
 export async function subscribeWaba(
+*** MARKER ***
   wabaId: string,
   token: string,
   opts?: { overrideCallbackUri?: string; verifyToken?: string },
