@@ -103,6 +103,7 @@ function WhatsappCloudPage() {
   const [accessToken, setAccessToken] = useState("");
   const [sdkStatus, setSdkStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [signupIds, setSignupIds] = useState<{ wabaId: string; phoneNumberId: string } | null>(null);
+  const [signupOptions, setSignupOptions] = useState<Array<{ wabaId: string; phoneNumberId: string; displayPhone: string | null; verifiedName: string | null }>>([]);
   const [manualWabaId, setManualWabaId] = useState("");
   const [manualPhoneNumberId, setManualPhoneNumberId] = useState("");
   const isPreviewHost = typeof window !== "undefined" && /lovableproject\.com|lovable\.app/.test(window.location.hostname);
@@ -111,9 +112,26 @@ function WhatsappCloudPage() {
   // ou pelos botões Voltar/Próximo — não pulamos etapas automaticamente.
   const exchangeMut = useMutation({
     mutationFn: (code: string) => api<{ accessToken: string; expiresIn: number | null }>("POST", { action: "exchange-code", code }),
-    onSuccess: (r) => {
+    onSuccess: async (r) => {
       setAccessToken(r.accessToken);
       toast.success("Code trocado por token!");
+      setSignupOptions([]);
+      try {
+        const res = await api<{ accounts: Array<{ wabaId: string; phoneNumberId: string; displayPhone: string | null; verifiedName: string | null }> }>("POST", {
+          action: "list-signup-accounts",
+          accessToken: r.accessToken,
+        });
+        if (res.accounts.length === 1) {
+          saveFromSignupMut.mutate({ wabaId: res.accounts[0].wabaId, phoneNumberId: res.accounts[0].phoneNumberId, accessToken: r.accessToken });
+        } else if (res.accounts.length > 1) {
+          setSignupOptions(res.accounts);
+          toast.info("Encontramos mais de uma conta. Escolha abaixo qual conectar.");
+        } else {
+          toast.warning("Não encontramos WABAs associados a este token. Preencha manualmente.");
+        }
+      } catch {
+        toast.warning("Não foi possível listar contas automaticamente. Preencha manualmente se necessário.");
+      }
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
   });
@@ -139,15 +157,17 @@ function WhatsappCloudPage() {
       setStep(3);
       setAccessToken("");
       setSignupIds(null);
+      setSignupOptions([]);
       setManualWabaId("");
       setManualPhoneNumberId("");
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
   });
 
-  // Auto-save assim que temos IDs do postMessage + token do exchange-code.
+  // Fallback: se a Meta enviar o postMessage e o auto-save via Graph API ainda
+  // não tiver acontecido, usamos os IDs do evento.
   useEffect(() => {
-    if (!signupIds || !accessToken || saveFromSignupMut.isPending) return;
+    if (!signupIds || !accessToken || saveFromSignupMut.isPending || saveFromSignupMut.isSuccess) return;
     saveFromSignupMut.mutate({ ...signupIds, accessToken });
     setSignupIds(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -298,6 +318,12 @@ function WhatsappCloudPage() {
                 loggingIn={exchangeMut.isPending}
                 saving={saveFromSignupMut.isPending}
                 hasSignupIds={!!signupIds}
+                signupOptions={signupOptions}
+                onPickSignupOption={(o) => {
+                  if (!accessToken) return;
+                  setSignupOptions([]);
+                  saveFromSignupMut.mutate({ wabaId: o.wabaId, phoneNumberId: o.phoneNumberId, accessToken });
+                }}
                 manualWabaId={manualWabaId}
                 manualPhoneNumberId={manualPhoneNumberId}
                 onManualWabaIdChange={setManualWabaId}
