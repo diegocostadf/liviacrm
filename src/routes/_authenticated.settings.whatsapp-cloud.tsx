@@ -797,7 +797,10 @@ function RegisterPhoneDialog({ account, qc }: { account: Account; qc: ReturnType
       toast.success(`Código enviado por ${codeMethod === "SMS" ? "SMS" : "ligação"}.`);
       setDialogStep(2);
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
+    onError: (e) => {
+      console.error("[RegisterPhoneDialog] request-code error:", e);
+      toast.error(e instanceof Error ? e.message : "Erro ao solicitar código.");
+    },
   });
 
   const registerMut = useMutation({
