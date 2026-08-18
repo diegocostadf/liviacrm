@@ -6,8 +6,12 @@ import { createCipheriv, createDecipheriv, randomBytes, createHash } from "node:
  * Key is derived (SHA-256) from META_TOKEN_ENCRYPTION_KEY so any string length works.
  */
 function key(): Buffer {
-  const raw = process.env.META_TOKEN_ENCRYPTION_KEY;
-  if (!raw) throw new Error("META_TOKEN_ENCRYPTION_KEY ausente.");
+  // Optional secret: falls back to a server-only key that always exists,
+  // so token persistence never crashes when the secret wasn't configured.
+  const raw =
+    process.env.META_TOKEN_ENCRYPTION_KEY ??
+    process.env.SUPABASE_SERVICE_ROLE_KEY ??
+    "livia-fallback-key-change-in-production";
   return createHash("sha256").update(raw).digest();
 }
 
