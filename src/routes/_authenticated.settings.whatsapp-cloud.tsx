@@ -680,6 +680,8 @@ function Step2(props: {
   onLogin: () => void; loggingIn: boolean;
   saving: boolean;
   hasSignupIds: boolean;
+  signupOptions: Array<{ wabaId: string; phoneNumberId: string; displayPhone: string | null; verifiedName: string | null }>;
+  onPickSignupOption: (o: { wabaId: string; phoneNumberId: string }) => void;
   manualWabaId: string;
   manualPhoneNumberId: string;
   onManualWabaIdChange: (v: string) => void;
@@ -687,7 +689,8 @@ function Step2(props: {
   onManualSave: () => void;
   saveSuccess: boolean;
 }) {
-  const showManualForm = props.accessToken && !props.saveSuccess && !props.hasSignupIds && !props.saving;
+  const showManualForm =
+    props.accessToken && !props.saveSuccess && !props.hasSignupIds && !props.saving && props.signupOptions.length === 0;
   return (
     <Card className="space-y-4 p-6">
       <h2 className="text-lg font-semibold">2. Embedded Signup</h2>
@@ -724,6 +727,25 @@ function Step2(props: {
             <div className="flex items-center gap-2 rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
               {props.hasSignupIds ? "Conta e número recebidos da Meta — salvando…" : "Salvando conta…"}
+            </div>
+          ) : props.signupOptions.length > 0 ? (
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">Encontramos mais de uma conta autorizada. Escolha qual conectar:</p>
+              {props.signupOptions.map((o) => (
+                <button
+                  key={`${o.wabaId}-${o.phoneNumberId}`}
+                  type="button"
+                  onClick={() => props.onPickSignupOption(o)}
+                  className="flex w-full items-center justify-between rounded-md border p-3 text-left text-sm transition-colors hover:bg-accent"
+                >
+                  <span>
+                    <span className="font-medium">Conectar {o.displayPhone ?? o.phoneNumberId}</span>
+                    {o.verifiedName && <span className="text-muted-foreground"> · {o.verifiedName}</span>}
+                    <span className="block font-mono text-xs text-muted-foreground">WABA {o.wabaId}</span>
+                  </span>
+                  <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+                </button>
+              ))}
             </div>
           ) : showManualForm ? (
             <div className="space-y-3">
