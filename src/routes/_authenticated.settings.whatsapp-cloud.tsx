@@ -787,6 +787,8 @@ function RegisterPhoneDialog({ account, qc }: { account: Account; qc: ReturnType
     setDialogStep(1);
     setCodeMethod("SMS");
     setPin("");
+    requestCodeMut.reset();
+    registerMut.reset();
   };
 
   const requestCodeMut = useMutation({
