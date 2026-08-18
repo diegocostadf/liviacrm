@@ -788,12 +788,21 @@ function RegisterPhoneDialog({ account, qc }: { account: Account; qc: ReturnType
 }
 
 function Step3(props: { accounts: Account[]; onSubscribe: (id: string) => void; subscribing: boolean; onDefault: (id: string) => void; onDelete: (id: string) => void; qc: ReturnType<typeof useQueryClient> }) {
+  const hasPending = props.accounts.some((a) => !a.webhook_subscribed);
   return (
     <Card className="space-y-4 p-6">
       <h2 className="text-lg font-semibold">3. Webhook & contas</h2>
       <p className="text-sm text-muted-foreground">
         Se o seu número aparece como &quot;Pendente&quot; no painel da Meta, clique em <strong>Ativar número</strong> e insira o código de 6 dígitos que a Meta enviou por SMS ou ligação.
       </p>
+      {hasPending && (
+        <div className="flex items-start gap-2 rounded-md border bg-muted/40 p-3 text-xs">
+          <span className="text-base">ℹ️</span>
+          <div className="text-foreground">
+            Status <strong>&quot;Em análise&quot;</strong> significa que a Meta está revisando sua conta — isso é normal para contas novas e pode levar até 48h. Se o status <strong>&quot;Pendente&quot;</strong> persistir por mais de 48h, use o botão <strong>Ativar número</strong> para concluir o registro via PIN.
+          </div>
+        </div>
+      )}
       {!props.accounts.length && <p className="text-sm text-muted-foreground">Nenhuma conta conectada. Volte ao passo anterior.</p>}
       {props.accounts.map((a) => (
         <div key={a.id} className="flex flex-col gap-3 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between">
