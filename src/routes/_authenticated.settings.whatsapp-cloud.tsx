@@ -650,14 +650,17 @@ function Step2(props: {
   domainCheck?: { ok: boolean; allowed: boolean; host: string; domains: string[]; error?: string };
   domainCheckLoading: boolean;
   onRecheckDomain: () => void;
-  businesses: Array<{ businessId: string; businessName: string; wabas: Array<{ id: string; name: string }> }>;
   onLogin: () => void; loggingIn: boolean;
-  onChooseWaba: (w: { id: string; name?: string }) => void;
-  selectedWaba: { id: string; name?: string } | null;
-  phones: Array<{ id: string; display_phone_number: string; verified_name: string }>;
-  selectedPhone: string; onChoosePhone: (id: string) => void;
-  onSave: () => void; saving: boolean;
+  saving: boolean;
+  hasSignupIds: boolean;
+  manualWabaId: string;
+  manualPhoneNumberId: string;
+  onManualWabaIdChange: (v: string) => void;
+  onManualPhoneNumberIdChange: (v: string) => void;
+  onManualSave: () => void;
+  saveSuccess: boolean;
 }) {
+  const showManualForm = props.accessToken && !props.saveSuccess && !props.hasSignupIds && !props.saving;
   return (
     <Card className="space-y-4 p-6">
       <h2 className="text-lg font-semibold">2. Embedded Signup</h2>
@@ -677,43 +680,48 @@ function Step2(props: {
           <div>SDK do Facebook não carregou (bloqueado por extensão, ad-blocker ou rede).</div>
         </div>
       )}
-      <Button onClick={props.onLogin} disabled={props.loggingIn || !props.meta.appId} className="gap-2">
-        {props.loggingIn ? <Loader2 className="h-4 w-4 animate-spin" /> : <Cloud className="h-4 w-4" />}
+      <Button onClick={props.onLogin} disabled={props.loggingIn || props.saving || !props.meta.appId} className="gap-2">
+        {(props.loggingIn || props.saving) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Cloud className="h-4 w-4" />}
         Conectar com a Meta {props.sdkStatus === "loading" && "(carregando SDK…)"}
       </Button>
 
       {props.accessToken && (
         <>
           <Separator />
-          <div className="space-y-2">
-            <Label>WhatsApp Business Account</Label>
-            {props.businesses.flatMap((b) => b.wabas.map((w) => (
-              <button key={w.id} onClick={() => props.onChooseWaba({ id: w.id, name: w.name })}
-                className={`flex w-full items-center justify-between rounded-md border p-3 text-left transition hover:bg-accent ${props.selectedWaba?.id === w.id ? "border-primary bg-accent" : ""}`}>
-                <div><div className="font-medium">{w.name}</div><div className="text-xs text-muted-foreground">{b.businessName} · {w.id}</div></div>
-                {props.selectedWaba?.id === w.id && <CheckCircle2 className="h-4 w-4 text-primary" />}
-              </button>
-            )))}
-            {!props.businesses.length && <p className="text-sm text-muted-foreground">Nenhum negócio encontrado.</p>}
-          </div>
-
-          {props.phones.length > 0 && (
-            <div className="space-y-2">
-              <Label>Número</Label>
-              {props.phones.map((p) => (
-                <button key={p.id} onClick={() => props.onChoosePhone(p.id)}
-                  className={`flex w-full items-center justify-between rounded-md border p-3 text-left transition hover:bg-accent ${props.selectedPhone === p.id ? "border-primary bg-accent" : ""}`}>
-                  <div><div className="font-medium">{p.display_phone_number}</div><div className="text-xs text-muted-foreground">{p.verified_name}</div></div>
-                  {props.selectedPhone === p.id && <CheckCircle2 className="h-4 w-4 text-primary" />}
-                </button>
-              ))}
+          {props.saveSuccess ? (
+            <div className="flex items-center gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm">
+              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+              Conta conectada! Avance para o passo 3 para gerenciar webhooks.
             </div>
-          )}
-
-          <Button onClick={props.onSave} disabled={!props.selectedPhone || !props.selectedWaba || props.saving} className="w-full">
-            {props.saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            Salvar conta como padrão
-          </Button>
+          ) : props.saving || props.hasSignupIds ? (
+            <div className="flex items-center gap-2 rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              {props.hasSignupIds ? "Conta e número recebidos da Meta — salvando…" : "Salvando conta…"}
+            </div>
+          ) : showManualForm ? (
+            <div className="space-y-3">
+              <div className="flex gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
+                <div>
+                  Não recebemos o <code>waba_id</code> e <code>phone_number_id</code> automaticamente do popup. Cole-os abaixo para continuar.
+                </div>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-1">
+                  <Label>WABA ID</Label>
+                  <Input value={props.manualWabaId} onChange={(e) => props.onManualWabaIdChange(e.target.value.trim())} placeholder="123456789012345" className="font-mono" />
+                </div>
+                <div className="space-y-1">
+                  <Label>Phone Number ID</Label>
+                  <Input value={props.manualPhoneNumberId} onChange={(e) => props.onManualPhoneNumberIdChange(e.target.value.trim())} placeholder="987654321098765" className="font-mono" />
+                </div>
+              </div>
+              <Button onClick={props.onManualSave} disabled={!props.manualWabaId.trim() || !props.manualPhoneNumberId.trim() || props.saving}>
+                {props.saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                Salvar conta
+              </Button>
+            </div>
+          ) : null}
         </>
       )}
     </Card>
