@@ -79,6 +79,11 @@ const registerPhoneSchema = z.object({
   accountId: z.string().uuid(),
   pin: z.string().length(6).regex(/^\d{6}$/, "PIN deve ter exatamente 6 dígitos"),
 });
+const requestCodeSchema = z.object({
+  action: z.literal("request-code"),
+  accountId: z.string().uuid(),
+  codeMethod: z.enum(["SMS", "VOICE"]).default("SMS"),
+});
 const saveMetaSchema = z.object({
   action: z.literal("save-meta-config"),
   appId: z.string().trim().optional(),
@@ -94,7 +99,7 @@ const validateCredsSchema = z.object({
   configId: z.string().trim().optional(),
   verifyToken: z.string().trim().optional(),
 });
-const postSchema = z.union([exchangeSchema, listWabasSchema, listPhonesSchema, saveAccountSchema, saveFromSignupSchema, setDefaultSchema, deleteAccountSchema, subscribeSchema, syncTemplatesSchema, sendTestSchema, registerPhoneSchema, checkDomainSchema, addDomainSchema, verifyWebhookSchema, saveMetaSchema, configureAppWebhookSchema, validateCredsSchema]);
+const postSchema = z.union([exchangeSchema, listWabasSchema, listPhonesSchema, saveAccountSchema, saveFromSignupSchema, setDefaultSchema, deleteAccountSchema, subscribeSchema, syncTemplatesSchema, sendTestSchema, registerPhoneSchema, requestCodeSchema, checkDomainSchema, addDomainSchema, verifyWebhookSchema, saveMetaSchema, configureAppWebhookSchema, validateCredsSchema]);
 
 export async function handleGet(request: Request) {
   try {
