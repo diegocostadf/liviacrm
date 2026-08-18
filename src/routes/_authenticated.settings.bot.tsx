@@ -238,7 +238,12 @@ function BotSettingsPage() {
                 <SelectContent>
                   {data.map((d) => (
                     <SelectItem key={d.instance.id} value={d.instance.id}>
-                      {d.instance.name} ({d.instance.evolution_instance_name})
+                      {d.instance.name}{" "}
+                      ({d.instance.evolution_instance_name?.startsWith("cloud:")
+                        ? d.instance.phone_number
+                          ? `WhatsApp Cloud — ${d.instance.phone_number}`
+                          : "WhatsApp Cloud API"
+                        : d.instance.evolution_instance_name})
                       {d.config?.enabled ? " · bot ON" : ""}
                     </SelectItem>
                   ))}

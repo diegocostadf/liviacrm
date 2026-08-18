@@ -127,6 +127,13 @@ export const Route = createFileRoute("/api/public/webhooks/meta-whatsapp")({
                         .then((r) => r.data);
                   if (!instance) continue;
 
+                  // Verifica se há bot ativo para esta instância
+                  const { data: botCfg } = await supabaseAdmin
+                    .from("ai_bot_configs")
+                    .select("enabled")
+                    .eq("instance_id", instance.id)
+                    .maybeSingle();
+
                   const { data: conv } = await supabaseAdmin
                     .from("conversations")
                     .upsert(
@@ -135,10 +142,11 @@ export const Route = createFileRoute("/api/public/webhooks/meta-whatsapp")({
                         instance_id: instance.id,
                         last_message_at: inboundAt,
                         last_message_preview: (m.text?.body ?? m.image?.caption ?? m.document?.caption ?? `[${m.type}]`).slice(0, 200),
+                        bot_active: Boolean(botCfg?.enabled),
                       },
-                      { onConflict: "contact_id,instance_id" },
+                      { onConflict: "contact_id,instance_id", ignoreDuplicates: false },
                     )
-                    .select("id")
+                    .select("id, bot_active")
                     .single();
                   if (!conv) continue;
 
@@ -163,6 +171,36 @@ export const Route = createFileRoute("/api/public/webhooks/meta-whatsapp")({
                     });
                   } catch (e) {
                     console.warn("[meta-webhook] campaign hooks", e);
+                  }
+
+                  // Reset command: /resetar, /reset, /reiniciar
+                  if (m.type === "text" && m.text?.body) {
+                    const { handleResetCommand } = await import("@/lib/ai-bot.server");
+                    const wasReset = await handleResetCommand({
+                      conversationId: conv.id,
+                      instanceName: `cloud:${phoneNumberId ?? ""}`,
+                      phone: from,
+                      text: m.text.body,
+                    });
+                    if (wasReset) continue;
+                  }
+
+                  // Handoff command: /assumir <numero>
+                  if (m.type === "text" && m.text?.body && /^\s*\/assumir\b/i.test(m.text.body)) {
+                    const { handleHandoffCommand } = await import("@/lib/ai-bot.server");
+                    const handled = await handleHandoffCommand({
+                      instanceId: instance.id,
+                      instanceName: `cloud:${phoneNumberId ?? ""}`,
+                      fromPhone: from,
+                      text: m.text.body,
+                    });
+                    if (handled) continue;
+                  }
+
+                  // Fire bot reply for inbound messages
+                  if (m.type === "text" || m.type === "image" || m.type === "document") {
+                    const { handleBotReply } = await import("@/lib/ai-bot.server");
+                    await handleBotReply(conv.id);
                   }
                 }
               }
