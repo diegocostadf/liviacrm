@@ -877,12 +877,24 @@ function RegisterPhoneDialog({ account, qc }: { account: Account; qc: ReturnType
                 </label>
               </RadioGroup>
             </div>
+            {requestCodeMut.isError && (
+              <div className="flex items-start gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-xs text-destructive">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                <span>{requestCodeMut.error instanceof Error ? requestCodeMut.error.message : "Erro ao solicitar código."}</span>
+              </div>
+            )}
             <p className="text-xs text-muted-foreground">
               A Meta enviará um código OTP de 6 dígitos para o número {account.display_phone_number ?? account.phone_number_id}. O código expira em poucos minutos.
             </p>
           </div>
         ) : (
           <div className="space-y-4 py-2">
+            {registerMut.isError && (
+              <div className="flex items-start gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-xs text-destructive">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                <span>{registerMut.error instanceof Error ? registerMut.error.message : "Erro ao ativar número."}</span>
+              </div>
+            )}
             <div className="space-y-1">
               <Label htmlFor={`pin-${account.id}`}>PIN de 6 dígitos</Label>
               <Input
@@ -909,9 +921,13 @@ function RegisterPhoneDialog({ account, qc }: { account: Account; qc: ReturnType
         <DialogFooter>
           <Button variant="ghost" onClick={() => { setOpen(false); reset(); }}>Cancelar</Button>
           {dialogStep === 1 ? (
-            <Button onClick={() => requestCodeMut.mutate()} disabled={requestCodeMut.isPending}>
-              {requestCodeMut.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-              Enviar código
+            <Button onClick={() => { requestCodeMut.reset(); requestCodeMut.mutate(); }} disabled={requestCodeMut.isPending}>
+              {requestCodeMut.isPending
+                ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                : requestCodeMut.isError
+                ? <AlertTriangle className="mr-2 h-4 w-4" />
+                : <Send className="mr-2 h-4 w-4" />}
+              {requestCodeMut.isPending ? "Enviando…" : requestCodeMut.isError ? "Tentar novamente" : "Enviar código"}
             </Button>
           ) : (
             <Button onClick={() => registerMut.mutate()} disabled={pin.length !== 6 || registerMut.isPending}>
