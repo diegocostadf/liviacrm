@@ -516,11 +516,31 @@ export async function requestPhoneCode(
   );
   const data = await res.json();
   if (!res.ok) {
-    const msg = (data as { error?: { message?: string } }).error?.message ?? "Falha ao solicitar código.";
-    throw new Error(msg);
+    const err = (data as { error?: { message?: string; code?: number; error_subcode?: number; error_user_title?: string; error_user_msg?: string } }).error;
+    const parts = [err?.message ?? "Falha ao solicitar código."];
+    if (err?.code) parts.push(`(código ${err.code}${err.error_subcode ? `/${err.error_subcode}` : ""})`);
+    if (err?.error_user_msg) parts.push(`— ${err.error_user_msg}`);
+    throw new Error(parts.join(" "));
   }
   return { success: true };
 }
+
+export async function getPhoneNumberStatus(
+  phoneNumberId: string,
+  token: string,
+): Promise<{ id: string; display_phone_number?: string; verified_name?: string; quality_rating?: string; status?: string; code_verification_status?: string }> {
+  const res = await fetch(
+    `https://graph.facebook.com/v21.0/${phoneNumberId}?fields=id,display_phone_number,verified_name,quality_rating,status,code_verification_status`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  const data = await res.json();
+  if (!res.ok) {
+    const msg = (data as { error?: { message?: string } }).error?.message ?? `Meta ${res.status}`;
+    throw new Error(msg);
+  }
+  return data as { id: string; display_phone_number?: string; verified_name?: string; quality_rating?: string; status?: string; code_verification_status?: string };
+}
+
 
 
 /** Pull current default account row (admin context). */
