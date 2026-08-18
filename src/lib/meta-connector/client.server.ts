@@ -1,22 +1,31 @@
+import { getMetaConfig } from "@/lib/whatsapp-cloud.server";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type { GraphError } from "./types";
 
 const GRAPH = "https://graph.facebook.com/v21.0";
 
-export function appId() {
-  return process.env.META_APP_ID ?? "";
+/**
+ * Credentials come from the DB (saved through the admin UI) with automatic
+ * fallback to env vars — `getMetaConfig()` handles both.
+ */
+export async function getConfig() {
+  return getMetaConfig();
 }
-export function appSecret() {
-  return process.env.META_APP_SECRET ?? "";
+export async function appId() {
+  return (await getConfig()).appId;
 }
-export function appToken() {
-  return `${appId()}|${appSecret()}`;
+export async function appSecret() {
+  return (await getConfig()).appSecret;
 }
-export function loginConfigId() {
-  return process.env.META_LOGIN_CONFIG_ID ?? "";
+export async function appToken() {
+  const c = await getConfig();
+  return `${c.appId}|${c.appSecret}`;
 }
-export function webhookVerifyToken() {
-  return process.env.META_WEBHOOK_VERIFY_TOKEN ?? "";
+export async function loginConfigId() {
+  return (await getConfig()).configId;
+}
+export async function webhookVerifyToken() {
+  return (await getConfig()).verifyToken;
 }
 
 export type GraphOpts = {

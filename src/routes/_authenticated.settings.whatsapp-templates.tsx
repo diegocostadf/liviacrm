@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { Plus, RefreshCw, Trash2, Pencil, FileText, Loader2, X } from "lucide-react";
 import { TemplatePreview } from "@/components/whatsapp/template-preview";
@@ -40,10 +41,39 @@ export const Route = createFileRoute("/_authenticated/settings/whatsapp-template
   component: TemplatesPage,
 });
 
-function statusBadge(s: string) {
+type TplButton = { type: "QUICK_REPLY" | "URL" | "PHONE_NUMBER"; text: string; url?: string; phone_number?: string };
+type TplComponent = { type: string; format?: string; text?: string; buttons?: TplButton[]; example?: { body_text?: string[][] } };
+
+function parseComponents(components: unknown) {
+  const list = Array.isArray(components) ? (components as TplComponent[]) : [];
+  const header = list.find((c) => c.type === "HEADER");
+  const bodyC = list.find((c) => c.type === "BODY");
+  const footer = list.find((c) => c.type === "FOOTER");
+  const buttons = list.find((c) => c.type === "BUTTONS")?.buttons ?? [];
+  return {
+    headerText: header?.text ?? "",
+    body: bodyC?.text ?? "",
+    footer: footer?.text ?? "",
+    buttons: buttons as TplButton[],
+    examples: bodyC?.example?.body_text?.[0] ?? [],
+  };
+}
+
+function statusBadge(s: string, rejectionReason?: string | null) {
   const lower = s.toLowerCase();
   if (lower.includes("approved")) return <Badge className="bg-emerald-600">APPROVED</Badge>;
-  if (lower.includes("rejected")) return <Badge variant="destructive">REJECTED</Badge>;
+  if (lower.includes("rejected")) {
+    const badge = <Badge variant="destructive">REJECTED</Badge>;
+    if (!rejectionReason) return badge;
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild><span className="cursor-help">{badge}</span></TooltipTrigger>
+          <TooltipContent className="max-w-xs whitespace-pre-wrap text-xs">{rejectionReason}</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
   if (lower.includes("paused") || lower.includes("disabled")) return <Badge variant="outline">{s}</Badge>;
   return <Badge variant="secondary">{s}</Badge>;
 }
@@ -104,7 +134,7 @@ function TemplatesPage() {
             <Table>
               <TableHeader><TableRow>
                 <TableHead>Nome</TableHead><TableHead>Idioma</TableHead><TableHead>Categoria</TableHead>
-                <TableHead>Status</TableHead><TableHead>Variáveis</TableHead><TableHead>Atualizado</TableHead><TableHead></TableHead>
+                <TableHead>Status</TableHead><TableHead>Variáveis</TableHead><TableHead>Atualizado</TableHead><TableHead>Ações</TableHead>
               </TableRow></TableHeader>
               <TableBody>
                 {isLoading && <TableRow><TableCell colSpan={7} className="text-center"><Loader2 className="mx-auto h-4 w-4 animate-spin" /></TableCell></TableRow>}
@@ -114,11 +144,19 @@ function TemplatesPage() {
                     <TableCell>{t.language}</TableCell>
                     <TableCell><Badge variant="outline">{t.category}</Badge></TableCell>
                     <TableCell>
-                      <div className="space-y-1">{statusBadge(t.status)}{t.rejection_reason && <div className="text-[10px] text-destructive">{t.rejection_reason}</div>}</div>
+                      <div className="space-y-1">
+                        {statusBadge(t.status, t.rejection_reason)}
+                        {t.rejection_reason && <div className="max-w-[220px] truncate text-[10px] text-destructive" title={t.rejection_reason}>{t.rejection_reason}</div>}
+                      </div>
                     </TableCell>
                     <TableCell>{t.variables_count}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">{t.last_synced_at ? new Date(t.last_synced_at).toLocaleString() : "-"}</TableCell>
-                    <TableCell><Button size="icon" variant="ghost" onClick={() => { if (confirm(`Excluir template "${t.name}"?`)) delMut.mutate(t.id); }}><Trash2 className="h-4 w-4" /></Button></TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <EditDialog tpl={t} onDone={() => qc.invalidateQueries({ queryKey: ["wa-templates"] })} />
+                        <Button size="icon" variant="ghost" onClick={() => { if (confirm(`Excluir template "${t.name}"?`)) delMut.mutate(t.id); }}><Trash2 className="h-4 w-4" /></Button>
+                      </div>
+                    </TableCell>
                   </TableRow>
                 ))}
                 {!isLoading && !data?.templates.length && <TableRow><TableCell colSpan={7} className="text-center text-sm text-muted-foreground">Nenhum template. Clique em <strong>Sincronizar</strong> ou crie um novo.</TableCell></TableRow>}
@@ -150,7 +188,11 @@ function CreateDialog({ accountId, onDone }: { accountId?: string; onDone: () =>
       buttons: buttons.length ? buttons : undefined,
       bodyExamples: examples.length === varCount && varCount > 0 ? examples : undefined,
     }),
-    onSuccess: () => { toast.success("Template enviado para aprovação!"); onDone(); setOpen(false); },
+    onSuccess: () => {
+      toast.success("Template enviado!", { description: "A Meta pode levar até 24h para aprovar." });
+      onDone();
+      setOpen(false);
+    },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
   });
 
@@ -243,4 +285,103 @@ function CreateDialog({ accountId, onDone }: { accountId?: string; onDone: () =>
   );
 }
 
-void Pencil;
+function EditDialog({ tpl, onDone }: { tpl: Tpl; onDone: () => void }) {
+  const parsed = parseComponents(tpl.components);
+  const [open, setOpen] = useState(false);
+  const [headerText, setHeaderText] = useState(parsed.headerText);
+  const [body, setBody] = useState(parsed.body);
+  const [footer, setFooter] = useState(parsed.footer);
+  const [examples, setExamples] = useState<string[]>(parsed.examples);
+  const [buttons, setButtons] = useState<TplButton[]>(parsed.buttons);
+  const varCount = (body.match(/\{\{\s*\d+\s*\}\}/g) ?? []).length;
+
+  function reset() {
+    const p = parseComponents(tpl.components);
+    setHeaderText(p.headerText); setBody(p.body); setFooter(p.footer);
+    setExamples(p.examples); setButtons(p.buttons);
+  }
+
+  const updateMut = useMutation({
+    mutationFn: () => api("/api/whatsapp-cloud-templates", "POST", {
+      action: "update", templateId: tpl.id,
+      headerText: headerText || undefined, body, footer: footer || undefined,
+      buttons: buttons.length ? buttons : undefined,
+      bodyExamples: examples.length === varCount && varCount > 0 ? examples : undefined,
+    }),
+    onSuccess: () => {
+      toast.success("Template atualizado!", { description: "A Meta pode levar até 24h para reaprovar." });
+      onDone();
+      setOpen(false);
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (o) reset(); }}>
+      <DialogTrigger asChild>
+        <Button size="icon" variant="ghost" title="Editar template"><Pencil className="h-4 w-4" /></Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>Editar {tpl.name}</DialogTitle></DialogHeader>
+        {!tpl.meta_template_id && (
+          <p className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
+            Este template ainda não está sincronizado com a Meta — sincronize antes de editar.
+          </p>
+        )}
+        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_300px]">
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">Nome, idioma e categoria não podem ser alterados pela Meta após a criação.</p>
+            <div><Label>Header (texto, opcional)</Label><Input value={headerText} onChange={(e) => setHeaderText(e.target.value)} maxLength={60} /></div>
+            <div>
+              <Label>Body</Label>
+              <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={5} maxLength={1024} />
+              <p className="mt-1 text-xs text-muted-foreground">{varCount} variável(is) detectada(s)</p>
+            </div>
+            {varCount > 0 && (
+              <div className="space-y-2 rounded-md border p-3">
+                <Label className="text-xs">Exemplos das variáveis</Label>
+                {Array.from({ length: varCount }).map((_, i) => (
+                  <Input key={i} placeholder={`Exemplo de {{${i + 1}}}`} value={examples[i] ?? ""} onChange={(e) => { const c = [...examples]; c[i] = e.target.value; setExamples(c); }} />
+                ))}
+              </div>
+            )}
+            <div><Label>Footer (opcional)</Label><Input value={footer} onChange={(e) => setFooter(e.target.value)} maxLength={60} /></div>
+            <div className="space-y-2 rounded-md border p-3">
+              <div className="flex items-center justify-between"><Label>Botões (até 3)</Label>
+                <Button size="sm" variant="outline" disabled={buttons.length >= 3} onClick={() => setButtons([...buttons, { type: "QUICK_REPLY", text: "" }])}>+ Botão</Button>
+              </div>
+              {buttons.map((b, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <Select value={b.type} onValueChange={(v) => { const c = [...buttons]; c[i] = { ...c[i], type: v as TplButton["type"] }; setButtons(c); }}>
+                    <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="QUICK_REPLY">Resposta rápida</SelectItem>
+                      <SelectItem value="URL">URL</SelectItem>
+                      <SelectItem value="PHONE_NUMBER">Telefone</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input placeholder="Texto" value={b.text} maxLength={25} onChange={(e) => { const c = [...buttons]; c[i] = { ...c[i], text: e.target.value }; setButtons(c); }} />
+                  {b.type === "URL" && <Input placeholder="https://..." value={b.url ?? ""} onChange={(e) => { const c = [...buttons]; c[i] = { ...c[i], url: e.target.value }; setButtons(c); }} />}
+                  {b.type === "PHONE_NUMBER" && <Input placeholder="+5511..." value={b.phone_number ?? ""} onChange={(e) => { const c = [...buttons]; c[i] = { ...c[i], phone_number: e.target.value }; setButtons(c); }} />}
+                  <Button size="icon" variant="ghost" onClick={() => setButtons(buttons.filter((_, j) => j !== i))}><X className="h-3 w-3" /></Button>
+                </div>
+              ))}
+            </div>
+          </div>
+          <aside className="space-y-2">
+            <Label className="text-xs uppercase tracking-wide text-muted-foreground">Preview</Label>
+            <div className="sticky top-2">
+              <TemplatePreview headerText={headerText} body={body} footer={footer} buttons={buttons} examples={examples} />
+            </div>
+          </aside>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
+          <Button onClick={() => updateMut.mutate()} disabled={!body || updateMut.isPending || !tpl.meta_template_id}>
+            {updateMut.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Salvar alterações
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

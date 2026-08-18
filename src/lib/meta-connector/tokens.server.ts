@@ -4,10 +4,14 @@ import { appId, appSecret, graphFetch } from "./client.server";
 
 /** Trade short-lived OAuth code for a long-lived business access token (~60d). */
 export async function exchangeCode(code: string, redirectUri?: string) {
-  if (!appId() || !appSecret()) throw new Error("META_APP_ID/META_APP_SECRET ausentes.");
+  const id = await appId();
+  const secret = await appSecret();
+  if (!id || !secret) {
+    throw new Error("App ID/App Secret da Meta ausentes. Configure em Configurações → WhatsApp Cloud.");
+  }
   const params = new URLSearchParams({
-    client_id: appId(),
-    client_secret: appSecret(),
+    client_id: id,
+    client_secret: secret,
     code,
   });
   if (redirectUri) params.set("redirect_uri", redirectUri);
@@ -25,6 +29,8 @@ export async function exchangeCode(code: string, redirectUri?: string) {
 
 /** Introspect a token (`/debug_token`). Returns expiration + scopes. */
 export async function debugToken(token: string) {
+  const id = await appId();
+  const secret = await appSecret();
   const r = await graphFetch<{
     data?: {
       app_id?: string;
@@ -35,7 +41,7 @@ export async function debugToken(token: string) {
       scopes?: string[];
       user_id?: string;
     };
-  }>("/debug_token", { token: `${appId()}|${appSecret()}`, query: { input_token: token } });
+  }>("/debug_token", { token: `${id}|${secret}`, query: { input_token: token } });
   return r.data ?? {};
 }
 
