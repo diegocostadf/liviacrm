@@ -20,7 +20,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import {
-  Cloud, CheckCircle2, AlertTriangle, Loader2, Copy, Send, Trash2, Star, ShieldCheck,
+  Cloud, CheckCircle2, AlertTriangle, Loader2, Copy, Send, Star, ShieldCheck,
   KeyRound, Smartphone, Phone, ExternalLink, Bot, Megaphone, FileText, Check, RotateCcw, ChevronRight,
 } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -1184,5 +1184,3 @@ function TestSendCard({ accountId }: { accountId: string }) {
     </Dialog>
   );
 }
-
-export { Trash2 as _unusedTrash };
