@@ -197,110 +197,112 @@ function LeadsListPage() {
       )}
 
       <Card className="overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
-            <tr>
-              <th className="w-10 px-3 py-2">
-                <Checkbox
-                  checked={allOnPageSelected ? true : someOnPageSelected ? "indeterminate" : false}
-                  onCheckedChange={togglePage}
-                  aria-label="Selecionar página"
-                />
-              </th>
-              <th className="px-3 py-2 text-left">Lead</th>
-              <th className="px-3 py-2 text-left">Contato</th>
-              <th className="px-3 py-2 text-left">Local</th>
-              <th className="px-3 py-2 text-left">Status</th>
-              <th className="px-3 py-2 text-left">Intenção</th>
-              <th className="px-3 py-2 text-left">Tags</th>
-              <th className="px-3 py-2 text-left">Atualizado</th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading && (
-              <tr><td colSpan={8} className="px-3 py-6 text-center text-muted-foreground">Carregando…</td></tr>
-            )}
-            {!isLoading && leads.length === 0 && (
+        <div className="max-h-[480px] overflow-y-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
               <tr>
-                <td colSpan={8} className="px-3 py-12 text-center">
-                  <div className="flex flex-col items-center justify-center">
-                    <Users className="mb-3 h-10 w-10 text-muted-foreground/60" />
-                    <h3 className="text-base font-medium">Nenhum contato encontrado</h3>
-                    <p className="mb-3 max-w-sm text-sm text-muted-foreground">
-                      Ajuste os filtros ou importe contatos para começar a gerenciar sua base.
-                    </p>
-                    {(search || statusF !== "all" || tempF !== "all") && (
-                      <Button variant="outline" size="sm" onClick={() => { setSearch(""); setStatusF("all"); setTempF("all"); }}>
-                        Limpar filtros
-                      </Button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            )}
-            {leads.map((c) => (
-              <tr key={c.id} className={`border-t border-border hover:bg-muted/30 ${selected.has(c.id) ? "bg-primary/5" : ""}`}>
-                <td className="px-3 py-2 align-middle">
+                <th className="w-10 px-3 py-2">
                   <Checkbox
-                    checked={selected.has(c.id)}
-                    onCheckedChange={() => toggleOne(c.id, c.phone, c.name ?? null)}
-                    aria-label={`Selecionar ${c.name ?? c.phone}`}
+                    checked={allOnPageSelected ? true : someOnPageSelected ? "indeterminate" : false}
+                    onCheckedChange={togglePage}
+                    aria-label="Selecionar página"
                   />
-                </td>
-                <td className="px-3 py-2">
-                  <Link to="/leads/$id" params={{ id: c.id }} className="flex items-center gap-2">
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage src={c.profile_pic_url ?? undefined} />
-                      <AvatarFallback>{(c.name ?? c.phone).slice(0, 2).toUpperCase()}</AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0">
-                      <div className="truncate font-medium">{c.name ?? "—"}</div>
-                      <div className="truncate text-xs text-muted-foreground">{c.company ?? c.job_title ?? ""}</div>
-                    </div>
-                  </Link>
-                </td>
-                <td className="px-3 py-2 text-xs">
-                  <div className="flex items-center gap-1"><Phone className="h-3 w-3" />{c.phone}</div>
-                  {c.email && <div className="mt-0.5 flex items-center gap-1 text-muted-foreground"><Mail className="h-3 w-3" />{c.email}</div>}
-                </td>
-                <td className="px-3 py-2 text-xs text-muted-foreground">
-                  {(c.city || c.state) && (
-                    <div className="flex items-center gap-1"><MapPin className="h-3 w-3" />{[c.city, c.state].filter(Boolean).join(" / ")}</div>
-                  )}
-                </td>
-                <td className="px-3 py-2">
-                  <span className={`inline-flex rounded-md px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[c.lead_status ?? "novo"]}`}>
-                    {c.lead_status}
-                  </span>
-                  {c.opted_out && <div className="mt-0.5 text-[10px] text-destructive">Opt-out</div>}
-                </td>
-                <td className="px-3 py-2">
-                  {c.latest_intent ? (
-                    <div className="space-y-0.5">
-                      <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium ${TEMP_COLORS[c.latest_intent.temperature]}`}>
-                        {TEMP_ICON[c.latest_intent.temperature]} {c.latest_intent.temperature}
-                      </span>
-                      <div className="text-[10px] text-muted-foreground">{c.latest_intent.intent} · {c.latest_intent.score}</div>
-                    </div>
-                  ) : (
-                    <span className="text-xs text-muted-foreground">—</span>
-                  )}
-                </td>
-                <td className="px-3 py-2">
-                  <div className="flex flex-wrap gap-1">
-                    {(c.tags ?? []).slice(0, 3).map((t) => (
-                      <Badge key={t} variant="outline" className="text-[10px]">{t}</Badge>
-                    ))}
-                    {(c.tags ?? []).length > 3 && <span className="text-[10px] text-muted-foreground">+{(c.tags ?? []).length - 3}</span>}
-                  </div>
-                </td>
-                <td className="px-3 py-2 text-xs text-muted-foreground">
-                  {c.updated_at ? formatDistanceToNow(new Date(c.updated_at), { locale: ptBR, addSuffix: true }) : "—"}
-                </td>
+                </th>
+                <th className="px-3 py-2 text-left">Lead</th>
+                <th className="px-3 py-2 text-left">Contato</th>
+                <th className="px-3 py-2 text-left">Local</th>
+                <th className="px-3 py-2 text-left">Status</th>
+                <th className="px-3 py-2 text-left">Intenção</th>
+                <th className="px-3 py-2 text-left">Tags</th>
+                <th className="px-3 py-2 text-left">Atualizado</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {isLoading && (
+                <tr><td colSpan={8} className="px-3 py-6 text-center text-muted-foreground">Carregando…</td></tr>
+              )}
+              {!isLoading && leads.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="px-3 py-12 text-center">
+                    <div className="flex flex-col items-center justify-center">
+                      <Users className="mb-3 h-10 w-10 text-muted-foreground/60" />
+                      <h3 className="text-base font-medium">Nenhum contato encontrado</h3>
+                      <p className="mb-3 max-w-sm text-sm text-muted-foreground">
+                        Ajuste os filtros ou importe contatos para começar a gerenciar sua base.
+                      </p>
+                      {(search || statusF !== "all" || tempF !== "all") && (
+                        <Button variant="outline" size="sm" onClick={() => { setSearch(""); setStatusF("all"); setTempF("all"); }}>
+                          Limpar filtros
+                        </Button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              )}
+              {leads.map((c) => (
+                <tr key={c.id} className={`border-t border-border hover:bg-muted/30 ${selected.has(c.id) ? "bg-primary/5" : ""}`}>
+                  <td className="px-3 py-2 align-middle">
+                    <Checkbox
+                      checked={selected.has(c.id)}
+                      onCheckedChange={() => toggleOne(c.id, c.phone, c.name ?? null)}
+                      aria-label={`Selecionar ${c.name ?? c.phone}`}
+                    />
+                  </td>
+                  <td className="px-3 py-2">
+                    <Link to="/leads/$id" params={{ id: c.id }} className="flex items-center gap-2">
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage src={c.profile_pic_url ?? undefined} />
+                        <AvatarFallback>{(c.name ?? c.phone).slice(0, 2).toUpperCase()}</AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0">
+                        <div className="truncate font-medium">{c.name ?? "—"}</div>
+                        <div className="truncate text-xs text-muted-foreground">{c.company ?? c.job_title ?? ""}</div>
+                      </div>
+                    </Link>
+                  </td>
+                  <td className="px-3 py-2 text-xs">
+                    <div className="flex items-center gap-1"><Phone className="h-3 w-3" />{c.phone}</div>
+                    {c.email && <div className="mt-0.5 flex items-center gap-1 text-muted-foreground"><Mail className="h-3 w-3" />{c.email}</div>}
+                  </td>
+                  <td className="px-3 py-2 text-xs text-muted-foreground">
+                    {(c.city || c.state) && (
+                      <div className="flex items-center gap-1"><MapPin className="h-3 w-3" />{[c.city, c.state].filter(Boolean).join(" / ")}</div>
+                    )}
+                  </td>
+                  <td className="px-3 py-2">
+                    <span className={`inline-flex rounded-md px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[c.lead_status ?? "novo"]}`}>
+                      {c.lead_status}
+                    </span>
+                    {c.opted_out && <div className="mt-0.5 text-[10px] text-destructive">Opt-out</div>}
+                  </td>
+                  <td className="px-3 py-2">
+                    {c.latest_intent ? (
+                      <div className="space-y-0.5">
+                        <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium ${TEMP_COLORS[c.latest_intent.temperature]}`}>
+                          {TEMP_ICON[c.latest_intent.temperature]} {c.latest_intent.temperature}
+                        </span>
+                        <div className="text-[10px] text-muted-foreground">{c.latest_intent.intent} · {c.latest_intent.score}</div>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2">
+                    <div className="flex flex-wrap gap-1">
+                      {(c.tags ?? []).slice(0, 3).map((t) => (
+                        <Badge key={t} variant="outline" className="text-[10px]">{t}</Badge>
+                      ))}
+                      {(c.tags ?? []).length > 3 && <span className="text-[10px] text-muted-foreground">+{(c.tags ?? []).length - 3}</span>}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 text-xs text-muted-foreground">
+                    {c.updated_at ? formatDistanceToNow(new Date(c.updated_at), { locale: ptBR, addSuffix: true }) : "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-3 py-2 text-xs text-muted-foreground">
           <span>{from}-{to} de {total} leads</span>
           <div className="flex items-center gap-2">
