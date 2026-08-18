@@ -20,6 +20,7 @@ import {
   registerPhoneNumber,
   requestPhoneCode,
   listSignupAccounts,
+  getPhoneNumberStatus,
 } from "@/lib/whatsapp-cloud.server";
 import { invalidateMessagingCache } from "@/lib/messaging-broker.server";
 
@@ -86,6 +87,7 @@ const requestCodeSchema = z.object({
   accountId: z.string().uuid(),
   codeMethod: z.enum(["SMS", "VOICE"]).default("SMS"),
 });
+const checkPhoneStatusSchema = z.object({ action: z.literal("check-phone-status"), accountId: z.string().uuid() });
 const saveMetaSchema = z.object({
   action: z.literal("save-meta-config"),
   appId: z.string().trim().optional(),
@@ -101,7 +103,7 @@ const validateCredsSchema = z.object({
   configId: z.string().trim().optional(),
   verifyToken: z.string().trim().optional(),
 });
-const postSchema = z.union([exchangeSchema, listWabasSchema, listSignupAccountsSchema, listPhonesSchema, saveAccountSchema, saveFromSignupSchema, setDefaultSchema, deleteAccountSchema, subscribeSchema, syncTemplatesSchema, sendTestSchema, registerPhoneSchema, requestCodeSchema, checkDomainSchema, addDomainSchema, verifyWebhookSchema, saveMetaSchema, configureAppWebhookSchema, validateCredsSchema]);
+const postSchema = z.union([exchangeSchema, listWabasSchema, listSignupAccountsSchema, listPhonesSchema, saveAccountSchema, saveFromSignupSchema, setDefaultSchema, deleteAccountSchema, subscribeSchema, syncTemplatesSchema, sendTestSchema, registerPhoneSchema, requestCodeSchema, checkPhoneStatusSchema, checkDomainSchema, addDomainSchema, verifyWebhookSchema, saveMetaSchema, configureAppWebhookSchema, validateCredsSchema]);
 
 export async function handleGet(request: Request) {
   try {
@@ -374,6 +376,16 @@ export async function handlePost(request: Request) {
         if (!acc) throw new Error("Conta não encontrada.");
         await requestPhoneCode(acc.phone_number_id, acc.access_token, body.codeMethod);
         return json({ ok: true });
+      }
+      case "check-phone-status": {
+        const { data: acc } = await supabaseAdmin
+          .from("whatsapp_cloud_accounts")
+          .select("phone_number_id, access_token")
+          .eq("id", body.accountId)
+          .maybeSingle();
+        if (!acc) throw new Error("Conta não encontrada.");
+        const status = await getPhoneNumberStatus(acc.phone_number_id, acc.access_token);
+        return json({ ok: true, status });
       }
       case "register-phone": {
         const { data: acc } = await supabaseAdmin
