@@ -8,9 +8,10 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/login")({
   head: () => ({ meta: [{ title: "Entrar — Lívia CRM" }] }),
-  validateSearch: (s: Record<string, unknown>) => ({
-    next: typeof s.next === "string" && s.next.startsWith("/") && !s.next.startsWith("//") ? s.next : undefined,
-  }),
+  validateSearch: (s: Record<string, unknown>): { next?: string } =>
+    typeof s.next === "string" && s.next.startsWith("/") && !s.next.startsWith("//")
+      ? { next: s.next }
+      : {},
   component: LoginPage,
 });
 
