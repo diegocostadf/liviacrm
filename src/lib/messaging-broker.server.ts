@@ -28,20 +28,7 @@ export function invalidateMessagingCache() {
 }
 
 export async function getActiveProvider(): Promise<MessagingProvider> {
-  if (cachedProvider && Date.now() - cachedProvider.at < TTL_MS) return cachedProvider.value;
-  const { data } = await supabaseAdmin
-    .from("app_settings")
-    .select("value")
-    .eq("key", "messaging_provider")
-    .maybeSingle();
-  const v = (data?.value ?? {}) as { provider?: string };
-  const provider: MessagingProvider =
-    v.provider === "twilio" ? "twilio"
-    : v.provider === "cloud" ? "cloud"
-    : v.provider === "zapi" ? "zapi"
-    : "evolution";
-  cachedProvider = { value: provider, at: Date.now() };
-  return provider;
+  return "cloud";
 }
 
 async function loadTwilioSettings(): Promise<TwilioSettings> {

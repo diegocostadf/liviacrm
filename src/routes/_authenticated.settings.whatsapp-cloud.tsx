@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -19,7 +18,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Cloud, ChevronLeft, ChevronRight, CheckCircle2, AlertTriangle, Loader2, Copy, Send, Trash2, Star, Zap, ExternalLink, ShieldCheck, KeyRound, Smartphone, Phone } from "lucide-react";
+import { Cloud, ChevronLeft, ChevronRight, CheckCircle2, AlertTriangle, Loader2, Copy, Send, Trash2, Star, ShieldCheck, KeyRound, Smartphone, Phone } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 type FieldCheck = { ok: boolean; message: string; detail?: string };
@@ -291,8 +290,6 @@ function WhatsappCloudPage() {
         </header>
 
         <Stepper step={step} onStep={setStep} />
-
-        <ManualConnectCard onConnected={async () => { await qc.refetchQueries({ queryKey: ["wa-cloud"], type: "all" }); setStep(3); }} />
 
         {isLoading ? <Card className="p-8 text-center text-muted-foreground"><Loader2 className="mx-auto h-5 w-5 animate-spin" /></Card> : (
           <>
